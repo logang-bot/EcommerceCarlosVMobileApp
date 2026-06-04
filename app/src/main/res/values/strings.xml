@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pedidos &amp; Cuentas</string>
+
+    <!-- Login -->
+    <string name="login_title">Comercializadora Carlos V</string>
+    <string name="login_subtitle">Pedidos &amp; Cuentas</string>
+    <string name="login_email_label">Correo</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_button">Iniciar sesión</string>
+    <string name="login_or">o</string>
+    <string name="login_biometric">Entrar con huella</string>
+    <string name="login_footer">Acceso exclusivo para titulares de cuenta</string>
+
+    <!-- Mercados -->
+    <string name="mercados_title">Mercados</string>
+    <string name="mercados_subtitle">%1$d mercados</string>
+    <string name="mercados_fab">Mercado</string>
+    <string name="mercados_lista_negra_title">Lista Negra</string>
+    <string name="mercados_lista_negra_subtitle">Clientes vetados · todos los mercados</string>
+    <string name="mercados_clientes_active">%1$d clientes activos</string>
+    <string name="mercados_empty_title">Sin mercados</string>
+    <string name="mercados_empty_subtitle">Agrega tu primer mercado usando el botón +</string>
+
+    <!-- Detalle Mercado -->
+    <string name="detalle_mercado_empty_title">Sin clientes aún</string>
+    <string name="detalle_mercado_empty_subtitle">Agrega el primer cliente a este mercado</string>
+
+    <!-- Crear / Editar Mercado -->
+    <string name="create_mercado_title_new">Nuevo Mercado</string>
+    <string name="create_mercado_title_edit">Editar Mercado</string>
+    <string name="create_mercado_name_label">Nombre</string>
+    <string name="create_mercado_name_placeholder">Ej. Mercado Central</string>
+    <string name="create_mercado_name_error">El nombre es obligatorio</string>
+    <string name="create_mercado_address_label">Dirección</string>
+    <string name="create_mercado_address_placeholder">Ej. Av. Principal, Caracas</string>
+
+    <!-- Clientes -->
+    <string name="clientes_fab">Cliente</string>
+    <string name="clientes_ver_lista_negra">Ver Lista Negra de este Mercado</string>
+    <string name="clientes_agregar_lista_negra">Agregar a Lista Negra</string>
+    <string name="clientes_agregar_saldo_extra">Agregar saldo extra</string>
+
+    <!-- Pedidos -->
+    <string name="pedidos_nuevo">Nuevo Pedido</string>
+    <string name="pedidos_confirmar">Confirmar Pedido</string>
+    <string name="pedidos_marcar_pagado">Marcar como pagado</string>
+    <string name="pedidos_registrar_pago_parcial">Registrar pago parcial</string>
+    <string name="pedidos_dejar_pendiente">Dejar pendiente</string>
+    <string name="pedidos_pago_parcial">Pago parcial</string>
+    <string name="pedidos_estado_pagado">Pagado</string>
+    <string name="pedidos_estado_pendiente">Pendiente</string>
+    <string name="pedidos_estado_parcial">Parcial</string>
+    <string name="pedidos_carrito_vacio">Agrega productos al pedido</string>
+    <string name="pedidos_buscar_producto">Buscar producto</string>
+
+    <!-- Productos -->
+    <string name="productos_title">Productos</string>
+    <string name="productos_fab">Producto</string>
+    <string name="productos_guardar">Guardar</string>
+    <string name="productos_eliminar">Eliminar producto</string>
+
+    <!-- Status badges -->
+    <string name="status_al_dia">Al día</string>
+    <string name="status_advertencia">Advertencia</string>
+    <string name="status_critico">Crítico</string>
+
+    <!-- Lista Negra -->
+    <string name="lista_negra_title">Lista Negra</string>
+    <string name="lista_negra_confirmar">Confirmar y agregar a Lista Negra</string>
+    <string name="lista_negra_calcular_auto">Calcular automáticamente</string>
+    <string name="lista_negra_ingresar_manual">Ingresar manualmente</string>
+
+    <!-- Saldo Extra -->
+    <string name="saldo_extra_title">Saldo Extra</string>
+    <string name="saldo_extra_categoria">Saldo</string>
+    <string name="saldo_extra_descripcion">Descripción</string>
+    <string name="saldo_extra_monto">Monto</string>
+
+    <!-- Reporte Diario -->
+    <string name="reporte_diario_title">Reporte diario</string>
+    <string name="reporte_cobrado_hoy">Cobrado hoy</string>
+    <string name="reporte_movimientos">Movimientos de hoy</string>
+    <string name="reporte_pedidos_creados">Pedidos creados</string>
+    <string name="reporte_pendiente_dia">Pendiente del día</string>
+
+    <!-- Common actions -->
+    <string name="common_guardar">Guardar</string>
+    <string name="common_cancelar">Cancelar</string>
+    <string name="common_eliminar">Eliminar</string>
+    <string name="common_confirmar">Confirmar</string>
+    <string name="common_buscar">Buscar</string>
+    <string name="common_cerrar">Cerrar</string>
+</resources>
