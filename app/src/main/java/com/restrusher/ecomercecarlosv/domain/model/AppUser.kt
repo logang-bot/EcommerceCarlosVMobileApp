@@ -5,6 +5,7 @@ data class AppUser(
     val email: String,
     val name: String,
     val role: UserRole,
+    val phone: String? = null,
     val photoUrl: String? = null,
     val isActive: Boolean = true,
     val createdAt: Long,

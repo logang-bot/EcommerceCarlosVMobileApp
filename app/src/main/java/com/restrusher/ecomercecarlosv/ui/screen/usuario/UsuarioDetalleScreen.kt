@@ -20,9 +20,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -71,6 +73,7 @@ fun UsuarioDetalleScreen(
         onRoleChange = { viewModel.onRoleChange(it) },
         onSaveRole = { viewModel.onSaveRole { navController.popBackStack() } },
         onDeactivate = { viewModel.onDeactivate { navController.popBackStack() } },
+        onDelete = { viewModel.onDelete { navController.popBackStack() } },
     )
 }
 
@@ -81,6 +84,7 @@ private fun UsuarioDetalleContent(
     onRoleChange: (UserRole) -> Unit,
     onSaveRole: () -> Unit,
     onDeactivate: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
     val user = state.user
@@ -97,39 +101,6 @@ private fun UsuarioDetalleContent(
                     }
                 },
             )
-        },
-        bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .border(1.dp, ext.border, RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { /* TODO: resend invitation email — Phase 9 */ },
-                    modifier = Modifier.height(44.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ext.border2),
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.usuario_detalle_reenviar))
-                }
-                Button(
-                    onClick = onDeactivate,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ext.redTint,
-                        contentColor = ext.redText,
-                    ),
-                ) {
-                    Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.usuario_detalle_desactivar))
-                }
-            }
         },
     ) { innerPadding ->
         if (user == null && !state.isLoading) {
@@ -210,8 +181,38 @@ private fun UsuarioDetalleContent(
                 // ── Activity ──────────────────────────────────────────
                 SectionHeader(stringResource(R.string.usuario_detalle_actividad))
                 SettingRow(icon = Icons.Default.Phone, title = stringResource(R.string.usuario_detalle_ultima_sesion), subtitle = user.lastSeenLabel ?: "—")
-                HorizontalDivider(modifier = Modifier.padding(start = 69.dp), color = ext.border)
-                SettingRow(icon = Icons.Default.Person, title = stringResource(R.string.usuario_detalle_pedidos))
+
+                Spacer(Modifier.height(24.dp))
+
+                // ── Actions ───────────────────────────────────────────
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onDeactivate,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ext.redText),
+                        border = BorderStroke(1.dp, ext.redText.copy(alpha = 0.4f)),
+                    ) {
+                        Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.usuario_detalle_desactivar))
+                    }
+                    Button(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        enabled = !state.isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ext.redTint,
+                            contentColor = ext.redText,
+                        ),
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.usuario_detalle_eliminar))
+                    }
+                }
 
                 Spacer(Modifier.height(24.dp))
             }
@@ -339,7 +340,7 @@ private fun UsuarioDetalleDarkPreview() {
                 selectedRole = UserRole.USUARIO,
                 isLoading = false,
             ),
-            onBack = {}, onRoleChange = {}, onSaveRole = {}, onDeactivate = {},
+            onBack = {}, onRoleChange = {}, onSaveRole = {}, onDeactivate = {}, onDelete = {},
         )
     }
 }

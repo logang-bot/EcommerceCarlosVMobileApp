@@ -1,14 +1,15 @@
 # Feature: Auth — Login
 
-## Status: ✅ Done (Phase 1)
+## Status: ✅ Done (Phase 2d)
 
 ---
 
 ## Spec summary
 
-Single screen, no registration flow visible to end users. Two sign-in paths:
-1. Email + password
-2. Biometric (fingerprint / face)
+Single entry point, no registration flow visible to end users. The login screen has **two states** depending on whether the current device has a user with biometric login enrolled:
+
+1. **Regular state** — email + password form
+2. **Enrolled-user state** ("usuario recurrente") — shown when `BiometricManager.canAuthenticate` returns `BIOMETRIC_SUCCESS` **and** `userRepository.hasBiometricEnabled()` is true
 
 Only account owners can log in. Roles (Usuario / Superusuario) are enforced post-login.
 
@@ -20,38 +21,58 @@ Only account owners can log in. Roles (Usuario / Superusuario) are enforced post
 |--------|-------|------|
 | Login | `LoginRoute` | `ui/screen/auth/LoginScreen.kt` |
 
+After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inclusive).
+
 ---
 
 ## Files
 
 | File | Responsibility |
 |------|---------------|
-| `ui/screen/auth/LoginUiState.kt` | `LoginFormState` — email, password, isLoading, errorMessage |
-| `ui/screen/auth/LoginViewModel.kt` | `@HiltViewModel` — exposes `StateFlow<LoginFormState>`, handles field changes and login action |
-| `ui/screen/auth/LoginScreen.kt` | Full composable UI + light/dark previews |
+| `ui/screen/auth/LoginUiState.kt` | `LoginFormState` — all login form state including enrolled-user fields |
+| `ui/screen/auth/LoginViewModel.kt` | `@HiltViewModel` — biometric availability check, password login, biometric login, account switching |
+| `ui/screen/auth/LoginScreen.kt` | Two-state composable UI + `BiometricPrompt` wiring |
 
 ---
 
-## UI layout
+## State: Regular login
 
 ```
-StatusBar (system)
-Column (horizontal padding 26dp, systemBarsPadding)
+Column (horizontal padding 26dp)
   ├── Spacer (weight 1f)
   ├── BrandMark — 64dp rounded square, gradient #6E9BF5→#4878DD, "CV" label
-  ├── "Comercializadora Carlos V" — headlineMedium, bold
-  ├── "Pedidos & Cuentas" — bodyMedium, text2 color
+  ├── "Comercializadora Carlos V" — headlineMedium
+  ├── "Pedidos & Cuentas" — bodyMedium, text2
   ├── Spacer 40dp
-  ├── LoginTextField — "Correo" (email keyboard)
+  ├── LoginTextField — "Correo"
   ├── Spacer 12dp
-  ├── LoginTextField — "Contraseña" (password masking)
+  ├── LoginTextField — "Contraseña"
+  ├── [error text — shown when errorMessage != null]
   ├── Spacer 20dp
-  ├── PrimaryLoginButton — "Iniciar sesión" (52dp, accent, 14dp rounded)
-  ├── DividerOr — "o" between hairlines
-  ├── BiometricButton — "Entrar con huella" + custom FingerprintIcon
+  ├── PrimaryLoginButton — "Iniciar sesión"
   ├── Spacer (weight 1.3f)
-  └── "Acceso exclusivo para titulares de cuenta" — labelSmall, text4 color
-GestureNav (system)
+  └── "Acceso exclusivo para titulares de cuenta" — labelSmall, text4
+```
+
+---
+
+## State: Enrolled user ("usuario recurrente")
+
+Shown when `isBiometricEnabled == true && showPasswordLogin == false`.
+
+```
+Column (horizontal padding 26dp, centered)
+  ├── Spacer (weight 1f)
+  ├── BrandSectionCompact — 64dp brand mark + company name subtitle
+  ├── Spacer 30dp
+  ├── WelcomeBackCard — surface2 card:
+  │     "Bienvenido de nuevo" label · ProfileAvatar (68dp) · name · email · RoleBadge
+  ├── Spacer 18dp
+  ├── BiometricLoginButton — "Entrar con huella" (primary, filled)
+  ├── Spacer 11dp
+  ├── "Usar contraseña" — outlined secondary button → sets showPasswordLogin = true
+  ├── Spacer (weight 1.1f)
+  └── "Entrar con otra cuenta" — accent text link → resets isBiometricEnabled = false
 ```
 
 ---
@@ -59,12 +80,57 @@ GestureNav (system)
 ## Data flow
 
 ```
-User types → ViewModel.onEmailChange / onPasswordChange → LoginFormState update
-User taps "Iniciar sesión" → ViewModel.onLoginClick
-  → isLoading = true
-  → [TODO] Supabase auth call
-  → isLoading = false → onSuccess() → navigate(MercadosRoute)
+App start:
+  LoginViewModel.init → checkBiometricAvailability
+    → if device ready AND hasBiometricEnabled():
+        getBiometricEnabledUser() → populate enrolledUser* fields, isBiometricEnabled = true
+    → LoginScreen shows enrolled-user state
+
+Enrolled user taps "Entrar con huella":
+  BiometricPrompt.authenticate()
+    → onAuthenticationSucceeded → LoginViewModel.onBiometricSuccess(onLoginSuccess)
+        → getBiometricEnabledUser() → sessionManager.setCurrentUser → navigate(HomeRoute)
+
+Enrolled user taps "Usar contraseña":
+  viewModel.switchToPasswordLogin() → showPasswordLogin = true → regular login shown
+
+User taps "Entrar con otra cuenta":
+  viewModel.switchToOtherAccount() → isBiometricEnabled = false → regular login shown
+
+Regular login:
+  onLoginClick → delay(300) → check "admin"/"admin" stub
+    → load user from Room → sessionManager.setCurrentUser → navigate(HomeRoute)
 ```
+
+---
+
+## LoginFormState fields
+
+| Field | Purpose |
+|-------|---------|
+| `email`, `password` | Regular login form inputs |
+| `isLoading`, `errorMessage` | Loading/error UI state |
+| `isBiometricEnabled` | Whether to show the enrolled-user screen |
+| `enrolledUserName` | Name shown in the welcome-back card |
+| `enrolledUserEmail` | Email shown in the welcome-back card |
+| `enrolledUserRole` | Role shown as `RoleBadge` in the welcome-back card |
+| `enrolledUserInitials` | Initials for `ProfileAvatar` in the welcome-back card |
+| `showPasswordLogin` | True when enrolled user taps "Usar contraseña" |
+
+---
+
+## BiometricPrompt configuration
+
+```kotlin
+BiometricPrompt.PromptInfo.Builder()
+    .setTitle(R.string.login_biometric_prompt_title)
+    .setSubtitle(R.string.login_biometric_prompt_subtitle)
+    .setAllowedAuthenticators(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+    .setNegativeButtonText(R.string.common_cancelar)
+    .build()
+```
+
+The prompt is constructed in `LoginScreen` (requires `FragmentActivity` context obtained via `Context.findFragmentActivity()`).
 
 ---
 
@@ -76,39 +142,24 @@ User taps "Iniciar sesión" → ViewModel.onLoginClick
 | Field container | `colorScheme.surfaceVariant` |
 | Field border (empty) | `extendedColors.border` |
 | Field border (filled) | `extendedColors.border2` |
-| Field placeholder text | `extendedColors.text3` |
 | Primary button | `colorScheme.primary` |
-| Biometric button border | `extendedColors.border2` |
-| Footer text | `extendedColors.text4` |
-| Fingerprint icon tint | `colorScheme.primary` |
+| Welcome-back card | `colorScheme.surfaceVariant` |
+| "Usar contraseña" border | `extendedColors.border2` |
+| Footer / muted text | `extendedColors.text3`, `extendedColors.text4` |
+| "Otra cuenta" link | `colorScheme.primary` |
 
 ---
 
 ## ⚠️ Critical TODOs (app non-functional without these)
 
 ### 🔐 Supabase Authentication
-The login button currently fakes success with an 800ms delay. **No real authentication happens.**
+The login button currently fakes success with a 300ms delay. **No real authentication happens.**
 
-- [ ] Add `supabase-kt` Auth plugin to dependencies (`io.github.jan-tennert.supabase:auth-kt`)
-- [ ] Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` to `local.properties` and expose via `BuildConfig`
-- [ ] Create `SupabaseModule.kt` (Hilt) providing a `SupabaseClient` singleton with Auth + Postgrest + Storage plugins
-- [ ] Replace the `delay(800)` stub in `LoginViewModel.onLoginClick` with `supabaseClient.auth.signInWith(Email) { email = ...; password = ... }`
-- [ ] Handle `AuthException` — map to `LoginFormState.errorMessage` and show it below the fields
-- [ ] On app launch, check `supabaseClient.auth.currentSessionOrNull()` and skip login if session is still valid (navigate directly to `MercadosRoute`)
-- [ ] Session persistence is handled automatically by `supabase-kt` via DataStore — wire `sessionSaving = SessionSaving.SHARED_PREFERENCES` or DataStore in `SupabaseModule`
+- [ ] Add `supabase-kt` Auth plugin to dependencies
+- [ ] Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` to `local.properties`
+- [ ] Replace `delay(300)` stub in `LoginViewModel.onLoginClick` with Supabase `signInWith(Email)`
+- [ ] Handle `AuthException` → map to `LoginFormState.errorMessage`
+- [ ] On app launch, check `currentSessionOrNull()` and skip login if valid
 
-### 👆 Biometric Authentication
-The fingerprint button renders correctly but its `onClick` is a no-op TODO.
-
-- [ ] Add `androidx.biometric:biometric` dependency
-- [ ] Create `BiometricAuthManager` (injectable) wrapping `BiometricPrompt` — exposes a `suspend fun authenticate(activity): BiometricResult`
-- [ ] In `LoginScreen.kt`, obtain the `Activity` via `LocalContext.current` and call `BiometricAuthManager.authenticate()`
-- [ ] On biometric success, retrieve stored credentials from `EncryptedSharedPreferences` (or use Supabase token directly) and complete the session
-- [ ] Show the biometric button only if `BiometricManager.canAuthenticate()` returns `BIOMETRIC_SUCCESS`
-
----
-
-## Other TODOs
-
-- [ ] Handle login error state — show `errorMessage` from `LoginFormState` as a red hint below the password field
-- [ ] Add `remember me` / session persistence via DataStore (coordinate with Supabase session saving above)
+### 👆 Biometric login
+Biometric authentication is fully wired end-to-end for **enabling from Perfil** and for **logging in** from the enrolled-user screen. No remaining TODOs for the biometric login path.

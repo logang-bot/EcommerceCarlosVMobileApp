@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -103,6 +104,7 @@ fun PerfilScreen(
     PerfilContent(
         state = state,
         onBack = { navController.popBackStack() },
+        onEditProfile = { navController.navigate(EditarPerfilRoute) },
         onBiometricToggle = {
             if (state.isBiometricEnrolled) {
                 viewModel.disableBiometric()
@@ -127,6 +129,7 @@ fun PerfilScreen(
 private fun PerfilContent(
     state: PerfilUiState,
     onBack: () -> Unit,
+    onEditProfile: () -> Unit = {},
     onBiometricToggle: () -> Unit,
     onGestionUsuariosClick: () -> Unit,
     onLogout: () -> Unit,
@@ -140,7 +143,7 @@ private fun PerfilContent(
                 title = stringResource(R.string.perfil_title),
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { /* TODO: edit profile */ }) {
+                    IconButton(onClick = onEditProfile) {
                         Icon(Icons.Default.Edit, contentDescription = null)
                     }
                 },
@@ -166,12 +169,6 @@ private fun PerfilContent(
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
-                    Text(
-                        text = state.businessName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ext.text2,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
                     Row(
                         modifier = Modifier.padding(top = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -193,25 +190,18 @@ private fun PerfilContent(
             SectionHeader(stringResource(R.string.perfil_section_cuenta))
             Column {
                 SettingRow(
-                    icon = Icons.Default.Person,
-                    title = stringResource(R.string.perfil_negocio),
-                    subtitle = state.businessName,
-                    onClick = {},
-                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
-                )
-                HorizontalDivider(modifier = Modifier.padding(start = 69.dp), color = ext.border)
-                SettingRow(
                     icon = Icons.Default.Notifications,
                     title = stringResource(R.string.perfil_correo),
                     subtitle = state.email,
-                    onClick = {},
+                    onClick = onEditProfile,
                     trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
                 )
                 HorizontalDivider(modifier = Modifier.padding(start = 69.dp), color = ext.border)
                 SettingRow(
                     icon = Icons.Default.Phone,
                     title = stringResource(R.string.perfil_telefono),
-                    onClick = {},
+                    subtitle = state.phone.ifEmpty { null },
+                    onClick = onEditProfile,
                     trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
                 )
             }
@@ -334,7 +324,7 @@ private fun BiometricCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.perfil_biometrica_title),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(

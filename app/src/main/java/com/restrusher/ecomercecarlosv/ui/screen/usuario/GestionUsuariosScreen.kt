@@ -18,6 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
@@ -46,7 +49,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
-import com.restrusher.ecomercecarlosv.presentation.screens.InvitarUsuarioRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.CrearUsuarioRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
@@ -64,7 +67,7 @@ fun GestionUsuariosScreen(
         state = state,
         onBack = { navController.popBackStack() },
         onUserClick = { navController.navigate(UsuarioDetalleRoute(it)) },
-        onInviteClick = { navController.navigate(InvitarUsuarioRoute) },
+        onInviteClick = { navController.navigate(CrearUsuarioRoute) },
     )
 }
 
@@ -93,7 +96,7 @@ private fun GestionUsuariosContent(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.gestion_usuarios_invitar)) },
+                text = { Text(stringResource(R.string.gestion_usuarios_crear)) },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 onClick = onInviteClick,
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -117,8 +120,15 @@ private fun GestionUsuariosContent(
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                 ) {
                     Icon(painterResource(R.drawable.ic_admin_panel), contentDescription = null, tint = ext.bananaText, modifier = Modifier.size(19.dp).padding(top = 1.dp))
+                    val scopePre = stringResource(R.string.gestion_scope_pre)
+                    val scopeBold = stringResource(R.string.gestion_scope_bold)
+                    val scopePost = stringResource(R.string.gestion_scope_post)
                     Text(
-                        text = stringResource(R.string.gestion_usuarios_scope_banner),
+                        text = buildAnnotatedString {
+                            append(scopePre)
+                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(scopeBold) }
+                            append(scopePost)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = ext.text2,
                     )
@@ -200,9 +210,13 @@ fun UserRow(
                     )
                 }
             }
+            val lastSeenLabel = user.lastSeenLabel
             Text(
                 text = if (user.isActive) {
-                    user.lastSeenLabel ?: "Activo"
+                    if (lastSeenLabel != null)
+                        stringResource(R.string.gestion_usuarios_activo_sesion, lastSeenLabel)
+                    else
+                        stringResource(R.string.gestion_usuarios_activo)
                 } else {
                     stringResource(R.string.gestion_usuarios_desactivado)
                 },

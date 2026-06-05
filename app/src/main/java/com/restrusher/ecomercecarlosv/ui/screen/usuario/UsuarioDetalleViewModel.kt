@@ -64,4 +64,13 @@ class UsuarioDetalleViewModel @Inject constructor(
             onDone()
         }
     }
+
+    fun onDelete(onDone: () -> Unit) {
+        _state.value = _state.value.copy(isDeleting = true)
+        viewModelScope.launch {
+            userRepository.delete(userId)
+            _state.value = _state.value.copy(isDeleting = false)
+            onDone()
+        }
+    }
 }

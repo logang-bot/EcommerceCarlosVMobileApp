@@ -54,17 +54,22 @@ import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
+import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
 @Composable
 fun MercadosScreen(
     navController: NavController,
+    selectedTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
     viewModel: MercadosViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     MercadosContent(
         state = state,
+        selectedTab = selectedTab,
+        onTabSelected = onTabSelected,
         onMercadoClick = { navController.navigate(DetalleMercadoRoute(it)) },
         onCreateClick = { navController.navigate(CreateMercadoRoute()) },
         onListaNegraClick = { /* TODO: navigate to ListaNegraRoute — Phase 7 */ },
@@ -75,6 +80,8 @@ fun MercadosScreen(
 @Composable
 private fun MercadosContent(
     state: MercadosUiState,
+    selectedTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
     onMercadoClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     onListaNegraClick: () -> Unit,
@@ -83,6 +90,7 @@ private fun MercadosContent(
     val count = state.mercados.size
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = { AppBottomNavBar(selectedTab = selectedTab, onTabSelected = onTabSelected) },
         topBar = {
             PedidosTopBar(
                 title = stringResource(R.string.mercados_title),
@@ -220,7 +228,7 @@ private fun ListaNegraButton(modifier: Modifier = Modifier, onClick: () -> Unit)
 @Composable
 private fun MercadosScreenDarkPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
-        MercadosContent(MercadosUiState(currentUserInitials = "CV"), {}, {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {})
     }
 }
 
@@ -228,6 +236,6 @@ private fun MercadosScreenDarkPreview() {
 @Composable
 private fun MercadosScreenPreview() {
     EcomerceCarlosVTheme(darkTheme = false) {
-        MercadosContent(MercadosUiState(currentUserInitials = "CV"), {}, {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {})
     }
 }

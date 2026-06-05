@@ -6,6 +6,9 @@ import kotlinx.serialization.Serializable
 object LoginRoute
 
 @Serializable
+object HomeRoute
+
+@Serializable
 object MercadosRoute
 
 @Serializable
@@ -18,10 +21,13 @@ data class CreateMercadoRoute(val mercadoId: String? = null)
 object PerfilRoute
 
 @Serializable
+object EditarPerfilRoute
+
+@Serializable
 object GestionUsuariosRoute
 
 @Serializable
 data class UsuarioDetalleRoute(val userId: String)
 
 @Serializable
-object InvitarUsuarioRoute
+object CrearUsuarioRoute

@@ -9,6 +9,7 @@ data class UserEntity(
     val email: String,
     val name: String,
     val role: String,          // UserRole enum name
+    val phone: String? = null,
     val photoUrl: String?,
     val isActive: Boolean,
     val createdAt: Long,

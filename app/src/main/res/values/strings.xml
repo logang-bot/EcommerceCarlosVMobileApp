@@ -11,6 +11,11 @@
     <string name="login_or">o</string>
     <string name="login_biometric">Entrar con huella</string>
     <string name="login_footer">Acceso exclusivo para titulares de cuenta</string>
+    <string name="login_biometric_prompt_title">Verificar identidad</string>
+    <string name="login_biometric_prompt_subtitle">Usa tu huella para iniciar sesión</string>
+    <string name="login_bienvenido_de_nuevo">Bienvenido de nuevo</string>
+    <string name="login_usar_contrasena">Usar contraseña</string>
+    <string name="login_otra_cuenta">Entrar con otra cuenta</string>
 
     <!-- Mercados -->
     <string name="mercados_title">Mercados</string>
@@ -102,14 +107,35 @@
     <string name="role_perm_pedidos">Gestionar pedidos y mercados</string>
     <string name="role_perm_no_admin">Sin acceso a gestión de usuarios</string>
 
+    <!-- Bottom Navigation -->
+    <string name="nav_mercados">Mercados</string>
+    <string name="nav_productos">Productos</string>
+    <string name="nav_reporte">Reporte</string>
+
+    <!-- Stub screens (Phase 6 / 8 placeholders) -->
+    <string name="stub_productos_title">Catálogo próximamente</string>
+    <string name="stub_productos_subtitle">Aquí podrás gestionar tus productos y precios.</string>
+    <string name="stub_reporte_title">Reporte próximamente</string>
+    <string name="stub_reporte_subtitle">Aquí verás el resumen diario de cobros y pedidos.</string>
+
+    <!-- Editar Perfil -->
+    <string name="editar_perfil_title">Editar perfil</string>
+    <string name="editar_perfil_nombre">Nombre</string>
+    <string name="editar_perfil_correo">Correo</string>
+    <string name="editar_perfil_telefono">Teléfono</string>
+    <string name="editar_perfil_rol">Rol</string>
+    <string name="editar_perfil_rol_readonly_hint">Solo un super usuario puede cambiarlo</string>
+    <string name="editar_perfil_guardar">Guardar cambios</string>
+    <string name="editar_perfil_foto_hint">Toca para cambiar tu foto</string>
+
     <!-- Perfil y Seguridad -->
     <string name="perfil_title">Mi Perfil</string>
     <string name="perfil_section_cuenta">Cuenta</string>
     <string name="perfil_section_seguridad">Seguridad</string>
     <string name="perfil_section_equipo">Equipo</string>
-    <string name="perfil_biometrica_title">Huella dactilar</string>
-    <string name="perfil_biometrica_active">Activado</string>
-    <string name="perfil_biometrica_hint">Usa tu huella para entrar más rápido</string>
+    <string name="perfil_biometrica_title">Iniciar sesión con huella</string>
+    <string name="perfil_biometrica_active">Activada · entra sin escribir tu contraseña</string>
+    <string name="perfil_biometrica_hint">Configúrala para entrar más rápido</string>
     <string name="perfil_biometrica_registered">Registrada el %1$s</string>
     <string name="perfil_biometrica_prompt_title">Activar huella dactilar</string>
     <string name="perfil_biometrica_prompt_subtitle">Confirma tu identidad para activar el acceso con huella</string>
@@ -117,15 +143,18 @@
     <string name="perfil_cerrar_sesion">Cerrar sesión</string>
     <string name="perfil_correo">Correo</string>
     <string name="perfil_telefono">Teléfono</string>
-    <string name="perfil_negocio">Negocio</string>
     <string name="perfil_super_hint">Administra el equipo</string>
     <string name="perfil_gestion_usuarios">Gestión de usuarios</string>
     <string name="perfil_cambiar_contrasena">Cambiar contraseña</string>
 
     <!-- Gestión de Usuarios -->
-    <string name="gestion_usuarios_title">Equipo</string>
-    <string name="gestion_usuarios_invitar">Invitar</string>
-    <string name="gestion_usuarios_scope_banner">Solo el super usuario puede gestionar el equipo</string>
+    <string name="gestion_usuarios_title">Gestión de usuarios</string>
+    <string name="gestion_usuarios_crear">Crear</string>
+    <string name="gestion_scope_pre">Solo los </string>
+    <string name="gestion_scope_bold">super usuarios</string>
+    <string name="gestion_scope_post"> pueden crear usuarios, cambiar roles o desactivar miembros del equipo.</string>
+    <string name="gestion_usuarios_activo">Activo</string>
+    <string name="gestion_usuarios_activo_sesion">Activo · %1$s</string>
     <string name="gestion_usuarios_section_super">Super usuarios · %1$d</string>
     <string name="gestion_usuarios_section_user">Usuarios · %1$d</string>
     <string name="gestion_usuarios_me">(tú)</string>
@@ -136,21 +165,21 @@
     <string name="usuario_detalle_rol">Rol</string>
     <string name="usuario_detalle_actividad">Actividad</string>
     <string name="usuario_detalle_ultima_sesion">Última sesión</string>
-    <string name="usuario_detalle_pedidos">Pedidos creados</string>
-    <string name="usuario_detalle_reenviar">Reenviar acceso</string>
     <string name="usuario_detalle_desactivar">Desactivar usuario</string>
+    <string name="usuario_detalle_eliminar">Eliminar usuario</string>
     <string name="usuario_detalle_not_found">Usuario no encontrado</string>
 
-    <!-- Invitar Usuario -->
-    <string name="invitar_usuario_title">Invitar usuario</string>
-    <string name="invitar_usuario_nombre">Nombre</string>
-    <string name="invitar_usuario_nombre_hint">Nombre completo</string>
-    <string name="invitar_usuario_nombre_error">El nombre es obligatorio</string>
-    <string name="invitar_usuario_correo">Correo</string>
-    <string name="invitar_usuario_correo_hint">correo@empresa.com</string>
-    <string name="invitar_usuario_correo_error">Ingresa un correo válido</string>
-    <string name="invitar_usuario_correo_supporting">Recibirá un enlace de acceso en este correo</string>
-    <string name="invitar_usuario_rol">Rol</string>
-    <string name="invitar_usuario_enviar">Enviar invitación</string>
-    <string name="invitar_usuario_super_warning">Los super usuarios tienen acceso completo, incluyendo la gestión de otros usuarios.</string>
+    <!-- Crear Usuario -->
+    <string name="crear_usuario_title">Nuevo usuario</string>
+    <string name="crear_usuario_nombre">Nombre</string>
+    <string name="crear_usuario_nombre_hint">Nombre completo</string>
+    <string name="crear_usuario_nombre_error">El nombre es obligatorio</string>
+    <string name="crear_usuario_correo">Correo</string>
+    <string name="crear_usuario_correo_hint">correo@empresa.com</string>
+    <string name="crear_usuario_correo_error">Ingresa un correo válido</string>
+    <string name="crear_usuario_contrasena">Contraseña temporal</string>
+    <string name="crear_usuario_contrasena_hint">El usuario podrá cambiarla luego desde su perfil.</string>
+    <string name="crear_usuario_contrasena_error">La contraseña es obligatoria</string>
+    <string name="crear_usuario_rol">Rol</string>
+    <string name="crear_usuario_cta">Crear usuario</string>
 </resources>

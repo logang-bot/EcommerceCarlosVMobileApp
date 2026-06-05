@@ -12,7 +12,7 @@ import com.restrusher.ecomercecarlosv.data.local.entity.UserEntity
         MercadoEntity::class,
         UserEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

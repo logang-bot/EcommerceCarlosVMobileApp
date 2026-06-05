@@ -7,4 +7,5 @@ data class UsuarioDetalleUiState(
     val selectedRole: UserRole = UserRole.USUARIO,
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
 )

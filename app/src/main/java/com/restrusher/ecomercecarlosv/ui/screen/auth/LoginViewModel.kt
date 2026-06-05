@@ -48,7 +48,14 @@ class LoginViewModel @Inject constructor(
             val deviceReady = BiometricManager.from(context)
                 .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
             if (deviceReady && userRepository.hasBiometricEnabled()) {
-                _state.value = _state.value.copy(isBiometricEnabled = true)
+                val user = userRepository.getBiometricEnabledUser()
+                _state.value = _state.value.copy(
+                    isBiometricEnabled   = true,
+                    enrolledUserName     = user?.name ?: "",
+                    enrolledUserEmail    = user?.email ?: "",
+                    enrolledUserRole     = user?.role ?: UserRole.USUARIO,
+                    enrolledUserInitials = computeInitials(user?.name ?: ""),
+                )
             }
         }
     }
@@ -81,4 +88,35 @@ class LoginViewModel @Inject constructor(
             }
         }
     }
+
+    fun onBiometricSuccess(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            val user = userRepository.getBiometricEnabledUser() ?: return@launch
+            sessionManager.setCurrentUser(user)
+            onSuccess()
+        }
+    }
+
+    fun onBiometricFailed() { /* no-op */ }
+
+    fun switchToPasswordLogin() {
+        _state.value = _state.value.copy(showPasswordLogin = true)
+    }
+
+    fun switchToOtherAccount() {
+        _state.value = _state.value.copy(
+            isBiometricEnabled = false,
+            showPasswordLogin  = false,
+            email              = "",
+            password           = "",
+            errorMessage       = null,
+        )
+    }
+
+    private fun computeInitials(name: String) = name
+        .split(' ')
+        .filter(String::isNotBlank)
+        .take(2)
+        .map { it.first().uppercaseChar() }
+        .joinToString("")
 }

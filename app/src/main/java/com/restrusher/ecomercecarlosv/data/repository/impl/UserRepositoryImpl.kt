@@ -32,4 +32,10 @@ class UserRepositoryImpl @Inject constructor(
 
     override suspend fun hasBiometricEnabled(): Boolean =
         dao.countBiometricEnabled() > 0
+
+    override suspend fun getBiometricEnabledUser(): AppUser? =
+        dao.getBiometricEnabledUser()?.let(UserMapper::toDomain)
+
+    override suspend fun updateProfile(id: String, name: String, email: String, phone: String?) =
+        dao.updateProfile(id, name, email, phone)
 }

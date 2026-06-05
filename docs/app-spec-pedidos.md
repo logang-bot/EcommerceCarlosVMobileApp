@@ -33,10 +33,12 @@ Mobile app (Android-first) for small business owners (primarily Hispanic market)
 ## Roles & Authentication
 
 ### Screen: Login
-- Email/password field OR biometric authentication button (fingerprint/face)
-- Only account owners can log in
-- No registration flow visible to end user
+- **Two states**: (1) regular email/password form; (2) "Usuario recurrente" — shown when a user has biometric login enabled on this device
+- **Regular state**: brand mark, email + password fields, "Iniciar sesión" CTA
+- **Enrolled-user state**: compact brand, "Bienvenido de nuevo" card (avatar, name, email, role badge), "Entrar con huella" primary button, "Usar contraseña" fallback, "Entrar con otra cuenta" text link
+- Only account owners can log in; no registration flow visible to end user
 - **Stub credentials**: `admin` / `admin` (Phase 9 replaces with Supabase auth)
+- Enrolled-user screen shown when `BiometricManager.canAuthenticate` returns `BIOMETRIC_SUCCESS` **and** `userRepository.hasBiometricEnabled()` is true
 
 ### Roles
 - **Superusuario**: Can create, edit, enable, and disable user accounts. Has full system access including "Equipo" section in Profile.
@@ -70,10 +72,14 @@ Usuarios (managed by Superusuario only)
 **Design**: `docs/design/screens-profile.jsx`
 
 **Layout**:
-- Identity header: 66dp avatar with initials, user name, business name, `RoleBadge`
-  - SUPERUSUARIO sees "Administra el equipo" hint below the badge
-- **Cuenta section**: business name, email, phone (tap → edit, Phase 3 TBD)
-- **Seguridad section**: biometric toggle card (accent-soft bg when enabled), "Cambiar contraseña" row
+- Identity header: 66dp avatar with initials, user name, `RoleBadge`
+  - SUPERUSUARIO sees "Administra el equipo" hint beside the badge
+- Top-right pencil icon → `EditarPerfilRoute`
+- **Cuenta section**: email (with subtitle), phone (with subtitle; empty if not set) — both rows tap to `EditarPerfilRoute`
+- **Seguridad section**: `BiometricCard` toggle + "Cambiar contraseña" row
+  - Card shows `accentSoft` background and enrollment date when enabled
+  - Card is at 55% opacity and non-interactive when device has no enrolled biometrics
+  - Toggle calls `BiometricPrompt.authenticate()` directly from the click handler; on success, `biometricEnabledAt` is persisted to Room
 - **Equipo section** *(SUPERUSUARIO only)*: team summary (N usuarios · M super usuarios), navigates to `GestionUsuariosRoute`
 - Logout button (red-tint) at bottom
 
@@ -85,11 +91,11 @@ Usuarios (managed by Superusuario only)
 **Design**: `docs/design/screens-users.jsx`
 
 **Layout**:
-- Banana-tinted scope banner: "Solo el super usuario puede gestionar el equipo"
+- Banana-tinted scope banner with bold "super usuarios": "Solo los **super usuarios** pueden crear usuarios, cambiar roles o desactivar miembros del equipo."
 - Two sections: "Super usuarios · N" and "Usuarios · N"
-- Each `UserRow`: 46dp initials avatar, name, "(tú)" label if current user, lastSeenLabel or "Desactivado", small `RoleBadge`
+- Each `UserRow`: 46dp initials avatar, name, "(tú)" label if current user, "Activo · lastSeenLabel" (or "Activo") / "Desactivado", small `RoleBadge`
 - Inactive users shown at 55% opacity
-- FAB "Invitar" → `InvitarUsuarioRoute`
+- FAB "Crear" → `CrearUsuarioRoute`
 - Tapping any row → `UsuarioDetalleRoute(userId)`
 
 ---
@@ -102,23 +108,26 @@ Usuarios (managed by Superusuario only)
 **Layout**:
 - 76dp initials avatar, name, email, `RoleBadge` in header
 - Role selector: two `RoleOption` cards (SUPERUSUARIO / USUARIO); save button appears when role changes
-- Activity section: última sesión, pedidos creados
-- Bottom actions: "Reenviar acceso" (outlined) + "Desactivar usuario" (danger)
+- Activity section: última sesión only
+- Inline actions at bottom of scroll: "Desactivar usuario" (ghost/red outline) + "Eliminar usuario" (red filled)
 
 ---
 
-## Screen D: Invitar Usuario
+## Screen D: Crear Usuario
 
-**Route**: `InvitarUsuarioRoute`  
+**Route**: `CrearUsuarioRoute`  
 **Design**: `docs/design/screens-users.jsx`
 
-**Fields**: Nombre (required), Correo (required, must contain @), Rol (two `RoleOption` cards)  
-**Banana warning banner** when SUPERUSUARIO is selected  
-**CTA**: "Enviar invitación" — saves to Room (Phase 9: wire to Supabase invite API)
+**Fields**: Nombre (required), Correo (required, must contain @), Contraseña temporal (required), Rol (two `RoleOption` cards)  
+**CTA**: "Crear usuario" — saves to Room (Phase 9: wire to Supabase create user API)
 
 ---
 
 ## Screen 1: Home — Lista de Mercados
+
+**Route**: `HomeRoute` → `HomeScreen` → tab 0 (`MercadosScreen`)
+
+**Bottom navigation**: Three tabs persist across Home — Mercados (`GridView`), Productos (`Sell`), Reporte (`Assessment`). The `HomeScreen` composable manages tab state via `rememberSaveable`. Productos and Reporte are stub screens until Phase 6/8.
 
 **Purpose**: Entry point after login. Shows all Mercados in the system.
 
@@ -322,8 +331,10 @@ A bottom sheet or modal appears with the payment options:
 **Fields**:
 - Name (required)
 - Address (text)
-- Location (map picker — drop a pin)
-- Photo (optional)
+- Location (map picker — drop a pin) *(Phase 2 extension)*
+- Photo (optional) *(Phase 2 extension)*
+
+**CTA**: "Guardar" button is anchored in a sticky `bottomBar` (Scaffold slot) with a `HorizontalDivider` above it, so it stays visible when the form is scrolled.
 
 ---
 
@@ -335,6 +346,47 @@ A bottom sheet or modal appears with the payment options:
 - Description (important — used to identify the cliente's spot/stall inside the Mercado)
 - Phone numbers (list — ability to add multiple)
 - Location within Mercado (map picker or text description of spot)
+
+---
+
+## Shared Components
+
+### Activity base class
+
+`MainActivity` extends `AppCompatActivity` (not `ComponentActivity`). This is required because `androidx.biometric:biometric:1.1.0` needs a `FragmentActivity`, which only `AppCompatActivity` and its ancestors provide. All Compose + Material3 behavior is unaffected; the XML theme uses `Theme.AppCompat.DayNight.NoActionBar` as a neutral container.
+
+### Icons
+
+All icons are referenced directly — no wrapper object. XML vector drawables live in `res/drawable/` and are loaded with `painterResource(R.drawable.*)`. Material Icons are referenced as `Icons.Default.*` or `Icons.Filled.*`.
+
+| Drawable | Usage |
+|----------|-------|
+| `ic_admin_panel.xml` | Superuser badge, role selector, team row shield |
+| `ic_users.xml` | "Gestión de usuarios" setting row |
+
+`SettingRow` accepts both `ImageVector` and `Painter` overloads (resolved internally via a shared private implementation).
+
+### EmptyState
+
+Used on any list screen when there is no data to show. Design source: `screens-empty.jsx`.
+
+**Props**:
+- `icon: ImageVector` — centered icon inside a bordered rounded container
+- `title: String` — bold heading
+- `subtitle: String` — muted body copy
+- `hint: String?` — optional pill button showing a `+` icon; uses `accentSoft` background and `accent` text to prompt the user to create their first item
+- `compact: Boolean` (default `false`) — smaller variant (60dp container, 18dp radius, 25dp icon) for use inside nested screens
+
+**Icon container**: `border(1.dp, ext.border2)` on a `surfaceVariant` background.
+
+**Empty state icons by screen**:
+| Screen | Icon |
+|--------|------|
+| Mercados | `Icons.Default.GridView` |
+| Detalle de Mercado (clientes) | `Icons.Default.Person` |
+| Búsqueda global | `Icons.Default.Search` |
+| Catálogo | `Icons.Default.Tag` *(Phase 6)* |
+| Lista Negra | `Icons.Default.Block` *(Phase 7)* |
 
 ---
 
