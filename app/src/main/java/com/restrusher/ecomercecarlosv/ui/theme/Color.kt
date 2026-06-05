@@ -18,14 +18,21 @@ val DarkText2       = Color(0xFF9B9BA3)
 val DarkText3       = Color(0xFF66666E)
 val DarkText4       = Color(0xFF4A4A51)
 
-val DarkAccent      = Color(0xFF5B8DEF)
-val DarkAccentPress = Color(0xFF4878DD)
-val DarkAccentTint  = Color(0x265B8DEF) // 15% accent
-val DarkAccentSoft  = Color(0x1A5B8DEF) // 10% accent
+// Carlos V brand green (replaces slate blue)
+val DarkAccent      = Color(0xFF2FA24E)
+val DarkAccentPress = Color(0xFF268241)
+val DarkAccentTint  = Color(0x292FA24E) // 16%
+val DarkAccentSoft  = Color(0x1A2FA24E) // 10%
 
-val DarkGreen       = Color(0xFF36C880)
-val DarkGreenText   = Color(0xFF4FE09A)
-val DarkGreenTint   = Color(0x2436C880) // 14%
+// Banana yellow — superuser badge / shield icon
+val DarkBanana      = Color(0xFFF4C20D)
+val DarkBananaText  = Color(0xFFF6CE36)
+val DarkBananaTint  = Color(0x29F4C20D) // 16%
+val DarkOnBanana    = Color(0xFF2C2400)
+
+val DarkGreen       = Color(0xFF2BC47D)
+val DarkGreenText   = Color(0xFF54DE9A)
+val DarkGreenTint   = Color(0x242BC47D) // 14%
 val DarkAmber       = Color(0xFFE7B23E)
 val DarkAmberText   = Color(0xFFF2C357)
 val DarkAmberTint   = Color(0x24E7B23E) // 14%
@@ -49,14 +56,19 @@ val LightText2       = Color(0xFF5A5A64)
 val LightText3       = Color(0xFF8A8A93)
 val LightText4       = Color(0xFFB2B2BA)
 
-val LightAccent      = Color(0xFF2F6BE0)
-val LightAccentPress = Color(0xFF2557C4)
-val LightAccentTint  = Color(0x1C2F6BE0) // 11%
-val LightAccentSoft  = Color(0x122F6BE0) // 7%
+val LightAccent      = Color(0xFF1E7D38)
+val LightAccentPress = Color(0xFF186430)
+val LightAccentTint  = Color(0x1C1E7D38) // 11%
+val LightAccentSoft  = Color(0x121E7D38) // 7%
 
-val LightGreen       = Color(0xFF1FA45C)
-val LightGreenText   = Color(0xFF157A41)
-val LightGreenTint   = Color(0x1F1FA45C) // 12%
+val LightBanana      = Color(0xFFE9B500)
+val LightBananaText  = Color(0xFF8A6A00)
+val LightBananaTint  = Color(0x29E9B500) // 16%
+val LightOnBanana    = Color(0xFF2C2400)
+
+val LightGreen       = Color(0xFF1B9D55)
+val LightGreenText   = Color(0xFF137A40)
+val LightGreenTint   = Color(0x1F1B9D55) // 12%
 val LightAmber       = Color(0xFFC98A00)
 val LightAmberText   = Color(0xFF946400)
 val LightAmberTint   = Color(0x21C98A00) // 13%
@@ -76,7 +88,12 @@ data class PedidosExtendedColors(
     val text3: Color,
     val text4: Color,
     val accentPress: Color,
+    val accentTint: Color,
     val accentSoft: Color,
+    val banana: Color,
+    val bananaText: Color,
+    val bananaTint: Color,
+    val onBanana: Color,
     val green: Color,
     val greenText: Color,
     val greenTint: Color,
@@ -88,45 +105,55 @@ data class PedidosExtendedColors(
 )
 
 val DarkExtendedColors = PedidosExtendedColors(
-    surface2 = DarkSurface2,
-    surface3 = DarkSurface3,
-    elevated = DarkElevated,
-    border = DarkBorder,
-    border2 = DarkBorder2,
-    border3 = DarkBorder3,
-    text2 = DarkText2,
-    text3 = DarkText3,
-    text4 = DarkText4,
-    accentPress = DarkAccentPress,
-    accentSoft = DarkAccentSoft,
-    green = DarkGreen,
-    greenText = DarkGreenText,
-    greenTint = DarkGreenTint,
-    amber = DarkAmber,
-    amberText = DarkAmberText,
-    amberTint = DarkAmberTint,
-    redText = DarkRedText,
-    redTint = DarkRedTint,
+    surface2     = DarkSurface2,
+    surface3     = DarkSurface3,
+    elevated     = DarkElevated,
+    border       = DarkBorder,
+    border2      = DarkBorder2,
+    border3      = DarkBorder3,
+    text2        = DarkText2,
+    text3        = DarkText3,
+    text4        = DarkText4,
+    accentPress  = DarkAccentPress,
+    accentTint   = DarkAccentTint,
+    accentSoft   = DarkAccentSoft,
+    banana       = DarkBanana,
+    bananaText   = DarkBananaText,
+    bananaTint   = DarkBananaTint,
+    onBanana     = DarkOnBanana,
+    green        = DarkGreen,
+    greenText    = DarkGreenText,
+    greenTint    = DarkGreenTint,
+    amber        = DarkAmber,
+    amberText    = DarkAmberText,
+    amberTint    = DarkAmberTint,
+    redText      = DarkRedText,
+    redTint      = DarkRedTint,
 )
 
 val LightExtendedColors = PedidosExtendedColors(
-    surface2 = LightSurface2,
-    surface3 = LightSurface3,
-    elevated = LightElevated,
-    border = LightBorder,
-    border2 = LightBorder2,
-    border3 = LightBorder3,
-    text2 = LightText2,
-    text3 = LightText3,
-    text4 = LightText4,
-    accentPress = LightAccentPress,
-    accentSoft = LightAccentSoft,
-    green = LightGreen,
-    greenText = LightGreenText,
-    greenTint = LightGreenTint,
-    amber = LightAmber,
-    amberText = LightAmberText,
-    amberTint = LightAmberTint,
-    redText = LightRedText,
-    redTint = LightRedTint,
+    surface2     = LightSurface2,
+    surface3     = LightSurface3,
+    elevated     = LightElevated,
+    border       = LightBorder,
+    border2      = LightBorder2,
+    border3      = LightBorder3,
+    text2        = LightText2,
+    text3        = LightText3,
+    text4        = LightText4,
+    accentPress  = LightAccentPress,
+    accentTint   = LightAccentTint,
+    accentSoft   = LightAccentSoft,
+    banana       = LightBanana,
+    bananaText   = LightBananaText,
+    bananaTint   = LightBananaTint,
+    onBanana     = LightOnBanana,
+    green        = LightGreen,
+    greenText    = LightGreenText,
+    greenTint    = LightGreenTint,
+    amber        = LightAmber,
+    amberText    = LightAmberText,
+    amberTint    = LightAmberTint,
+    redText      = LightRedText,
+    redTint      = LightRedTint,
 )

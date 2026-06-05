@@ -10,13 +10,14 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 |-------|-------|--------|
 | 1 | Navigation scaffold, theme, Login screen | ✅ Done |
 | 2 | Mercados list, Detalle de Mercado, Create Mercado | ✅ Done |
+| 2b | Perfil y Seguridad, Gestión de Usuarios (roles, biometric toggle, invite) | ✅ Done |
 | 3 | Detalle de Cliente, Saldo Extra | 🔲 Next |
 | 4 | Creación de Pedido (cart flow) | 🔲 Pending |
 | 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
 | 6 | Catálogo de Productos, Crear/Editar Producto | 🔲 Pending |
 | 7 | Lista Negra, Agregar a Lista Negra | 🔲 Pending |
 | 8 | Búsqueda Global, Reporte Diario | 🔲 Pending |
-| 9 | Supabase auth + sync layer | 🔲 Pending |
+| 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
 
 ---
 
@@ -37,6 +38,14 @@ SUPABASE_ANON_KEY=your-anon-key
 "Entrar con huella" renders correctly but its `onClick` does nothing.
 See **`docs/features/auth.md → Biometric Authentication`** for the full implementation checklist.
 Requires: `androidx.biometric:biometric` dependency.
+
+### 💾 Session persistence — in-memory only
+`SessionManagerImpl` stores the current user in a `MutableStateFlow`. Session is lost on process kill.
+Phase 9 must persist it via `DataStore<Preferences>`. See `docs/features/usuarios.md → Session persistence`.
+
+### 🔗 Invite flow — saves locally, no email sent
+`InvitarUsuarioViewModel` creates an `AppUser` in Room but does not call Supabase or send any email.
+Phase 9 must wire this to Supabase user-invite API. See `docs/features/usuarios.md → Invite API`.
 
 ---
 

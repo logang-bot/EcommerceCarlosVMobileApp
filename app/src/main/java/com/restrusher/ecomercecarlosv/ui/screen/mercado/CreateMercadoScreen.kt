@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.mercado
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -60,6 +62,7 @@ private fun CreateMercadoContent(
     onSave: () -> Unit,
 ) {
     val isEditing = false // determined by route — ViewModel knows via mercadoId
+    val ext = MaterialTheme.extendedColors
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -67,6 +70,29 @@ private fun CreateMercadoContent(
                 title = stringResource(if (isEditing) R.string.create_mercado_title_edit else R.string.create_mercado_title_new),
                 onBack = onBack,
             )
+        },
+        bottomBar = {
+            Column {
+                HorizontalDivider(color = ext.border)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                ) {
+                    Button(
+                        onClick = onSave,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.common_guardar), style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
         },
     ) { innerPadding ->
         Column(
@@ -77,19 +103,6 @@ private fun CreateMercadoContent(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             MercadoFormFields(state, onNameChange, onAddressChange)
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = onSave,
-                enabled = !state.isLoading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                ),
-            ) {
-                Text(stringResource(R.string.common_guardar), style = MaterialTheme.typography.labelLarge)
-            }
         }
     }
 }

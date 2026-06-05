@@ -6,12 +6,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.InvitarUsuarioRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.MercadosRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
 import com.restrusher.ecomercecarlosv.ui.screen.auth.LoginScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.DetalleMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.MercadosScreen
+import com.restrusher.ecomercecarlosv.ui.screen.perfil.PerfilScreen
+import com.restrusher.ecomercecarlosv.ui.screen.usuario.GestionUsuariosScreen
+import com.restrusher.ecomercecarlosv.ui.screen.usuario.InvitarUsuarioScreen
+import com.restrusher.ecomercecarlosv.ui.screen.usuario.UsuarioDetalleScreen
 
 @Composable
 fun AppNavigation() {
@@ -32,6 +40,18 @@ fun AppNavigation() {
         }
         composable<CreateMercadoRoute> {
             CreateMercadoScreen(navController = navController)
+        }
+        composable<PerfilRoute> {
+            PerfilScreen(navController = navController)
+        }
+        composable<GestionUsuariosRoute> {
+            GestionUsuariosScreen(navController = navController)
+        }
+        composable<UsuarioDetalleRoute> {
+            UsuarioDetalleScreen(navController = navController)
+        }
+        composable<InvitarUsuarioRoute> {
+            InvitarUsuarioScreen(navController = navController)
         }
     }
 }

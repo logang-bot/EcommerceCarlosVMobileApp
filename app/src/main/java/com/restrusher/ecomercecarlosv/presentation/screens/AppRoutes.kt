@@ -13,3 +13,15 @@ data class DetalleMercadoRoute(val mercadoId: String)
 
 @Serializable
 data class CreateMercadoRoute(val mercadoId: String? = null)
+
+@Serializable
+object PerfilRoute
+
+@Serializable
+object GestionUsuariosRoute
+
+@Serializable
+data class UsuarioDetalleRoute(val userId: String)
+
+@Serializable
+object InvitarUsuarioRoute

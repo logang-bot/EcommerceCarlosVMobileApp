@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     implementation(libs.compose.material.icons.extended)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.biometric)
     ksp(libs.hilt.compiler)
     ksp(libs.room.compiler)
     testImplementation(libs.junit)

@@ -19,12 +19,14 @@
     <string name="mercados_lista_negra_title">Lista Negra</string>
     <string name="mercados_lista_negra_subtitle">Clientes vetados · todos los mercados</string>
     <string name="mercados_clientes_active">%1$d clientes activos</string>
-    <string name="mercados_empty_title">Sin mercados</string>
-    <string name="mercados_empty_subtitle">Agrega tu primer mercado usando el botón +</string>
+    <string name="mercados_empty_title">Aún no hay mercados</string>
+    <string name="mercados_empty_subtitle">Crea tu primer mercado para empezar a registrar clientes y pedidos.</string>
+    <string name="mercados_empty_hint">Nuevo mercado</string>
 
     <!-- Detalle Mercado -->
-    <string name="detalle_mercado_empty_title">Sin clientes aún</string>
-    <string name="detalle_mercado_empty_subtitle">Agrega el primer cliente a este mercado</string>
+    <string name="detalle_mercado_empty_title">Sin clientes en este mercado</string>
+    <string name="detalle_mercado_empty_subtitle">Agrega el primer cliente para llevar el control de sus pedidos y saldos.</string>
+    <string name="detalle_mercado_empty_hint">Nuevo cliente</string>
 
     <!-- Crear / Editar Mercado -->
     <string name="create_mercado_title_new">Nuevo Mercado</string>
@@ -91,4 +93,64 @@
     <string name="common_confirmar">Confirmar</string>
     <string name="common_buscar">Buscar</string>
     <string name="common_cerrar">Cerrar</string>
+
+    <!-- Roles -->
+    <string name="role_super">Super usuario</string>
+    <string name="role_usuario">Usuario</string>
+    <string name="role_super_desc">Acceso total y gestión de equipo</string>
+    <string name="role_usuario_desc">Acceso estándar a pedidos y mercados</string>
+    <string name="role_perm_pedidos">Gestionar pedidos y mercados</string>
+    <string name="role_perm_no_admin">Sin acceso a gestión de usuarios</string>
+
+    <!-- Perfil y Seguridad -->
+    <string name="perfil_title">Mi Perfil</string>
+    <string name="perfil_section_cuenta">Cuenta</string>
+    <string name="perfil_section_seguridad">Seguridad</string>
+    <string name="perfil_section_equipo">Equipo</string>
+    <string name="perfil_biometrica_title">Huella dactilar</string>
+    <string name="perfil_biometrica_active">Activado</string>
+    <string name="perfil_biometrica_hint">Usa tu huella para entrar más rápido</string>
+    <string name="perfil_biometrica_registered">Registrada el %1$s</string>
+    <string name="perfil_biometrica_prompt_title">Activar huella dactilar</string>
+    <string name="perfil_biometrica_prompt_subtitle">Confirma tu identidad para activar el acceso con huella</string>
+    <string name="perfil_biometrica_not_available">No hay datos biométricos configurados en este dispositivo</string>
+    <string name="perfil_cerrar_sesion">Cerrar sesión</string>
+    <string name="perfil_correo">Correo</string>
+    <string name="perfil_telefono">Teléfono</string>
+    <string name="perfil_negocio">Negocio</string>
+    <string name="perfil_super_hint">Administra el equipo</string>
+    <string name="perfil_gestion_usuarios">Gestión de usuarios</string>
+    <string name="perfil_cambiar_contrasena">Cambiar contraseña</string>
+
+    <!-- Gestión de Usuarios -->
+    <string name="gestion_usuarios_title">Equipo</string>
+    <string name="gestion_usuarios_invitar">Invitar</string>
+    <string name="gestion_usuarios_scope_banner">Solo el super usuario puede gestionar el equipo</string>
+    <string name="gestion_usuarios_section_super">Super usuarios · %1$d</string>
+    <string name="gestion_usuarios_section_user">Usuarios · %1$d</string>
+    <string name="gestion_usuarios_me">(tú)</string>
+    <string name="gestion_usuarios_desactivado">Desactivado</string>
+
+    <!-- Detalle de Usuario -->
+    <string name="usuario_detalle_title">Usuario</string>
+    <string name="usuario_detalle_rol">Rol</string>
+    <string name="usuario_detalle_actividad">Actividad</string>
+    <string name="usuario_detalle_ultima_sesion">Última sesión</string>
+    <string name="usuario_detalle_pedidos">Pedidos creados</string>
+    <string name="usuario_detalle_reenviar">Reenviar acceso</string>
+    <string name="usuario_detalle_desactivar">Desactivar usuario</string>
+    <string name="usuario_detalle_not_found">Usuario no encontrado</string>
+
+    <!-- Invitar Usuario -->
+    <string name="invitar_usuario_title">Invitar usuario</string>
+    <string name="invitar_usuario_nombre">Nombre</string>
+    <string name="invitar_usuario_nombre_hint">Nombre completo</string>
+    <string name="invitar_usuario_nombre_error">El nombre es obligatorio</string>
+    <string name="invitar_usuario_correo">Correo</string>
+    <string name="invitar_usuario_correo_hint">correo@empresa.com</string>
+    <string name="invitar_usuario_correo_error">Ingresa un correo válido</string>
+    <string name="invitar_usuario_correo_supporting">Recibirá un enlace de acceso en este correo</string>
+    <string name="invitar_usuario_rol">Rol</string>
+    <string name="invitar_usuario_enviar">Enviar invitación</string>
+    <string name="invitar_usuario_super_warning">Los super usuarios tienen acceso completo, incluyendo la gestión de otros usuarios.</string>
 </resources>

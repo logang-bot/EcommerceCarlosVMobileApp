@@ -36,10 +36,13 @@ Mobile app (Android-first) for small business owners (primarily Hispanic market)
 - Email/password field OR biometric authentication button (fingerprint/face)
 - Only account owners can log in
 - No registration flow visible to end user
+- **Stub credentials**: `admin` / `admin` (Phase 9 replaces with Supabase auth)
 
 ### Roles
-- **Superusuario**: Can create, edit, enable, disable, and delete any user account. Has full system access.
+- **Superusuario**: Can create, edit, enable, and disable user accounts. Has full system access including "Equipo" section in Profile.
 - **Usuario**: Standard access — can view and manage all Mercados, Clientes, and Pedidos. No account management capabilities.
+
+Role is an enum (`UserRole.SUPERUSUARIO`, `UserRole.USUARIO`) stored as a string in Room. See `docs/features/usuarios.md`.
 
 ---
 
@@ -61,12 +64,67 @@ Usuarios (managed by Superusuario only)
 
 ---
 
+## Screen A: Perfil y Seguridad
+
+**Route**: `PerfilRoute`  
+**Design**: `docs/design/screens-profile.jsx`
+
+**Layout**:
+- Identity header: 66dp avatar with initials, user name, business name, `RoleBadge`
+  - SUPERUSUARIO sees "Administra el equipo" hint below the badge
+- **Cuenta section**: business name, email, phone (tap → edit, Phase 3 TBD)
+- **Seguridad section**: biometric toggle card (accent-soft bg when enabled), "Cambiar contraseña" row
+- **Equipo section** *(SUPERUSUARIO only)*: team summary (N usuarios · M super usuarios), navigates to `GestionUsuariosRoute`
+- Logout button (red-tint) at bottom
+
+---
+
+## Screen B: Gestión de Usuarios
+
+**Route**: `GestionUsuariosRoute`  
+**Design**: `docs/design/screens-users.jsx`
+
+**Layout**:
+- Banana-tinted scope banner: "Solo el super usuario puede gestionar el equipo"
+- Two sections: "Super usuarios · N" and "Usuarios · N"
+- Each `UserRow`: 46dp initials avatar, name, "(tú)" label if current user, lastSeenLabel or "Desactivado", small `RoleBadge`
+- Inactive users shown at 55% opacity
+- FAB "Invitar" → `InvitarUsuarioRoute`
+- Tapping any row → `UsuarioDetalleRoute(userId)`
+
+---
+
+## Screen C: Detalle de Usuario
+
+**Route**: `UsuarioDetalleRoute(userId: String)`  
+**Design**: `docs/design/screens-users.jsx`
+
+**Layout**:
+- 76dp initials avatar, name, email, `RoleBadge` in header
+- Role selector: two `RoleOption` cards (SUPERUSUARIO / USUARIO); save button appears when role changes
+- Activity section: última sesión, pedidos creados
+- Bottom actions: "Reenviar acceso" (outlined) + "Desactivar usuario" (danger)
+
+---
+
+## Screen D: Invitar Usuario
+
+**Route**: `InvitarUsuarioRoute`  
+**Design**: `docs/design/screens-users.jsx`
+
+**Fields**: Nombre (required), Correo (required, must contain @), Rol (two `RoleOption` cards)  
+**Banana warning banner** when SUPERUSUARIO is selected  
+**CTA**: "Enviar invitación" — saves to Room (Phase 9: wire to Supabase invite API)
+
+---
+
 ## Screen 1: Home — Lista de Mercados
 
 **Purpose**: Entry point after login. Shows all Mercados in the system.
 
 **Layout**:
 - Screen title: "Mercados"
+- Top-right: profile avatar button (user initials) → `PerfilRoute`
 - Alphabetically sorted list of Mercados
 - Each row shows:
   - Mercado name
@@ -311,6 +369,6 @@ A bottom sheet or modal appears with the payment options:
 | Al día | Up to date (no debt) |
 | Advertencia | Warning (some overdue balance) |
 | Crítico | Critical (significant overdue balance) |
-| Usuario | Standard app user |
-| Superusuario | Super admin |
+| Usuario | Standard app user (`UserRole.USUARIO`) |
+| Superusuario | Super admin (`UserRole.SUPERUSUARIO`) — manages team and user accounts |
 | Producto | A product in the user's catalogue (name, photo, description, price) |

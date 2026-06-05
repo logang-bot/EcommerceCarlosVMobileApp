@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,12 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -56,34 +52,6 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
-private val FingerprintIcon: ImageVector = ImageVector.Builder(
-    name = "Fingerprint",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
-).apply {
-    path(
-        fill = null,
-        stroke = SolidColor(Color.Black),
-        strokeLineWidth = 1.7f,
-        strokeLineCap = StrokeCap.Round,
-        strokeLineJoin = StrokeJoin.Round,
-    ) {
-        moveTo(6f, 11f)
-        arcToRelative(6f, 6f, 0f, false, true, 12f, 0f)
-        verticalLineToRelative(2f)
-        moveTo(9f, 12f)
-        arcToRelative(3f, 3f, 0f, false, true, 6f, 0f)
-        verticalLineToRelative(3f)
-        moveTo(12f, 12f)
-        verticalLineToRelative(5f)
-        moveTo(9f, 16f)
-        verticalLineToRelative(2f)
-        moveTo(15f, 15f)
-        verticalLineToRelative(3f)
-    }
-}.build()
 
 @Composable
 fun LoginScreen(
@@ -110,7 +78,6 @@ private fun LoginContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .padding(horizontal = 26.dp),
         ) {
             Spacer(modifier = Modifier.weight(1f))
@@ -141,8 +108,10 @@ private fun LoginContent(
             }
             Spacer(modifier = Modifier.height(if (state.errorMessage != null) 12.dp else 20.dp))
             PrimaryLoginButton(isLoading = state.isLoading, onClick = onLoginClick)
-            DividerOr()
-            BiometricButton()
+            if (state.isBiometricEnabled) {
+                DividerOr()
+                BiometricButton()
+            }
             Spacer(modifier = Modifier.weight(1.3f))
             Text(
                 text = stringResource(R.string.login_footer),
@@ -284,7 +253,7 @@ private fun BiometricButton(modifier: Modifier = Modifier) {
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
     ) {
-        Icon(imageVector = FingerprintIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        Icon(imageVector = Icons.Filled.Fingerprint, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
         Spacer(modifier = Modifier.width(10.dp))
         Text(stringResource(R.string.login_biometric), style = MaterialTheme.typography.labelLarge)
     }

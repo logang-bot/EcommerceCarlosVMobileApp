@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -49,8 +50,10 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
@@ -65,6 +68,7 @@ fun MercadosScreen(
         onMercadoClick = { navController.navigate(DetalleMercadoRoute(it)) },
         onCreateClick = { navController.navigate(CreateMercadoRoute()) },
         onListaNegraClick = { /* TODO: navigate to ListaNegraRoute — Phase 7 */ },
+        onPerfilClick = { navController.navigate(PerfilRoute) },
     )
 }
 
@@ -74,6 +78,7 @@ private fun MercadosContent(
     onMercadoClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     onListaNegraClick: () -> Unit,
+    onPerfilClick: () -> Unit = {},
 ) {
     val count = state.mercados.size
     Scaffold(
@@ -89,6 +94,9 @@ private fun MercadosContent(
                     }
                     IconButton(onClick = { }) {
                         Icon(Icons.Default.Notifications, contentDescription = null)
+                    }
+                    IconButton(onClick = onPerfilClick) {
+                        ProfileAvatar(initials = state.currentUserInitials.ifBlank { "?" }, size = 30)
                     }
                 },
             )
@@ -106,10 +114,10 @@ private fun MercadosContent(
         if (state.mercados.isEmpty() && !state.isLoading) {
             EmptyState(
                 modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.Search,
+                icon = Icons.Default.GridView,
                 title = stringResource(R.string.mercados_empty_title),
                 subtitle = stringResource(R.string.mercados_empty_subtitle),
-                hint = stringResource(R.string.mercados_fab),
+                hint = stringResource(R.string.mercados_empty_hint),
             )
         } else {
             LazyColumn(
@@ -212,7 +220,7 @@ private fun ListaNegraButton(modifier: Modifier = Modifier, onClick: () -> Unit)
 @Composable
 private fun MercadosScreenDarkPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
-        MercadosContent(MercadosUiState(), {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), {}, {}, {}, {})
     }
 }
 
@@ -220,6 +228,6 @@ private fun MercadosScreenDarkPreview() {
 @Composable
 private fun MercadosScreenPreview() {
     EcomerceCarlosVTheme(darkTheme = false) {
-        MercadosContent(MercadosUiState(), {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), {}, {}, {}, {})
     }
 }

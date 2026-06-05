@@ -79,7 +79,7 @@ private fun DetalleMercadoContent(
                 icon = Icons.Default.Person,
                 title = stringResource(R.string.detalle_mercado_empty_title),
                 subtitle = stringResource(R.string.detalle_mercado_empty_subtitle),
-                hint = stringResource(R.string.clientes_fab),
+                hint = stringResource(R.string.detalle_mercado_empty_hint),
             )
         }
     }
