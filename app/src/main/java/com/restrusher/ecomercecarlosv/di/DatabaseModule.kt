@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.restrusher.ecomercecarlosv.data.local.AppDatabase
 import com.restrusher.ecomercecarlosv.data.local.MIGRATION_4_5
+import com.restrusher.ecomercecarlosv.data.local.MIGRATION_5_6
+import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import dagger.Module
@@ -21,7 +23,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "pedidos_db")
-            .addMigrations(MIGRATION_4_5)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
@@ -30,4 +32,7 @@ object DatabaseModule {
 
     @Provides
     fun provideUserDao(db: AppDatabase): UserDao = db.userDao()
+
+    @Provides
+    fun provideClienteDao(db: AppDatabase): ClienteDao = db.clienteDao()
 }

@@ -220,6 +220,50 @@
     <string name="usuario_detalle_eliminar">Eliminar usuario</string>
     <string name="usuario_detalle_not_found">Usuario no encontrado</string>
 
+    <!-- Clientes screen -->
+    <string name="clientes_title_fallback">Clientes</string>
+    <string name="clientes_subtitle">%1$d clientes</string>
+    <string name="clientes_empty_title">Sin clientes todavía</string>
+    <string name="clientes_empty_subtitle">Agrega el primer cliente para llevar el control de sus pedidos y saldos.</string>
+    <string name="clientes_empty_hint">Nuevo cliente</string>
+    <string name="clientes_sort_label">Ordenar y filtrar</string>
+    <string name="clientes_search_placeholder">Buscar clientes…</string>
+    <string name="clientes_sort_az">A → Z</string>
+    <string name="clientes_sort_az_sub">Orden alfabético</string>
+    <string name="clientes_sort_criticos">Críticos primero</string>
+    <string name="clientes_sort_criticos_sub">Clientes con saldo más urgente</string>
+    <string name="clientes_sort_balance">Mayor saldo</string>
+    <string name="clientes_sort_balance_sub">De mayor a menor deuda</string>
+    <string name="clientes_sort_deuda">Solo con deuda</string>
+    <string name="clientes_sort_deuda_sub">Oculta los que están al día</string>
+    <string name="clientes_sort_restablecer">Restablecer (normal)</string>
+
+    <!-- Detalle Cliente -->
+    <string name="detalle_cliente_title">Detalle del cliente</string>
+    <string name="detalle_cliente_ubicacion">Ubicación</string>
+    <string name="detalle_cliente_saldo_total">Saldo total</string>
+    <string name="detalle_cliente_pedidos_section">Pedidos</string>
+    <string name="detalle_cliente_pedidos_empty_title">Sin pedidos todavía</string>
+    <string name="detalle_cliente_pedidos_empty_subtitle">Los pedidos de este cliente aparecerán aquí.</string>
+    <string name="detalle_cliente_pedidos_empty_hint">Nuevo pedido</string>
+
+    <!-- Crear / Editar Cliente -->
+    <string name="create_cliente_title_new">Nuevo cliente</string>
+    <string name="create_cliente_title_edit">Editar cliente</string>
+    <string name="create_cliente_name_label">Nombre</string>
+    <string name="create_cliente_name_placeholder">Nombre del cliente</string>
+    <string name="create_cliente_name_error">El nombre es obligatorio</string>
+    <string name="create_cliente_desc_label">Descripción del puesto</string>
+    <string name="create_cliente_desc_placeholder">Ej. Puesto 14 · verduras y frutas</string>
+    <string name="create_cliente_desc_error">La descripción es obligatoria</string>
+    <string name="create_cliente_desc_hint">Importante — identifica el puesto del cliente dentro del mercado.</string>
+    <string name="create_cliente_phones_label">Teléfonos</string>
+    <string name="create_cliente_phone_placeholder">Número de teléfono</string>
+    <string name="create_cliente_add_phone">Agregar otro teléfono</string>
+    <string name="create_cliente_maps_label">Ubicación en el mercado</string>
+    <string name="create_cliente_save_new">Guardar cliente</string>
+    <string name="create_cliente_save_edit">Guardar cambios</string>
+
     <!-- Crear Usuario -->
     <string name="crear_usuario_title">Nuevo usuario</string>
     <string name="crear_usuario_nombre">Nombre</string>

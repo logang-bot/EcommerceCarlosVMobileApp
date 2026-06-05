@@ -60,6 +60,7 @@ import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
@@ -82,7 +83,7 @@ fun MercadosScreen(
         state = state,
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
-        onMercadoClick = { navController.navigate(DetalleMercadoRoute(it)) },
+        onMercadoClick = { navController.navigate(ClientesRoute(it)) },
         onMercadoLongPress = viewModel::onMercadoLongPress,
         onCreateClick = { navController.navigate(CreateMercadoRoute()) },
         onVerDetallesClick = { mercadoId -> navController.navigate(DetalleMercadoRoute(mercadoId)) },

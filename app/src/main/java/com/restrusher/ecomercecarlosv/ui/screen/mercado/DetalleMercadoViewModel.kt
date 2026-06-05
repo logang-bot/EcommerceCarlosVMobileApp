@@ -27,7 +27,7 @@ class DetalleMercadoViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val mercado = mercadoRepository.getById(mercadoId)
-            _uiState.value = DetalleMercadoUiState(mercado = mercado, isLoading = false)
+            _uiState.value = DetalleMercadoUiState(mercado = mercado, mercadoId = mercadoId, isLoading = false)
         }
     }
 

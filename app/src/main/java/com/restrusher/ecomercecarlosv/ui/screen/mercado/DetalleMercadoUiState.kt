@@ -4,5 +4,6 @@ import com.restrusher.ecomercecarlosv.domain.model.Mercado
 
 data class DetalleMercadoUiState(
     val mercado: Mercado? = null,
+    val mercadoId: String = "",
     val isLoading: Boolean = true,
 )

@@ -331,8 +331,8 @@ A bottom sheet or modal appears with the payment options:
 **Fields**:
 - Name (required)
 - Address (text)
-- Location (map picker — drop a pin) *(Phase 2 extension)*
-- Photo (optional) *(Phase 2 extension)*
+- Location (URL field — user pastes a Google Maps link; tapping "Abrir" opens the device map app; no lat/lng stored)
+- Photo (optional)
 
 **CTA**: "Guardar" button is anchored in a sticky `bottomBar` (Scaffold slot) with a `HorizontalDivider` above it, so it stays visible when the form is scrolled.
 
@@ -343,9 +343,9 @@ A bottom sheet or modal appears with the payment options:
 **Fields**:
 - Photo (optional, circular crop)
 - Name (required)
-- Description (important — used to identify the cliente's spot/stall inside the Mercado)
+- Description (required — used to identify the cliente's spot/stall inside the Mercado)
 - Phone numbers (list — ability to add multiple)
-- Location within Mercado (map picker or text description of spot)
+- Location within Mercado (URL field — user pastes a link that opens in the device map app; no lat/lng stored)
 
 ---
 
@@ -384,6 +384,7 @@ Used on any list screen when there is no data to show. Design source: `screens-e
 |--------|------|
 | Mercados | `Icons.Default.GridView` |
 | Detalle de Mercado (clientes) | `Icons.Default.Person` |
+| Detalle de Cliente (pedidos) | `Icons.Default.Receipt` |
 | Búsqueda global | `Icons.Default.Search` |
 | Catálogo | `Icons.Default.Tag` *(Phase 6)* |
 | Lista Negra | `Icons.Default.Block` *(Phase 7)* |

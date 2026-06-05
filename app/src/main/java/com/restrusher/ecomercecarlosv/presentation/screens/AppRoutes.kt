@@ -34,3 +34,12 @@ object CrearUsuarioRoute
 
 @Serializable
 object BusquedaRoute
+
+@Serializable
+data class ClientesRoute(val mercadoId: String)
+
+@Serializable
+data class DetalleClienteRoute(val clienteId: String)
+
+@Serializable
+data class CreateClienteRoute(val mercadoId: String, val clienteId: String? = null)

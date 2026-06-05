@@ -50,6 +50,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
+import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.ui.common.MapsLinkField
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -68,7 +69,7 @@ fun DetalleMercadoScreen(
         onBack = { navController.popBackStack() },
         onEditClick = { mercadoId -> navController.navigate(CreateMercadoRoute(mercadoId)) },
         onDelete = { viewModel.onDelete { navController.popBackStack() } },
-        onClientesClick = { /* TODO: navigate to clientes list — Phase 3 */ },
+        onClientesClick = { navController.navigate(ClientesRoute(state.mercadoId)) },
     )
 }
 

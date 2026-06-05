@@ -15,7 +15,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 2d | Login two-state (enrolled user screen), bottom navigation, Editar Perfil screen | ✅ Done |
 | 2e | User management screens redesign: Gestión de Usuarios, UsuarioDetalle, CrearUsuario | ✅ Done |
 | 2f | Mercados: long-press selection + edit, contextual action bar, Búsqueda Global screen stub, MercadoDto | ✅ Done |
-| 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | 🔲 Next |
+| 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | 🔄 In Progress (Clientes CRUD done; Saldo Extra pending) |
 | 4 | Creación de Pedido (cart flow) | 🔲 Pending |
 | 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
 | 6 | Catálogo de Productos, Crear/Editar Producto | 🔲 Pending |

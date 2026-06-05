@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **5**. Supabase integration: Phase 9.
+Room version: **6**. Supabase integration: Phase 9.
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v5)
+## Current tables (Room v6)
 
 ### `users`
 
@@ -52,36 +52,33 @@ Shared resource. All users can read and write.
 
 ---
 
-## Planned tables (Phase 3+)
-
-These are not yet implemented in Room. Defined here based on the app spec so the Supabase schema can be set up in advance.
-
----
-
-### `clientes` *(Phase 3)*
+### `clientes` *(Room v6 — Phase 3)*
 
 Belongs to a `mercados` row. Represents an individual customer at a market stall.
 
-| Column | Supabase type | Nullable | Notes |
-|--------|---------------|----------|-------|
-| `id` | `uuid` PK | — | |
-| `mercado_id` | `uuid` FK → `mercados.id` | — | `ON DELETE CASCADE` |
-| `name` | `text` | — | |
-| `description` | `text` | — | Stall description e.g. "Puesto 14 · verduras" |
-| `photo_url` | `text` | ✓ | Supabase Storage URL |
-| `maps_url` | `text` | ✓ | Location within the mercado |
-| `latitude` | `float8` | ✓ | Extracted from `maps_url` |
-| `longitude` | `float8` | ✓ | Extracted from `maps_url` |
-| `status` | `text` | — | Derived: `ok` \| `warn` \| `crit` — computed, not stored |
-| `balance` | `float8` | — | Running total owed — computed from pedidos, not stored |
-| `is_blacklisted` | `boolean` | — | Default `false` |
-| `blacklist_reason` | `text` | ✓ | Set when `is_blacklisted = true` |
-| `blacklisted_at` | `bigint` | ✓ | Epoch ms |
-| `created_at` | `bigint` | — | Epoch ms |
+| Column | Room type | Supabase type | Nullable | Notes |
+|--------|-----------|---------------|----------|-------|
+| `id` | `String` PK | `uuid` PK | — | |
+| `mercadoId` | `String` FK | `uuid` FK → `mercados.id` | — | `ON DELETE CASCADE` |
+| `name` | `String` | `text` | — | |
+| `description` | `String` | `text` | — | Stall description e.g. "Puesto 14 · verduras" |
+| `photoUrl` | `String?` | `text` | ✓ | Supabase Storage URL |
+| `phones` | `String` | `text` | — | Pipe-separated list: `"0414-123\|0424-456"`. Empty string if none. |
+| `mapsUrl` | `String?` | `text` | ✓ | URL that opens the device map app — no lat/lng stored |
+| `isBlacklisted` | `Boolean` | `boolean` | — | Default `false` |
+| `blacklistReason` | `String?` | `text` | ✓ | Set when `is_blacklisted = true` |
+| `blacklistedAt` | `Long?` | `bigint` | ✓ | Epoch ms |
+| `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
-**Suggested indexes:** `clientes(mercado_id)`, `clientes(name)`, `clientes(is_blacklisted)`.
+**DAO operations:** `getByMercado(mercadoId)` flow (active, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
 
-> `status` and `balance` are computed in the app from the `pedidos` rows — do not store them as columns.
+**Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`.
+
+> `status` and `balance` are computed from `pedidos` in Phase 4 — do not store them. Location is stored only as `mapsUrl`; no lat/lng columns.
+
+---
+
+## Planned tables (Phase 4+)
 
 ---
 
