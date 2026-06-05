@@ -1,6 +1,6 @@
 # Feature: Navigation & Home Shell
 
-## Status: ✅ Done (Phase 2e)
+## Status: ✅ Done (Phase 2f)
 
 ---
 
@@ -23,6 +23,7 @@ The app has a single top-level navigation graph (`AppNavigation.kt`). After logi
 | `GestionUsuariosRoute` | `GestionUsuariosScreen` | Superuser only |
 | `UsuarioDetalleRoute(userId)` | `UsuarioDetalleScreen` | |
 | `CrearUsuarioRoute` | `CrearUsuarioScreen` | Create user with temp password |
+| `BusquedaRoute` | `BusquedaScreen` | Global client search (results stubbed until Phase 3) |
 
 All routes are `@Serializable` objects/data classes in `presentation/screens/AppRoutes.kt`.
 

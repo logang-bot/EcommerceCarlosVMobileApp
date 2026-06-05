@@ -14,12 +14,13 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 2c | Biometric fully functional, empty states redesign, UI polish | ✅ Done |
 | 2d | Login two-state (enrolled user screen), bottom navigation, Editar Perfil screen | ✅ Done |
 | 2e | User management screens redesign: Gestión de Usuarios, UsuarioDetalle, CrearUsuario | ✅ Done |
-| 3 | Detalle de Cliente, Saldo Extra | 🔲 Next |
+| 2f | Mercados: long-press selection + edit, contextual action bar, Búsqueda Global screen stub, MercadoDto | ✅ Done |
+| 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | 🔲 Next |
 | 4 | Creación de Pedido (cart flow) | 🔲 Pending |
 | 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
 | 6 | Catálogo de Productos, Crear/Editar Producto | 🔲 Pending |
 | 7 | Lista Negra, Agregar a Lista Negra | 🔲 Pending |
-| 8 | Búsqueda Global, Reporte Diario | 🔲 Pending |
+| 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
 
 ---

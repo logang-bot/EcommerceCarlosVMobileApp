@@ -3,6 +3,7 @@ package com.restrusher.ecomercecarlosv.di
 import android.content.Context
 import androidx.room.Room
 import com.restrusher.ecomercecarlosv.data.local.AppDatabase
+import com.restrusher.ecomercecarlosv.data.local.MIGRATION_4_5
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import dagger.Module
@@ -20,7 +21,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "pedidos_db")
-            // TODO: Replace with proper migrations before production release
+            .addMigrations(MIGRATION_4_5)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 

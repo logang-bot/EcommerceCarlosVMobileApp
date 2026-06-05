@@ -27,11 +27,11 @@ class EditarPerfilViewModel @Inject constructor(
     private fun loadUser() {
         val user = sessionManager.currentUser.value ?: return
         _state.value = EditarPerfilUiState(
-            name      = user.name,
-            email     = user.email,
-            phone     = user.phone ?: "",
-            role      = user.role,
-            initials  = computeInitials(user.name),
+            name = user.name,
+            email = user.email,
+            phone = user.phone ?: "",
+            role = user.role,
+            initials = computeInitials(user.name),
             isLoading = false,
         )
     }
@@ -54,6 +54,15 @@ class EditarPerfilViewModel @Inject constructor(
         _state.value = s.copy(isSaving = true)
         viewModelScope.launch {
             userRepository.updateProfile(user.id, s.name.trim(), s.email.trim(), s.phone.trim().ifEmpty { null })
+            // TODO (Phase 9): Sync profile changes to Supabase before updating Room:
+            //   supabaseClient.auth.admin.updateUserById(user.id) {
+            //       if (s.email.trim() != user.email) email = s.email.trim()
+            //       userMetadata = buildJsonObject {
+            //           put("name",  s.name.trim())
+            //           put("phone", s.phone.trim().ifEmpty { null })
+            //       }
+            //   }
+            //   Note: email changes require re-verification in Supabase by default.
             val updated = user.copy(name = s.name.trim(), email = s.email.trim(), phone = s.phone.trim().ifEmpty { null })
             sessionManager.setCurrentUser(updated)
             _state.value = s.copy(isSaving = false)

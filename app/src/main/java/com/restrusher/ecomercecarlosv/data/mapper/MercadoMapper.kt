@@ -9,6 +9,9 @@ object MercadoMapper {
         name = entity.name,
         address = entity.address,
         photoUrl = entity.photoUrl,
+        mapsUrl = entity.mapsUrl,
+        latitude = entity.latitude,
+        longitude = entity.longitude,
         createdAt = entity.createdAt,
     )
 
@@ -17,6 +20,9 @@ object MercadoMapper {
         name = domain.name,
         address = domain.address,
         photoUrl = domain.photoUrl,
+        mapsUrl = domain.mapsUrl,
+        latitude = domain.latitude,
+        longitude = domain.longitude,
         createdAt = domain.createdAt,
     )
 }

@@ -31,3 +31,6 @@ data class UsuarioDetalleRoute(val userId: String)
 
 @Serializable
 object CrearUsuarioRoute
+
+@Serializable
+object BusquedaRoute

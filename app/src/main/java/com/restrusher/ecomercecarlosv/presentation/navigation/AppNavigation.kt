@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
@@ -14,6 +15,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
 import com.restrusher.ecomercecarlosv.ui.screen.auth.LoginScreen
+import com.restrusher.ecomercecarlosv.ui.screen.busqueda.BusquedaScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.DetalleMercadoScreen
@@ -57,6 +59,9 @@ fun AppNavigation() {
         }
         composable<CrearUsuarioRoute> {
             CrearUsuarioScreen(navController = navController)
+        }
+        composable<BusquedaRoute> {
+            BusquedaScreen(navController = navController)
         }
     }
 }

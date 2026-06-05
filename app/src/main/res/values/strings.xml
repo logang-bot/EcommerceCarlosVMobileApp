@@ -27,6 +27,9 @@
     <string name="mercados_empty_title">Aún no hay mercados</string>
     <string name="mercados_empty_subtitle">Crea tu primer mercado para empezar a registrar clientes y pedidos.</string>
     <string name="mercados_empty_hint">Nuevo mercado</string>
+    <string name="mercados_n_seleccionado">1 seleccionado</string>
+    <string name="mercados_accion_editar">Editar</string>
+    <string name="mercados_selection_hint">Mantén pulsado un mercado para editarlo</string>
 
     <!-- Detalle Mercado -->
     <string name="detalle_mercado_empty_title">Sin clientes en este mercado</string>
@@ -34,13 +37,41 @@
     <string name="detalle_mercado_empty_hint">Nuevo cliente</string>
 
     <!-- Crear / Editar Mercado -->
-    <string name="create_mercado_title_new">Nuevo Mercado</string>
-    <string name="create_mercado_title_edit">Editar Mercado</string>
-    <string name="create_mercado_name_label">Nombre</string>
-    <string name="create_mercado_name_placeholder">Ej. Mercado Central</string>
+    <string name="create_mercado_title_new">Nuevo mercado</string>
+    <string name="create_mercado_title_edit">Editar mercado</string>
+    <string name="create_mercado_name_label">Nombre del mercado</string>
+    <string name="create_mercado_name_placeholder">Ej. Mercado de Coche</string>
     <string name="create_mercado_name_error">El nombre es obligatorio</string>
     <string name="create_mercado_address_label">Dirección</string>
-    <string name="create_mercado_address_placeholder">Ej. Av. Principal, Caracas</string>
+    <string name="create_mercado_address_placeholder">Av. Intercomunal, Coche</string>
+    <string name="create_mercado_photo_label">Foto</string>
+    <string name="create_mercado_photo_optional">(opcional)</string>
+    <string name="create_mercado_photo_add">Agregar foto</string>
+    <string name="create_mercado_delete">Eliminar mercado</string>
+    <string name="create_mercado_maps_url_label">Ubicación</string>
+    <string name="create_mercado_save_new">Guardar mercado</string>
+    <string name="create_mercado_save_edit">Guardar cambios</string>
+
+    <!-- Detalle del mercado -->
+    <string name="detalle_mercado_title">Detalle del mercado</string>
+    <string name="detalle_mercado_stat_clientes">Clientes</string>
+    <string name="detalle_mercado_stat_al_dia">Al día</string>
+    <string name="detalle_mercado_stat_en_riesgo">En riesgo</string>
+    <string name="detalle_mercado_section_ubicacion">Ubicación</string>
+    <string name="detalle_mercado_maps_hint">Toca Abrir para verlo en la app de mapas.</string>
+    <string name="detalle_mercado_clientes_activos">Clientes activos</string>
+    <string name="detalle_mercado_creado">Creado</string>
+    <string name="detalle_mercado_delete_confirm">Se eliminarán el mercado y sus clientes asociados. Esta acción no se puede deshacer.</string>
+    <string name="detalle_mercado_accion_editar">Editar mercado</string>
+
+    <!-- MapsLinkField -->
+    <string name="maps_field_placeholder">Pega el enlace de Google Maps</string>
+    <string name="maps_field_paste">Pegar</string>
+    <string name="maps_field_open">Abrir</string>
+
+    <!-- Mercados — updated selection strings -->
+    <string name="mercados_accion_ver_detalles">Ver detalles</string>
+    <string name="mercados_selection_hint_v2">Mantén pulsado un mercado para ver sus detalles</string>
 
     <!-- Clientes -->
     <string name="clientes_fab">Cliente</string>
@@ -90,6 +121,26 @@
     <string name="reporte_movimientos">Movimientos de hoy</string>
     <string name="reporte_pedidos_creados">Pedidos creados</string>
     <string name="reporte_pendiente_dia">Pendiente del día</string>
+
+    <!-- Búsqueda Global -->
+    <string name="busqueda_placeholder">Buscar clientes…</string>
+    <string name="busqueda_results_count">%1$d resultados en clientes</string>
+    <string name="busqueda_no_query_title">Busca clientes</string>
+    <string name="busqueda_no_query_subtitle">Escribe un nombre o número de teléfono para encontrar clientes en todos los mercados.</string>
+    <string name="busqueda_empty_title">Sin resultados</string>
+    <string name="busqueda_empty_subtitle">No encontramos clientes con ese nombre o teléfono.</string>
+
+    <!-- Permissions -->
+    <string name="permission_required">Permiso requerido</string>
+    <string name="permission_grant">Ir a configuración</string>
+    <string name="ok">Aceptar</string>
+    <string name="camera_permission_rationale">Necesitamos acceso a tu cámara para tomar fotos. Por favor, concede el permiso para continuar.</string>
+    <string name="camera_permission_permanently_declined">Has denegado el permiso de cámara permanentemente. Ve a Configuración de la app para habilitarlo manualmente.</string>
+
+    <!-- Photo picker sheet -->
+    <string name="photo_sheet_title">Foto del mercado</string>
+    <string name="photo_sheet_take_photo">Tomar foto</string>
+    <string name="photo_sheet_choose_gallery">Elegir de la galería</string>
 
     <!-- Common actions -->
     <string name="common_guardar">Guardar</string>

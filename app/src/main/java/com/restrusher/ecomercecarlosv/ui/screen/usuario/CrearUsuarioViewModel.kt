@@ -38,7 +38,19 @@ class CrearUsuarioViewModel @Inject constructor(
         }
         _state.value = s.copy(isSending = true)
         viewModelScope.launch {
-            // TODO: Replace with Supabase create user API — see docs/features/usuarios.md → Create User API
+            // ─── STUB: local Room save — replace with Supabase admin call (Phase 9) ─
+            // TODO (Phase 9):
+            //   val result = supabaseClient.auth.admin.createUserWithEmailAndPassword(
+            //       email    = s.email.trim(),
+            //       password = s.password,
+            //       data     = buildJsonObject {
+            //           put("name", s.name.trim())
+            //           put("role", s.role.name)
+            //       }
+            //   )
+            //   Then upsert the new user into Room so local queries stay in sync:
+            //     userRepository.save(result.toAppUser())
+            //   Remove delay(300) once wired.
             val newUser = AppUser(
                 id = UUID.randomUUID().toString(),
                 email = s.email.trim(),
@@ -48,7 +60,8 @@ class CrearUsuarioViewModel @Inject constructor(
                 createdAt = System.currentTimeMillis(),
             )
             userRepository.save(newUser)
-            delay(300)
+            delay(300) // simulated network call — remove in Phase 9
+            // ─────────────────────────────────────────────────────────────────────
             _state.value = s.copy(isSending = false, sent = true)
             onDone()
         }

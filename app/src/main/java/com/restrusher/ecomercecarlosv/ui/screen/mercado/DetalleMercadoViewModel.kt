@@ -30,4 +30,12 @@ class DetalleMercadoViewModel @Inject constructor(
             _uiState.value = DetalleMercadoUiState(mercado = mercado, isLoading = false)
         }
     }
+
+    fun onDelete(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            mercadoRepository.delete(mercadoId)
+            onSuccess()
+        }
+    }
 }

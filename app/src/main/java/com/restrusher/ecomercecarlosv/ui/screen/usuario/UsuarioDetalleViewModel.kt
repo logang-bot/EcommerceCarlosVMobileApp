@@ -53,6 +53,10 @@ class UsuarioDetalleViewModel @Inject constructor(
         viewModelScope.launch {
             val domainUser = userRepository.getById(user.id) ?: return@launch
             userRepository.save(domainUser.copy(role = _state.value.selectedRole))
+            // TODO (Phase 9): Sync role change to Supabase user metadata:
+            //   supabaseClient.auth.admin.updateUserById(userId) {
+            //       userMetadata = buildJsonObject { put("role", selectedRole.name) }
+            //   }
             _state.value = _state.value.copy(isSaving = false)
             onDone()
         }
@@ -61,6 +65,9 @@ class UsuarioDetalleViewModel @Inject constructor(
     fun onDeactivate(onDone: () -> Unit) {
         viewModelScope.launch {
             userRepository.setActive(userId, false)
+            // TODO (Phase 9): Also disable the account in Supabase so the user cannot sign in:
+            //   supabaseClient.auth.admin.updateUserById(userId) { banned = true }
+            //   Run Supabase call first; only update Room on success to keep state consistent.
             onDone()
         }
     }
@@ -69,6 +76,9 @@ class UsuarioDetalleViewModel @Inject constructor(
         _state.value = _state.value.copy(isDeleting = true)
         viewModelScope.launch {
             userRepository.delete(userId)
+            // TODO (Phase 9): Also hard-delete the account from Supabase:
+            //   supabaseClient.auth.admin.deleteUser(userId)
+            //   Run Supabase call first; only delete from Room on success.
             _state.value = _state.value.copy(isDeleting = false)
             onDone()
         }

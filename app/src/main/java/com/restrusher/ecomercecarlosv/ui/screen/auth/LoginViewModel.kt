@@ -19,15 +19,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// TODO: Replace hardcoded admin/admin check with Supabase auth — see docs/features/auth.md
+// ─── STUB: hardcoded user — remove entirely in Phase 9 ──────────────────────
+// TODO (Phase 9): Delete STUB_ADMIN and the two credential constants below.
+//   Real auth flows through supabaseClient.auth.signInWith(Email) { ... }
 private val STUB_ADMIN = AppUser(
-    id        = "u1",
-    email     = "carlos@comercializadora.ve",
-    name      = "Carlos Villarroel",
-    role      = UserRole.SUPERUSUARIO,
-    isActive  = true,
+    id = "u1",
+    email = "carlos@comercializadora.ve",
+    name = "Carlos Villarroel",
+    role = UserRole.SUPERUSUARIO,
+    isActive = true,
     createdAt = 0L,
 )
+// ─────────────────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
@@ -40,6 +43,15 @@ class LoginViewModel @Inject constructor(
     val state: StateFlow<LoginFormState> = _state.asStateFlow()
 
     init {
+        // TODO (Phase 9): Before biometric check, restore an existing Supabase session so
+        //   users who were already signed in don't see the login screen on relaunch:
+        //     val session = supabaseClient.auth.currentSessionOrNull()
+        //     if (session != null && !session.isExpired()) {
+        //         val userId = supabaseClient.auth.currentUserOrNull()?.id ?: return
+        //         val user   = userRepository.getById(userId) ?: fetchAndUpsertFromSupabase(userId)
+        //         sessionManager.setCurrentUser(user)
+        //         onAutoLoginSuccess()   // navigate to HomeRoute via a callback passed into the VM
+        //     }
         checkBiometricAvailability()
     }
 
@@ -50,10 +62,10 @@ class LoginViewModel @Inject constructor(
             if (deviceReady && userRepository.hasBiometricEnabled()) {
                 val user = userRepository.getBiometricEnabledUser()
                 _state.value = _state.value.copy(
-                    isBiometricEnabled   = true,
-                    enrolledUserName     = user?.name ?: "",
-                    enrolledUserEmail    = user?.email ?: "",
-                    enrolledUserRole     = user?.role ?: UserRole.USUARIO,
+                    isBiometricEnabled = true,
+                    enrolledUserName = user?.name ?: "",
+                    enrolledUserEmail = user?.email ?: "",
+                    enrolledUserRole = user?.role ?: UserRole.USUARIO,
                     enrolledUserInitials = computeInitials(user?.name ?: ""),
                 )
             }
@@ -71,14 +83,26 @@ class LoginViewModel @Inject constructor(
     fun onLoginClick(onSuccess: () -> Unit) {
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
-            delay(300)
             val s = _state.value
+            // ─── STUB: replace this entire block with Supabase auth (Phase 9) ──────
+            // TODO (Phase 9):
+            //   try {
+            //       supabaseClient.auth.signInWith(Email) {
+            //           email    = s.email.trim()
+            //           password = s.password
+            //       }
+            //       val userId = supabaseClient.auth.currentUserOrNull()?.id ?: return@launch
+            //       val user   = userRepository.getById(userId)
+            //                    ?: fetchAndUpsertFromSupabase(userId)  // sync on first device login
+            //       sessionManager.setCurrentUser(user)
+            //       _state.value = s.copy(isLoading = false)
+            //       onSuccess()
+            //   } catch (e: AuthException) {
+            //       _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
+            //   }
+            delay(300)
             if (s.email.trim() == "admin" && s.password == "admin") {
-                // Ensure stub user exists in DB (first run)
-                if (userRepository.getById(STUB_ADMIN.id) == null) {
-                    userRepository.save(STUB_ADMIN)
-                }
-                // Load from DB to pick up any saved biometricEnabledAt
+                if (userRepository.getById(STUB_ADMIN.id) == null) userRepository.save(STUB_ADMIN)
                 val user = userRepository.getById(STUB_ADMIN.id) ?: STUB_ADMIN
                 sessionManager.setCurrentUser(user)
                 _state.value = s.copy(isLoading = false)
@@ -86,6 +110,7 @@ class LoginViewModel @Inject constructor(
             } else {
                 _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
             }
+            // ─────────────────────────────────────────────────────────────────────
         }
     }
 
@@ -106,10 +131,10 @@ class LoginViewModel @Inject constructor(
     fun switchToOtherAccount() {
         _state.value = _state.value.copy(
             isBiometricEnabled = false,
-            showPasswordLogin  = false,
-            email              = "",
-            password           = "",
-            errorMessage       = null,
+            showPasswordLogin = false,
+            email = "",
+            password = "",
+            errorMessage = null,
         )
     }
 

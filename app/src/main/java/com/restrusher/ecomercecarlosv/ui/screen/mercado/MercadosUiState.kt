@@ -6,4 +6,5 @@ data class MercadosUiState(
     val mercados: List<Mercado> = emptyList(),
     val isLoading: Boolean = false,
     val currentUserInitials: String = "",
+    val selectedMercadoId: String? = null,
 )
