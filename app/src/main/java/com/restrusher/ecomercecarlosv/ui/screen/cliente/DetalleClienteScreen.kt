@@ -14,14 +14,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Receipt
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -65,6 +71,9 @@ import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DetalleClienteScreen(
@@ -79,6 +88,7 @@ fun DetalleClienteScreen(
             navController.navigate(CreateClienteRoute(mercadoId = mercadoId, clienteId = clienteId))
         },
         onListaNegraClick = { state.cliente?.let { navController.navigate(AgregarListaNegraRoute(it.id)) } },
+        onQuitarListaNegraClick = { viewModel.unblacklist() },
         onSaldoExtraClick = { state.cliente?.let { navController.navigate(SaldoExtraRoute(it.id)) } },
         onNuevoPedidoClick = {
             state.cliente?.let { c ->
@@ -101,6 +111,7 @@ private fun DetalleClienteContent(
     onBack: () -> Unit,
     onEditClick: (clienteId: String, mercadoId: String) -> Unit,
     onListaNegraClick: () -> Unit,
+    onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
     onNuevoPedidoClick: () -> Unit = {},
     onPedidoClick: (pedidoId: String) -> Unit = {},
@@ -111,16 +122,23 @@ private fun DetalleClienteContent(
             PedidosTopBar(
                 title = stringResource(R.string.detalle_cliente_title),
                 onBack = onBack,
+                actions = {
+                    if (state.cliente != null) {
+                        IconButton(onClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) }) {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
-            if (state.cliente != null) {
+            if (state.cliente != null && !state.cliente.isBlacklisted) {
                 ExtendedFloatingActionButton(
                     text = { Text(stringResource(R.string.pedidos_nuevo)) },
                     icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
                     onClick = onNuevoPedidoClick,
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = androidx.compose.ui.graphics.Color.White,
+                    contentColor = Color.White,
                 )
             }
         },
@@ -137,8 +155,8 @@ private fun DetalleClienteContent(
                 balance = state.balance,
                 pedidos = state.pedidos,
                 innerPadding = innerPadding,
-                onEditClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) },
                 onListaNegraClick = onListaNegraClick,
+                onQuitarListaNegraClick = onQuitarListaNegraClick,
                 onSaldoExtraClick = onSaldoExtraClick,
                 onPedidoClick = onPedidoClick,
             )
@@ -153,8 +171,8 @@ private fun ClienteData(
     balance: Double,
     pedidos: List<Pedido>,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
-    onEditClick: () -> Unit,
     onListaNegraClick: () -> Unit,
+    onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
     onPedidoClick: (String) -> Unit,
 ) {
@@ -164,17 +182,65 @@ private fun ClienteData(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
+        if (cliente.isBlacklisted) {
+            BlacklistBanner(blacklistedAt = cliente.blacklistedAt)
+        }
         ClienteHeader(cliente = cliente)
         BalanceBlock(status = status, balance = balance)
         Spacer(Modifier.height(12.dp))
         ActionButtons(
             isBlacklisted = cliente.isBlacklisted,
             onListaNegraClick = onListaNegraClick,
+            onQuitarListaNegraClick = onQuitarListaNegraClick,
             onSaldoExtraClick = onSaldoExtraClick,
         )
         Spacer(Modifier.height(24.dp))
         PedidosSection(pedidos = pedidos, onPedidoClick = onPedidoClick)
         Spacer(Modifier.height(80.dp))
+    }
+}
+
+@Composable
+private fun BlacklistBanner(blacklistedAt: Long?) {
+    val ext = MaterialTheme.extendedColors
+    val dateText = blacklistedAt?.let {
+        SimpleDateFormat("d MMM yyyy", Locale("es")).format(Date(it))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 6.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(ext.redTint)
+            .border(1.dp, Color(0x47F05A50), RoundedCornerShape(13.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        Icon(
+            Icons.Default.Block,
+            contentDescription = null,
+            tint = ext.redText,
+            modifier = Modifier.size(20.dp).padding(top = 1.dp),
+        )
+        Column {
+            Text(
+                text = stringResource(R.string.detalle_cliente_lista_negra_title),
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = ext.redText,
+            )
+            Text(
+                text = if (dateText != null) {
+                    stringResource(R.string.detalle_cliente_lista_negra_subtitle, dateText)
+                } else {
+                    stringResource(R.string.detalle_cliente_lista_negra_subtitle, "—")
+                },
+                fontSize = 12.5.sp,
+                color = MaterialTheme.extendedColors.text2,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 
@@ -187,7 +253,28 @@ private fun ClienteHeader(cliente: Cliente) {
             .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ClienteAvatar(name = cliente.name, size = 76.dp)
+        Box {
+            ClienteAvatar(name = cliente.name, size = 76.dp)
+            if (cliente.isBlacklisted) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF05A50))
+                        .border(3.dp, MaterialTheme.colorScheme.background, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.Block,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         Text(cliente.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
         if (cliente.description.isNotBlank()) {
@@ -278,13 +365,34 @@ private fun BalanceBlock(status: ClientStatus, balance: Double) {
 }
 
 @Composable
-private fun ActionButtons(isBlacklisted: Boolean, onListaNegraClick: () -> Unit, onSaldoExtraClick: () -> Unit) {
+private fun ActionButtons(
+    isBlacklisted: Boolean,
+    onListaNegraClick: () -> Unit,
+    onQuitarListaNegraClick: () -> Unit,
+    onSaldoExtraClick: () -> Unit,
+) {
     val ext = MaterialTheme.extendedColors
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (!isBlacklisted) {
+        if (isBlacklisted) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth().height(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(ext.surface2)
+                    .border(1.dp, ext.border2, RoundedCornerShape(13.dp))
+                    .clickable(onClick = onQuitarListaNegraClick)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = ext.greenText, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.clientes_quitar_lista_negra), fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp)
+            }
+        } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth().height(46.dp)
@@ -304,17 +412,27 @@ private fun ActionButtons(isBlacklisted: Boolean, onListaNegraClick: () -> Unit,
         Row(
             modifier = Modifier
                 .fillMaxWidth().height(46.dp)
+                .then(if (isBlacklisted) Modifier.alpha(0.5f) else Modifier)
                 .clip(RoundedCornerShape(13.dp))
                 .background(ext.surface2)
                 .border(1.dp, ext.border2, RoundedCornerShape(13.dp))
-                .clickable(onClick = onSaldoExtraClick)
+                .then(if (!isBlacklisted) Modifier.clickable(onClick = onSaldoExtraClick) else Modifier)
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Icon(Icons.Default.Tag, contentDescription = null, tint = ext.amberText, modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Default.Tag,
+                contentDescription = null,
+                tint = ext.amberText,
+                modifier = Modifier.size(18.dp),
+            )
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.clientes_agregar_saldo_extra), fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp)
+            Text(
+                text = stringResource(R.string.clientes_agregar_saldo_extra),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.5.sp,
+            )
         }
     }
 }
@@ -356,7 +474,24 @@ private fun DetalleClienteScreenPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
         DetalleClienteContent(
             state = DetalleClienteUiState(cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0, isLoading = false),
-            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {}, onSaldoExtraClick = {},
+            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun DetalleClienteListaNegraPreview() {
+    val cliente = Cliente(
+        id = "c1", mercadoId = "m1", name = "Ana Rodríguez",
+        description = "Puesto 14 · verduras", phones = listOf("0414-2230198"),
+        mapsUrl = null, createdAt = 0L,
+        isBlacklisted = true, blacklistedAt = 1747526400000L,
+    )
+    EcomerceCarlosVTheme(darkTheme = true) {
+        DetalleClienteContent(
+            state = DetalleClienteUiState(cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0, isLoading = false),
+            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
         )
     }
 }

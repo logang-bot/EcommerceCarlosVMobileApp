@@ -35,4 +35,7 @@ class ClienteRepositoryImpl @Inject constructor(
 
     override suspend fun blacklist(id: String, reason: String, balance: Double, at: Long) =
         dao.blacklist(id, reason, balance, at)
+
+    override suspend fun unblacklist(id: String) =
+        dao.unblacklist(id)
 }

@@ -1,6 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.pedido
 
-import androidx.compose.foundation.background
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,47 +9,33 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.ui.common.PayChip
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -62,7 +48,7 @@ fun DetallePedidoScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.showPagoSheet) {
-        PagoParacialSheet(
+        PagoParcialSheet(
             remaining = state.pedido?.pending ?: 0.0,
             isSaving = state.isSaving,
             onSubmit = viewModel::onRegistrarPago,
@@ -94,7 +80,6 @@ private fun DetallePedidoContent(
                     SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es")).format(Date(it.createdAt))
                 },
                 onBack = onBack,
-                actions = { if (pedido != null) PayChip(status = pedido.status) },
             )
         },
         bottomBar = {
@@ -117,143 +102,58 @@ private fun DetallePedidoContent(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
             ) {
-                Spacer(Modifier.height(8.dp))
-                DetalleSectionLabel(stringResource(R.string.detalle_pedido_section_lineas))
+                PedidoStatusStrip(pedido = pedido, detalleCount = state.detalles.size, clienteName = state.clienteName)
+                HorizontalDivider(color = MaterialTheme.extendedColors.border)
                 if (pedido.isSaldoExtra) {
-                    SaldoExtraInfo(description = pedido.notes.orEmpty())
+                    SaldoExtraBody(description = pedido.notes.orEmpty())
                 } else {
                     LineItemsSection(detalles = state.detalles)
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.extendedColors.border)
-                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.extendedColors.border)
                 TotalBlock(pedido = pedido)
-                Spacer(Modifier.height(24.dp))
+                if (pedido.paid > 0) {
+                    HorizontalDivider(color = MaterialTheme.extendedColors.border)
+                    PagosSection(pedido = pedido)
+                }
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
 }
 
 @Composable
-private fun SaldoExtraInfo(description: String) {
-    val ext = MaterialTheme.extendedColors
-    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-        if (description.isNotBlank()) {
-            Text(description, fontSize = 14.sp, color = ext.text2)
-        }
+private fun PedidoStatusStrip(pedido: Pedido, detalleCount: Int, clienteName: String) {
+    val subtitle = if (pedido.isSaldoExtra) {
+        stringResource(R.string.detalle_pedido_saldo_extra_label, clienteName)
+    } else {
+        pluralStringResource(R.plurals.detalle_pedido_n_productos, detalleCount, detalleCount, clienteName)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        PayChip(status = pedido.status)
+        Text(subtitle, fontSize = 12.5.sp, color = MaterialTheme.extendedColors.text3)
     }
 }
 
 @Composable
-private fun TotalBlock(pedido: Pedido) {
-    val ext = MaterialTheme.extendedColors
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        TotalRow(label = stringResource(R.string.detalle_pedido_total_label), amount = pedido.total, color = null)
-        if (pedido.paid > 0) {
-            Spacer(Modifier.height(6.dp))
-            TotalRow(label = stringResource(R.string.detalle_pedido_pagado_label), amount = pedido.paid, color = ext.greenText)
-        }
-        if (pedido.pending > 0) {
-            Spacer(Modifier.height(4.dp))
-            HorizontalDivider(color = ext.border)
-            Spacer(Modifier.height(4.dp))
-            TotalRow(label = stringResource(R.string.detalle_pedido_pendiente_label), amount = pedido.pending, color = ext.amberText)
-        }
-    }
-}
-
-@Composable
-private fun TotalRow(label: String, amount: Double, color: androidx.compose.ui.graphics.Color?) {
-    val ext = MaterialTheme.extendedColors
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 14.sp, color = color ?: ext.text2, fontWeight = FontWeight.Medium)
+private fun SaldoExtraBody(description: String) {
+    if (description.isNotBlank()) {
         Text(
-            text = "Bs. ${"%.2f".format(amount)}",
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.SemiBold,
+            text = description,
             fontSize = 14.sp,
-            color = color ?: MaterialTheme.colorScheme.onBackground,
+            color = MaterialTheme.extendedColors.text2,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
         )
     }
 }
 
 @Composable
-private fun DetallePedidoBottomBar(isSaving: Boolean, onMarcarPagado: () -> Unit, onPagoParcial: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        OutlinedButton(
-            onClick = onPagoParcial,
-            enabled = !isSaving,
-            modifier = Modifier.weight(1f).height(50.dp),
-            shape = RoundedCornerShape(14.dp),
-        ) { Text(stringResource(R.string.pedidos_registrar_pago_parcial), fontWeight = FontWeight.SemiBold) }
-        Button(
-            onClick = onMarcarPagado,
-            enabled = !isSaving,
-            modifier = Modifier.weight(1f).height(50.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.extendedColors.greenText),
-        ) {
-            if (isSaving) CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-            else Text(stringResource(R.string.pedidos_marcar_pagado), fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PagoParacialSheet(
-    remaining: Double,
-    isSaving: Boolean,
-    onSubmit: (Double) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var amountText by remember { mutableStateOf("") }
-    val ext = MaterialTheme.extendedColors
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Column(modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 28.dp)) {
-            Text(stringResource(R.string.detalle_pedido_pago_parcial_title), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.detalle_pedido_pendiente_label) + ": Bs. ${"%.2f".format(remaining)}", fontSize = 13.sp, color = ext.text2)
-            Spacer(Modifier.height(14.dp))
-            OutlinedTextField(
-                value = amountText,
-                onValueChange = { amountText = it },
-                label = { Text(stringResource(R.string.detalle_pedido_monto_pago_label)) },
-                prefix = { Text("Bs. ", fontFamily = FontFamily.Monospace) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            )
-            Spacer(Modifier.height(16.dp))
-            val amount = amountText.replace(",", ".").toDoubleOrNull() ?: 0.0
-            TextButton(
-                onClick = { onSubmit(amount.coerceAtMost(remaining)) },
-                enabled = amount > 0 && !isSaving,
-                modifier = Modifier.fillMaxWidth().height(52.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp)),
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(stringResource(R.string.detalle_pedido_registrar_pago), color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetalleSectionLabel(text: String) {
+internal fun DetalleSectionLabel(text: String) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
@@ -261,4 +161,36 @@ private fun DetalleSectionLabel(text: String) {
         letterSpacing = 0.5.sp,
         modifier = Modifier.padding(start = 20.dp, bottom = 8.dp),
     )
+}
+
+// ── Previews ──────────────────────────────────────────────────────────
+
+private val previewPedido = Pedido(
+    id = "1", clienteId = "c1", status = PedidoStatus.PARTIAL,
+    total = 112.00, paid = 50.00, createdAt = 1748390400000L,
+)
+private val previewDetalles = listOf(
+    DetallePedido("d1", "1", "p1", "Harina PAN 1kg", 12, 2.50, 2.50),
+    DetallePedido("d2", "1", "p2", "Aceite Vatel 1L", 6, 4.50, 4.50),
+    DetallePedido("d3", "1", "p3", "Café Madrid 250g", 4, 3.00, 5.20, "Descuento acordado"),
+)
+private val previewState = DetallePedidoUiState(
+    pedido = previewPedido, detalles = previewDetalles,
+    clienteName = "Ana Rodríguez", isLoading = false,
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun DetallePedidoContentPreview() {
+    EcomerceCarlosVTheme {
+        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun DetallePedidoContentDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {})
+    }
 }

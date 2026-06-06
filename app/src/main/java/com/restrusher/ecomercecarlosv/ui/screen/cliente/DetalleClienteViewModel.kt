@@ -15,11 +15,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class DetalleClienteViewModel @Inject constructor(
-    clienteRepository: ClienteRepository,
+    private val clienteRepository: ClienteRepository,
     pedidoRepository: PedidoRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -48,6 +49,10 @@ class DetalleClienteViewModel @Inject constructor(
         if (balance <= 0.0) return ClientStatus.AL_DIA
         val hasOldUnpaid = pedidos.any { it.status != PedidoStatus.PAID && isOlderThan30Days(it.createdAt) }
         return if (hasOldUnpaid || balance > 200.0) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
+    }
+
+    fun unblacklist() {
+        viewModelScope.launch { clienteRepository.unblacklist(clienteId) }
     }
 
     private fun isOlderThan30Days(createdAt: Long): Boolean =

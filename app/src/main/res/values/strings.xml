@@ -77,6 +77,7 @@
     <string name="clientes_fab">Cliente</string>
     <string name="clientes_ver_lista_negra">Ver Lista Negra de este Mercado</string>
     <string name="clientes_agregar_lista_negra">Agregar a Lista Negra</string>
+    <string name="clientes_quitar_lista_negra">Quitar de Lista Negra</string>
     <string name="clientes_agregar_saldo_extra">Agregar saldo extra</string>
 
     <!-- Pedidos -->
@@ -109,13 +110,15 @@
     <string name="lista_negra_ingresar_manual">Ingresar manualmente</string>
 
     <!-- Saldo Extra -->
-    <string name="saldo_extra_title">Saldo Extra</string>
+    <string name="saldo_extra_title">Agregar saldo extra</string>
     <string name="saldo_extra_categoria">Saldo</string>
+    <string name="saldo_extra_categoria_label">Categoría</string>
+    <string name="saldo_extra_categoria_fijo">Fijo</string>
     <string name="saldo_extra_descripcion">Descripción</string>
     <string name="saldo_extra_monto">Monto</string>
     <string name="saldo_extra_fecha">Fecha</string>
-    <string name="saldo_extra_guardar">Guardar saldo extra</string>
-    <string name="saldo_extra_descripcion_placeholder">Explica el motivo del saldo extra</string>
+    <string name="saldo_extra_guardar">Registrar saldo</string>
+    <string name="saldo_extra_descripcion_placeholder">Explica de qué se trata este saldo</string>
     <string name="saldo_extra_descripcion_error">La descripción es obligatoria</string>
     <string name="saldo_extra_monto_error">Ingresa un monto válido</string>
     <string name="pedidos_row_saldo_extra">Saldo extra</string>
@@ -277,7 +280,9 @@
     <!-- Detalle Cliente -->
     <string name="detalle_cliente_title">Detalle del cliente</string>
     <string name="detalle_cliente_ubicacion">Ubicación</string>
-    <string name="detalle_cliente_saldo_total">Saldo total</string>
+    <string name="detalle_cliente_saldo_total">Saldo pendiente total</string>
+    <string name="detalle_cliente_lista_negra_title">En Lista Negra</string>
+    <string name="detalle_cliente_lista_negra_subtitle">Vetado desde el %s · no se pueden crear pedidos nuevos.</string>
     <string name="detalle_cliente_pedidos_section">Pedidos</string>
     <string name="detalle_cliente_pedidos_empty_title">Sin pedidos todavía</string>
     <string name="detalle_cliente_pedidos_empty_subtitle">Este cliente aún no tiene pedidos registrados.</string>
@@ -348,15 +353,16 @@
     <string name="pedidos_precio_catalogo_ref">Precio de catálogo · Bs. %1$s</string>
 
     <!-- Detalle Pedido -->
-    <string name="detalle_pedido_title">Detalle del pedido</string>
-    <string name="detalle_pedido_section_lineas">Líneas del pedido</string>
-    <string name="detalle_pedido_qty_precio">×%1$d · Bs. %2$s c/u</string>
+    <string name="detalle_pedido_title">Pedido</string>
     <string name="detalle_pedido_total_label">Total del pedido</string>
     <string name="detalle_pedido_pagado_label">Pagado</string>
     <string name="detalle_pedido_pendiente_label">Saldo restante</string>
     <string name="detalle_pedido_registrar_pago">Registrar pago</string>
     <string name="detalle_pedido_monto_pago_label">Monto del pago</string>
     <string name="detalle_pedido_pago_parcial_title">Registrar pago parcial</string>
+    <string name="detalle_pedido_pagos_section">Pagos registrados</string>
+    <string name="detalle_pedido_marcar_pagado">Marcar pagado</string>
+    <string name="detalle_pedido_saldo_extra_label">Saldo extra · %1$s</string>
 
     <!-- Agregar a Lista Negra -->
     <string name="agregar_lista_negra_title">Agregar a Lista Negra</string>
@@ -371,4 +377,9 @@
     <string name="agregar_lista_negra_reason_section">Motivo del veto</string>
     <string name="agregar_lista_negra_reason_placeholder">Explica por qué se agrega a la lista</string>
     <string name="agregar_lista_negra_confirm">Confirmar y agregar a Lista Negra</string>
+
+    <plurals name="detalle_pedido_n_productos">
+        <item quantity="one">%1$d producto · %2$s</item>
+        <item quantity="other">%1$d productos · %2$s</item>
+    </plurals>
 </resources>

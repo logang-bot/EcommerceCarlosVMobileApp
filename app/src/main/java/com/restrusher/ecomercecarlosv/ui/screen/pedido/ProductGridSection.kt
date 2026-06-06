@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.pedido
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,13 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -39,11 +37,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Producto
+import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
 @Composable
@@ -82,30 +82,43 @@ private fun SearchCell(onClick: () -> Unit) {
     val ext = MaterialTheme.extendedColors
     Column(
         modifier = Modifier
-            .aspectRatio(0.82f)
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, ext.border2, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .fillMaxWidth()
+                .height(72.dp)
                 .background(ext.surface3),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(ext.surface2),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.pedidos_buscar_producto),
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = ext.text2,
-        )
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+            Text(
+                text = stringResource(R.string.pedidos_buscar_producto),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ext.text2,
+                modifier = Modifier.height(29.dp),
+            )
+            Text(text = "", fontSize = 12.5.sp, fontFamily = FontFamily.Monospace)
+        }
     }
 }
 
@@ -200,5 +213,85 @@ private fun QuantityStepper(quantity: Int, onIncrement: () -> Unit, onDecrement:
         IconButton(onClick = onIncrement, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
         }
+    }
+}
+
+private val previewProductos = listOf(
+    Producto(id = "1", name = "Arroz premium", price = 12.50, createdAt = 0),
+    Producto(id = "2", name = "Aceite girasol 1L", price = 18.00, createdAt = 0),
+    Producto(id = "3", name = "Azúcar blanca", description = "Bolsa 1kg", price = 8.50, createdAt = 0),
+    Producto(id = "4", name = "Fideos tallarín", price = 6.00, createdAt = 0),
+    Producto(id = "5", name = "Leche evaporada", price = 4.50, createdAt = 0),
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun ProductGridSectionPreview() {
+    EcomerceCarlosVTheme {
+        ProductGridSection(
+            productos = previewProductos,
+            cartQuantities = { if (it == "1") 2 else 0 },
+            onToggleProduct = {},
+            onAdjustQuantity = { _, _ -> },
+            onSearchClick = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun ProductGridSectionDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        ProductGridSection(
+            productos = previewProductos,
+            cartQuantities = { 0 },
+            onToggleProduct = {},
+            onAdjustQuantity = { _, _ -> },
+            onSearchClick = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun SearchCellPreview() {
+    EcomerceCarlosVTheme {
+        SearchCell(onClick = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun SearchCellDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        SearchCell(onClick = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun ProductCardPreview() {
+    EcomerceCarlosVTheme {
+        ProductCard(
+            producto = previewProductos.first(),
+            quantity = 0,
+            onToggle = {},
+            onIncrement = {},
+            onDecrement = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun ProductCardDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        ProductCard(
+            producto = previewProductos.first(),
+            quantity = 2,
+            onToggle = {},
+            onIncrement = {},
+            onDecrement = {},
+        )
     }
 }

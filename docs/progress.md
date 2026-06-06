@@ -17,7 +17,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 2f | Mercados: long-press selection + edit, contextual action bar, Búsqueda Global screen stub, MercadoDto | ✅ Done |
 | 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | ✅ Done |
 | 4 | Creación de Pedido (cart flow) | ✅ Done |
-| 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
+| 5 | Detalle de Pedido, Historial de Pagos | ✅ Done |
 | 6 | Catálogo de Productos, Crear/Editar Producto | ✅ Done |
 | 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
 | 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
@@ -85,6 +85,16 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 - `DetalleClienteScreen` — now shows live pedido list; balance/status computed from real pedido data
 - `PayChip` — shared composable for PAID/PARTIAL/PENDING status
 - DB migration 8→9
+
+## Phase 5 — implemented
+
+- `DetallePedidoScreen` — Scaffold with date subtitle + `PayChip` in top bar; saldo-extra branch (shows notes) vs normal branch (`LineItemsSection`)
+- `TotalBlock` — total / paid (green) / saldo restante (amber) rows with divider
+- `DetallePedidoBottomBar` — "Registrar pago parcial" + "Marcar como pagado" (hidden when PAID/isSaving)
+- `PagoParacialSheet` — `ModalBottomSheet` with decimal amount input; amount clamped to remaining balance
+- `DetallePedidoViewModel` — 4-flow `combine`; `onMarcarPagado` / `onRegistrarPago` with PARTIAL/PAID status logic
+- `DetallePedidoLineItem` — `LineItemRow` with strikethrough catalog price when overridden, `PriceModifiedHint`
+- `DetalleClienteScreen` `onPedidoClick` wired to `DetallePedidoRoute(pedidoId)` (TODO resolved)
 
 ## MercadosScreen live stats — implemented
 

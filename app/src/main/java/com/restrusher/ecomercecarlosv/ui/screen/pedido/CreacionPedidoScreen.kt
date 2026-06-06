@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import android.content.res.Configuration
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,13 +33,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.Producto
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
 @Composable
@@ -55,6 +59,46 @@ fun CreacionPedidoScreen(
         }
     }
 
+    CreacionPedidoContent(
+        state = state,
+        onBack = { navController.popBackStack() },
+        onSearchQueryChange = viewModel::onSearchQueryChange,
+        onSetSearchActive = viewModel::setSearchActive,
+        onToggleProduct = viewModel::toggleProduct,
+        onAdjustQuantity = viewModel::adjustQuantity,
+        onRemoveFromCart = viewModel::removeFromCart,
+        onEditItem = viewModel::onEditItem,
+        onConfirm = viewModel::showPaymentSheet,
+    )
+
+    state.editingItem?.let { item ->
+        LineEditSheet(item = item, onSave = viewModel::onSaveEditItem, onDismiss = viewModel::dismissEditItem)
+    }
+
+    if (state.showPaymentSheet) {
+        PagoSheet(
+            total = state.cartTotal,
+            clienteName = state.clienteName,
+            itemCount = state.cart.size,
+            isSaving = state.isSaving,
+            onSubmit = viewModel::confirmPedido,
+            onDismiss = viewModel::dismissPaymentSheet,
+        )
+    }
+}
+
+@Composable
+private fun CreacionPedidoContent(
+    state: CreacionPedidoUiState,
+    onBack: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onSetSearchActive: (Boolean) -> Unit,
+    onToggleProduct: (Producto) -> Unit,
+    onAdjustQuantity: (String, Int) -> Unit,
+    onRemoveFromCart: (String) -> Unit,
+    onEditItem: (String) -> Unit,
+    onConfirm: () -> Unit,
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -62,13 +106,13 @@ fun CreacionPedidoScreen(
                 CreacionTopBar(
                     clienteName = state.clienteName,
                     mercadoName = state.mercadoName,
-                    onBack = { navController.popBackStack() },
+                    onBack = onBack,
                 )
                 if (state.isSearchActive) {
                     SearchBar(
                         query = state.searchQuery,
-                        onQueryChange = viewModel::onSearchQueryChange,
-                        onClose = { viewModel.setSearchActive(false) },
+                        onQueryChange = onSearchQueryChange,
+                        onClose = { onSetSearchActive(false) },
                     )
                 }
             }
@@ -76,9 +120,9 @@ fun CreacionPedidoScreen(
         bottomBar = {
             CartPanel(
                 cart = state.cart,
-                onRemoveFromCart = viewModel::removeFromCart,
-                onEditItem = viewModel::onEditItem,
-                onConfirm = viewModel::showPaymentSheet,
+                onRemoveFromCart = onRemoveFromCart,
+                onEditItem = onEditItem,
+                onConfirm = onConfirm,
             )
         },
     ) { padding ->
@@ -95,26 +139,11 @@ fun CreacionPedidoScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 productos = state.filteredProductos,
                 cartQuantities = state::cartQuantityFor,
-                onToggleProduct = viewModel::toggleProduct,
-                onAdjustQuantity = viewModel::adjustQuantity,
-                onSearchClick = { viewModel.setSearchActive(true) },
+                onToggleProduct = onToggleProduct,
+                onAdjustQuantity = onAdjustQuantity,
+                onSearchClick = { onSetSearchActive(true) },
             )
         }
-    }
-
-    state.editingItem?.let { item ->
-        LineEditSheet(item = item, onSave = viewModel::onSaveEditItem, onDismiss = viewModel::dismissEditItem)
-    }
-
-    if (state.showPaymentSheet) {
-        PagoSheet(
-            total = state.cartTotal,
-            clienteName = state.clienteName,
-            itemCount = state.cart.size,
-            isSaving = state.isSaving,
-            onSubmit = viewModel::confirmPedido,
-            onDismiss = viewModel::dismissPaymentSheet,
-        )
     }
 }
 
@@ -169,5 +198,75 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onClose: (
                 Icon(Icons.Default.Close, contentDescription = null, tint = ext.text3, modifier = Modifier.size(16.dp))
             }
         }
+    }
+}
+
+private val previewProductos = listOf(
+    Producto(id = "1", name = "Arroz premium", price = 12.50, createdAt = 0),
+    Producto(id = "2", name = "Aceite girasol 1L", price = 18.00, createdAt = 0),
+    Producto(id = "3", name = "Azúcar blanca", description = "Bolsa 1kg", price = 8.50, createdAt = 0),
+    Producto(id = "4", name = "Fideos tallarín", price = 6.00, createdAt = 0),
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun CreacionPedidoContentPreview() {
+    EcomerceCarlosVTheme {
+        CreacionPedidoContent(
+            state = CreacionPedidoUiState(
+                clienteName = "Carlos Mamani",
+                mercadoName = "Mercado Central",
+                productos = previewProductos,
+                cart = listOf(
+                    CartItem(productoId = "1", productName = "Arroz premium", unitPrice = 12.50, catalogPrice = 12.50, quantity = 2),
+                ),
+            ),
+            onBack = {},
+            onSearchQueryChange = {},
+            onSetSearchActive = {},
+            onToggleProduct = {},
+            onAdjustQuantity = { _, _ -> },
+            onRemoveFromCart = {},
+            onEditItem = {},
+            onConfirm = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun CreacionPedidoContentDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        CreacionPedidoContent(
+            state = CreacionPedidoUiState(
+                clienteName = "Carlos Mamani",
+                mercadoName = "Mercado Central",
+                productos = previewProductos,
+            ),
+            onBack = {},
+            onSearchQueryChange = {},
+            onSetSearchActive = {},
+            onToggleProduct = {},
+            onAdjustQuantity = { _, _ -> },
+            onRemoveFromCart = {},
+            onEditItem = {},
+            onConfirm = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun CreacionTopBarPreview() {
+    EcomerceCarlosVTheme {
+        CreacionTopBar(clienteName = "Carlos Mamani", mercadoName = "Mercado Central", onBack = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun CreacionTopBarDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        CreacionTopBar(clienteName = "Carlos Mamani", mercadoName = "Mercado Central", onBack = {})
     }
 }

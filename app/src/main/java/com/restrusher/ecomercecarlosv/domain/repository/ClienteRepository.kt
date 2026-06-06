@@ -12,4 +12,5 @@ interface ClienteRepository {
     suspend fun save(cliente: Cliente)
     suspend fun delete(id: String)
     suspend fun blacklist(id: String, reason: String, balance: Double, at: Long)
+    suspend fun unblacklist(id: String)
 }

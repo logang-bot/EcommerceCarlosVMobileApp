@@ -1,6 +1,6 @@
 # Feature: Clientes
 
-## Status: 🔄 In Progress (Phase 3) — CRUD done, Saldo Extra pending
+## Status: ✅ Done — CRUD, Saldo Extra, Lista Negra, Detalle UI complete
 
 ---
 
@@ -49,12 +49,21 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 
 **Detalle de Cliente header**:
 - 76dp circular avatar, name, description
+- TopBar action: edit (pencil) icon → navigates to `CreateClienteRoute(mercadoId, clienteId)` for editing
 - Tappable phone chip → `Intent(ACTION_DIAL)`
 - Location chip → `Intent(ACTION_VIEW, Uri.parse(mapsUrl))` — no lat/lng stored
-- BalanceBlock: `Brush.linearGradient` tinted by status, monospace balance amount
+- BalanceBlock: `Brush.linearGradient` tinted by status, monospace balance amount, label "Saldo pendiente total"
 - Status badge (Al día / Advertencia / Crítico)
-- "Agregar a Lista Negra" button (shown only if not blacklisted) — Phase 7
-- "Agregar saldo extra" button — Phase 3 (Saldo Extra screen)
+- "Agregar a Lista Negra" button (red-tint, shown only if not blacklisted) → navigates to `AgregarListaNegraRoute`
+- "Quitar de Lista Negra" button (surface2, green check icon, shown only if blacklisted) → calls `DetalleClienteViewModel.unblacklist()`
+- "Agregar saldo extra" button — disabled (alpha 0.5, non-clickable) when blacklisted
+- FAB "Nuevo Pedido" is hidden when client is blacklisted
+
+**Detalle de Cliente — En Lista Negra state**:
+- Banner at top of scrollable content (red-tint bg, ban icon, "En Lista Negra" title + "Vetado desde el [date] · no se pueden crear pedidos nuevos." subtitle)
+- Avatar gets a 28dp red circular ban-badge overlay at bottom-right (3dp background-color border ring)
+- "Agregar a Lista Negra" button replaced by "Quitar de Lista Negra" (surface2, green CheckCircle icon)
+- "Agregar saldo extra" button is `alpha(0.5f)` and non-clickable
 
 **Pedidos list** (Phase 4 — ✅ done): `PedidoRow` composable per pedido. Shows icon tile, product count, date, total (mono), `PayChip`. Empty state shown when no pedidos exist.
 
@@ -77,10 +86,34 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 - `CreateClienteViewModel`: `init` block restores `photoUri` from `c.photoUrl` when editing; `onSave` includes `photoUrl = s.photoUri?.toString()` when saving the `Cliente`.
 - Gallery picks are copied to `cacheDir/images/` via `copyImageToCache()` on selection (same as other photo flows).
 - `formatBalance` is `internal fun` defined in `ClientesScreen.kt`, shared with `DetalleClienteScreen.kt` via module scope.
-- `ClienteRepository` exposes `getBlacklisted(): Flow<List<Cliente>>` and `suspend fun blacklist(id, reason, balance, at)`. Both are implemented in `ClienteRepositoryImpl` and delegated to `ClienteDao`.
-- `DetalleClienteViewModel` uses `clienteRepository.getByIdFlow(clienteId).stateIn(...)` instead of a one-shot `getById`. This means `DetalleClienteScreen` reacts to any DB change for that client — including blacklisting — without manual refresh.
-- `DetalleClienteScreen.onListaNegraClick` navigates to `AgregarListaNegraRoute(clienteId)`. After confirming blacklist, navigation pops back once to `DetalleClienteScreen`, which reactively hides the "Agregar a Lista Negra" button.
+- `ClienteRepository` exposes `getBlacklisted()`, `blacklist(id, reason, balance, at)`, and `unblacklist(id)`. All implemented in `ClienteRepositoryImpl` and delegated to `ClienteDao`.
+- `ClienteDao.unblacklist` resets `isBlacklisted=0`, `blacklistReason=NULL`, `blacklistBalance=0`, `blacklistedAt=NULL`.
+- `DetalleClienteViewModel` stores `clienteRepository` as a field (needed for `unblacklist()`). Exposes `fun unblacklist()` which launches a coroutine.
+- `DetalleClienteViewModel` uses `clienteRepository.getByIdFlow(clienteId).stateIn(...)` instead of a one-shot `getById`. This means `DetalleClienteScreen` reacts to any DB change for that client — including blacklisting/unblacklisting — without manual refresh.
+- `DetalleClienteScreen.onListaNegraClick` navigates to `AgregarListaNegraRoute(clienteId)`. After confirming blacklist, navigation pops back to `DetalleClienteScreen`, which reactively switches to the blacklisted state.
+- `DetalleClienteScreen.onQuitarListaNegraClick` calls `viewModel.unblacklist()` directly (no confirmation screen — design shows a direct action button).
 - `ClientesScreen` and `MercadosScreen` "Lista Negra" buttons navigate to `ListaNegraRoute`.
+
+---
+
+## SaldoExtra screen
+
+Split across two files: `SaldoExtraScreen.kt` (scaffold, save bar, previews) + `SaldoExtraFields.kt` (all field composables, previews).
+
+**AppBar**: `PedidosTopBar` — back arrow + title "Agregar saldo extra" + client name subtitle + Close (×) icon action (both back and close pop the stack).
+
+**Content column**: `Arrangement.spacedBy(18.dp)`, `padding(horizontal = 20.dp, top = 8.dp, bottom = 24.dp)`. Fields in order:
+
+| Field | Composable | Notes |
+|-------|-----------|-------|
+| Categoría | `SaldoExtraCategoryField` | Locked row: 30×30 amber-tint tile (`amberTint` bg, 9dp radius, `Tag` icon 17dp) + "Saldo" (15.5sp SemiBold) + `Check` icon + "Fijo" (11.5sp, text3); `surface` bg, `border` inset |
+| Monto | `SaldoExtraAmountHero` | Centered hero: "Monto" label (13sp, text2) → `BasicTextField(wrapContentWidth)` with "Bs." (22sp, text2) in `decorationBox` + 46sp mono Bold letterSpacing −1.5sp; 2dp accent underline (180dp, centered); turns error-red when `amountError` |
+| Descripción | `SaldoExtraDescriptionField` | Label "Descripción *" (required asterisk in accent); `OutlinedTextField`, `surface2` bg, `border2` inset when non-empty, `88dp` min height |
+| Fecha | `SaldoExtraDateField` | Tappable `surface2` row; date formatted `"d 'de' MMMM 'de' yyyy"` (Spanish locale); opens `DatePickerDialog` |
+
+**Bottom bar**: `SaldoExtraSaveBar` — "Registrar saldo" CTA (52dp, 15dp radius); spinner while saving; disabled until `canSave`.
+
+Each composable gets its own label above (13sp, `FontWeight.Medium`, `text2`) via the private `SaldoExtraFieldLabel` helper; required fields get an accent ` *` suffix.
 
 ---
 
@@ -88,5 +121,5 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 
 - [x] Implement `SaldoExtraScreen` (pre-filled category "Saldo", description, amount, date)
 - [x] Add `SaldoExtraRoute` to `AppRoutes.kt` and `AppNavigation.kt`
-- [x] Phase 4: real balance/status computed from pedidos in `DetalleClienteViewModel` *(ClientesViewModel still uses placeholder — needs Phase 4 pedidos aggregate query)*
-- [ ] Phase 7: wire "Agregar a Lista Negra" action in `DetalleClienteScreen`
+- [x] Phase 4: real balance/status computed from pedidos in `DetalleClienteViewModel`
+- [x] Phase 7: Lista Negra state in `DetalleClienteScreen` — banner, avatar badge, button swap, FAB hidden, "Quitar de Lista Negra" action

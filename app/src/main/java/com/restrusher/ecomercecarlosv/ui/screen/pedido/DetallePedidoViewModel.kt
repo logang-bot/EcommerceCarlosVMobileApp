@@ -6,12 +6,14 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,6 +21,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DetallePedidoViewModel @Inject constructor(
     private val pedidoRepository: PedidoRepository,
+    private val clienteRepository: ClienteRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -26,16 +29,20 @@ class DetallePedidoViewModel @Inject constructor(
     private val _detalles = MutableStateFlow<List<DetallePedido>>(emptyList())
     private val _showPagoSheet = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
+    private val _clienteName = MutableStateFlow("")
 
     val uiState = combine(
-        pedidoRepository.getByIdFlow(pedidoId),
-        _detalles,
+        combine(pedidoRepository.getByIdFlow(pedidoId), _detalles) { pedido, detalles ->
+            Pair(pedido, detalles)
+        },
         _showPagoSheet,
         _isSaving,
-    ) { pedido, detalles, showSheet, saving ->
+        _clienteName,
+    ) { (pedido, detalles), showSheet, saving, clienteName ->
         DetallePedidoUiState(
             pedido = pedido,
             detalles = detalles,
+            clienteName = clienteName,
             isLoading = pedido == null,
             isSaving = saving,
             showPagoSheet = showSheet,
@@ -49,6 +56,11 @@ class DetallePedidoViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _detalles.value = pedidoRepository.getDetallesByPedido(pedidoId)
+        }
+        viewModelScope.launch {
+            pedidoRepository.getByIdFlow(pedidoId).first()?.let { pedido ->
+                _clienteName.value = clienteRepository.getById(pedido.clienteId)?.name ?: ""
+            }
         }
     }
 

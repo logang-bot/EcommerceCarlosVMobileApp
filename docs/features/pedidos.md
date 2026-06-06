@@ -1,6 +1,6 @@
 # Feature: Pedidos
 
-## Status: 🔄 In Progress — Phase 4 done, Phase 5 pending
+## Status: ✅ Done (Phase 4 + Phase 5)
 
 ---
 
@@ -17,7 +17,7 @@ Two sub-features:
 | Screen | Route | File | Status |
 |--------|-------|------|--------|
 | Creación de Pedido | `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `ui/screen/pedido/CreacionPedidoScreen.kt` | ✅ Done |
-| Detalle de Pedido | `DetallePedidoRoute(pedidoId)` | `ui/screen/pedido/DetallePedidoScreen.kt` | 🔲 Pending |
+| Detalle de Pedido | `DetallePedidoRoute(pedidoId)` | `ui/screen/pedido/DetallePedidoScreen.kt` | ✅ Done |
 
 ---
 
@@ -134,14 +134,55 @@ Status rules:
 
 ---
 
-## UI notes — Detalle de Pedido (Phase 5)
+## UI — Phase 5: Detalle de Pedido
 
-- Date of pedido, line items (name / qty × unit price / subtotal)
-- Amber indicator + strikethrough catalogue price if price was overridden
-- Notes per line item (italic muted text)
-- Total block: total + paid (green) + divider + saldo restante (amber if unpaid)
-- Payments section: chronological list of payments with date + amount in green
-- Bottom bar: "Pago parcial" (secondary) + "Marcar pagado" (success green)
+### Files
+
+| File | Responsibility |
+|------|---------------|
+| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet` |
+| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (5 flows); loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, sheet toggle |
+| `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody` |
+| `DetallePedidoActions.kt` | `DetallePedidoBottomBar`, `PagoParcialSheet`, `PagoParcialSheetContent` |
+| `DetallePedidoLineItem.kt` | `LineItemsSection`, `LineItemRow`, `PriceModifiedHint` |
+| `DetallePedidoSummary.kt` | `TotalBlock`, `PagosSection`, `DetalleSectionLabel` |
+
+### Screen structure
+
+`DetallePedidoScreen` uses a `Scaffold` with:
+- `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026", no action slot)
+- `bottomBar` = `DetallePedidoBottomBar` — hidden when `status == PAID`; "Pago parcial" (outlined, `Add` icon) + "Marcar pagado" (green, `Check` icon); both use `heightIn(min = 50.dp)` to avoid text clipping
+- content = scrollable `Column`: `PedidoStatusStrip` → `HorizontalDivider` → body → `HorizontalDivider` → `TotalBlock` → (if `paid > 0`) `HorizontalDivider` + `PagosSection`
+
+**`PedidoStatusStrip`**: `Row` with `PayChip` + subtitle text.
+  - Normal: `"N productos · clienteName"` (pluralStringResource)
+  - Saldo extra: `"Saldo extra · clienteName"`
+
+Body adapts by pedido type:
+- **Normal pedido**: `LineItemsSection` — `LineItemRow` per `DetallePedido`: 38×38 product tile (surface3 + Sell icon), product name (bold), `×qty · Bs. X.XX`, optional strikethrough catalogPrice + amber dot if `isPriceModified`, subtotal (mono), optional italic notes; `PriceModifiedHint` (amber pill) kept from original design
+- **Saldo extra** (`isSaldoExtra = true`): `SaldoExtraBody` — shows `notes` description in a styled block
+
+### TotalBlock
+
+| Row | Shown when | Color |
+|-----|-----------|-------|
+| "Total del pedido" + total | always | `text2` |
+| "Pagado" + paid | `paid > 0` | `greenText` |
+| divider + "Saldo restante" + pending | always | `amberText` (if pending > 0) / `text2` |
+
+### PagosSection
+
+Shown when `paid > 0`. Single-row simplified history (no separate `pagos` table exists): 30×30 `greenTint` tile + `Check` icon + date (`paidAt ?: createdAt`, formatted "dd MMM yyyy" in Spanish) + "+ Bs. X.XX" in `greenText` mono. A future `pagos` table would enable full per-payment history.
+
+### PagoParcialSheet
+
+`ModalBottomSheet` (experimental): title + remaining balance label, `OutlinedTextField` with `Bs.` prefix + decimal keyboard, "Registrar pago" CTA. Amount is clamped to remaining balance before calling `onRegistrarPago`.
+
+### ViewModel payment logic
+
+`onMarcarPagado()` — sets `status = PAID`, `paid = total`, `paidAt = now`.
+
+`onRegistrarPago(amount)` — `newPaid = (paid + amount).coerceAtMost(total)`; status becomes `PAID` if `newPaid >= total`, `PARTIAL` otherwise; `paidAt` only set when fully paid.
 
 ---
 
@@ -153,7 +194,7 @@ Status rules:
 - `total` = entered amount; `paid = 0`; `status = PENDING`
 - `PedidoRow` renders an amber Tag icon tile + "Saldo extra" label + amber "Manual" badge (no `PayChip`)
 
-`CreateSaldoExtraUseCase(clienteId, description, amount, date)` handles creation. Screen: `SaldoExtraScreen` (route `SaldoExtraRoute(clienteId)`) — category locked to "Saldo", description field, amount field, date picker (`DatePickerDialog`).
+`CreateSaldoExtraUseCase(clienteId, description, amount, date)` handles creation. Screen: `SaldoExtraScreen` + `SaldoExtraFields` (route `SaldoExtraRoute(clienteId)`) — see `docs/features/clientes.md → SaldoExtra screen` for UI details.
 
 `PedidoRepository.getAllUnpaid()` returns all non-PAID pedidos (including saldo-extra ones) — used by `MercadosViewModel` to compute per-mercado status.
 
@@ -161,7 +202,5 @@ Status rules:
 
 ## Open TODOs
 
-- [ ] Implement `DetallePedidoScreen` (Phase 5)
-- [ ] Implement `RegisterPartialPaymentUseCase` (Phase 5)
-- [ ] Add pagos tracking table or accumulate via `updateStatus` (decide in Phase 5)
 - [ ] Wire "Calcular automáticamente" in `AgregarListaNegraScreen` using real pedido balance (`pedidoRepository.getByCliente(clienteId)` is available)
+- [ ] Payment history list (chronological per pedido) — payments are currently accumulated via `updateStatus`; a separate `pagos` table would be needed to track individual payment events

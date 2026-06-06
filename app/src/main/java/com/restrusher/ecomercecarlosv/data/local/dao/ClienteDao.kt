@@ -22,6 +22,9 @@ interface ClienteDao {
     @Query("UPDATE clientes SET isBlacklisted = 1, blacklistReason = :reason, blacklistBalance = :balance, blacklistedAt = :at WHERE id = :id")
     suspend fun blacklist(id: String, reason: String, balance: Double, at: Long)
 
+    @Query("UPDATE clientes SET isBlacklisted = 0, blacklistReason = NULL, blacklistBalance = 0, blacklistedAt = NULL WHERE id = :id")
+    suspend fun unblacklist(id: String)
+
     @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
     fun getByIdFlow(id: String): Flow<ClienteEntity?>
 

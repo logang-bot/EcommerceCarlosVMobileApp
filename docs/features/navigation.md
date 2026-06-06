@@ -31,7 +31,7 @@ The app has a single top-level navigation graph (`AppNavigation.kt`). After logi
 | `AgregarListaNegraRoute(clienteId)` | `AgregarListaNegraScreen` | Add client to blacklist |
 | `CreateProductoRoute(productId?)` | `CreateProductoScreen` | Create or edit product |
 | `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `CreacionPedidoScreen` | Cart-based order creation (Phase 4) |
-| `DetallePedidoRoute(pedidoId)` | `DetallePedidoScreen` | Order detail + payment history (Phase 5 — pending) |
+| `DetallePedidoRoute(pedidoId)` | `DetallePedidoScreen` | Order detail + payment actions (Phase 5) |
 | `SaldoExtraRoute(clienteId)` | `SaldoExtraScreen` | Manual balance entry (Phase 3) |
 
 All routes are `@Serializable` objects/data classes in `presentation/screens/AppRoutes.kt`.

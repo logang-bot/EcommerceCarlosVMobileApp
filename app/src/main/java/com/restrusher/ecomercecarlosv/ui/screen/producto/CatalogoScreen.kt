@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.producto
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,6 +52,7 @@ import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
+import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
 @Composable
@@ -254,4 +257,72 @@ private fun ProductoTile(modifier: Modifier = Modifier, photoUrl: String? = null
             )
         },
     )
+}
+
+private val previewProductos = listOf(
+    Producto(id = "1", name = "Arroz premium", description = "Arroz de grano largo", price = 12.50, createdAt = 0),
+    Producto(id = "2", name = "Aceite girasol 1L", price = 18.00, createdAt = 0),
+    Producto(id = "3", name = "Azúcar blanca", description = "Bolsa 1kg", price = 8.50, createdAt = 0),
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun CatalogoContentPreview() {
+    EcomerceCarlosVTheme {
+        CatalogoContent(
+            state = CatalogoUiState(productos = previewProductos),
+            selectedTab = 1,
+            onTabSelected = {},
+            onProductoClick = {},
+            onCreateClick = {},
+            onSearchQueryChange = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun CatalogoContentDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        CatalogoContent(
+            state = CatalogoUiState(productos = previewProductos),
+            selectedTab = 1,
+            onTabSelected = {},
+            onProductoClick = {},
+            onCreateClick = {},
+            onSearchQueryChange = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun ProductoRowPreview() {
+    EcomerceCarlosVTheme {
+        ProductoRow(producto = previewProductos.first(), onClick = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun ProductoRowDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        ProductoRow(producto = previewProductos.first(), onClick = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun SearchBarPreview() {
+    EcomerceCarlosVTheme {
+        SearchBar(query = "Arroz", onQueryChange = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun SearchBarDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        SearchBar(query = "", onQueryChange = {})
+    }
 }
