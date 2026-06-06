@@ -80,7 +80,7 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 - `phones` stored as pipe-separated string in Room (`"0414-123|0424-456"`); mapped to `List<String>` in domain.
 - Location is **only** a URL (`mapsUrl`) — no lat/lng. User pastes the link; tapping opens the device map app.
 - Row color uses the **Fuerte** variant from the design: `bgAlpha = if (isDark) 0.30f else 0.22f`, bar 6dp, balance colored by status.
-- Balance and status are now computed live in `DetalleClienteViewModel` by `combine`-ing `clienteFlow + pedidosFlow`. Balance = sum of pending amounts across non-PAID pedidos. Status: `AL_DIA` (balance 0), `ADVERTENCIA` (balance > 0, no old debt), `CRITICO` (balance > 200 or any unpaid pedido older than 30 days).
+- Balance and status are now computed live in `DetalleClienteViewModel` by `combine`-ing `clienteFlow + pedidosFlow`. Balance = sum of pending amounts across non-PAID pedidos. See **Client Status Thresholds** section below.
 - `ClienteAvatar` accepts an optional `photoUrl`; when set it renders the photo (via `PhotoThumbnail`) while preserving the status ring. Falls back to initials with deterministic `hsl(nameHash % 360, 32%, 26%)` bg.
 - `CirclePhotoPicker` (in `CreateClienteComponents.kt`): 96dp circle picker used in create/edit forms. Create mode shows a `Person` icon placeholder; edit mode shows the existing `ClienteAvatar` when no new photo is picked; both modes use `BitmapFactory`/`LaunchedEffect` to render the actual photo once selected. Camera button (32dp) always present at bottom-right.
 - `CreateClienteViewModel`: `init` block restores `photoUri` from `c.photoUrl` when editing; `onSave` includes `photoUrl = s.photoUri?.toString()` when saving the `Cliente`.
@@ -114,6 +114,32 @@ Split across two files: `SaldoExtraScreen.kt` (scaffold, save bar, previews) + `
 **Bottom bar**: `SaldoExtraSaveBar` — "Registrar saldo" CTA (52dp, 15dp radius); spinner while saving; disabled until `canSave`.
 
 Each composable gets its own label above (13sp, `FontWeight.Medium`, `text2`) via the private `SaldoExtraFieldLabel` helper; required fields get an accent ` *` suffix.
+
+---
+
+## Client Status Thresholds
+
+Computed live in `DetalleClienteViewModel` from `clienteFlow + pedidosFlow`:
+
+**Balance** = sum of `pending` amounts for pedidos where:
+- `status == PARTIAL` (partial payment made but not settled), OR
+- `status == PENDING && isSaldoExtra == true` (deliberate debt records)
+
+> Regular `PENDING` pedidos are excluded — they represent unconfirmed orders, not real debt.
+
+**Status rules:**
+
+| Status | Condition | Color |
+|--------|-----------|-------|
+| `AL_DIA` | `balance == 0` | green |
+| `CRITICO` | `balance > 200` OR any balance-contributing pedido (`PARTIAL` or saldo-extra `PENDING`) has `createdAt` older than 30 days | red |
+| `ADVERTENCIA` | `balance > 0` and neither CRITICO condition applies | amber |
+
+> The 30-day check only runs on pedidos that already count toward the balance. A regular `PENDING` order is never flagged as old debt no matter how old it is.
+
+**"Older than 30 days"**: `(System.currentTimeMillis() - pedido.createdAt) > 30 * 24 * 60 * 60 * 1000`
+
+**Implementation**: `DetalleClienteViewModel.kt` — `computeStatus()` + `isOlderThan30Days()`.
 
 ---
 

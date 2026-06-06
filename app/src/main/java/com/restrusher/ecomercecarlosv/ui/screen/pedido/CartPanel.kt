@@ -1,6 +1,8 @@
 package com.restrusher.ecomercecarlosv.ui.screen.pedido
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -21,21 +24,22 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
-import androidx.compose.ui.res.stringResource
 
 @Composable
 fun CartPanel(
@@ -129,9 +133,16 @@ private fun CartRow(item: CartItem, onRemove: () -> Unit, onEdit: () -> Unit) {
             Text("${item.quantity} × Bs. ${"%.2f".format(item.unitPrice)}", fontSize = 11.5.sp, fontFamily = FontFamily.Monospace, color = ext.text3)
         }
         Text("Bs. ${"%.2f".format(item.subtotal)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
-        Spacer(Modifier.width(4.dp))
-        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Close, contentDescription = null, tint = ext.text3, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(ext.surface3)
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Close, contentDescription = null, tint = ext.text3, modifier = Modifier.size(12.dp))
         }
     }
 }
@@ -139,10 +150,23 @@ private fun CartRow(item: CartItem, onRemove: () -> Unit, onEdit: () -> Unit) {
 @Composable
 private fun EmptyCartMessage() {
     val ext = MaterialTheme.extendedColors
-    Box(
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        contentAlignment = Alignment.Center,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(ext.surface2)
+                .border(1.dp, ext.border, RoundedCornerShape(11.dp)),
+        ) {
+            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = ext.text4, modifier = Modifier.size(18.dp))
+        }
         Text(stringResource(R.string.pedidos_carrito_vacio), fontSize = 13.5.sp, color = ext.text3)
     }
 }
@@ -167,11 +191,48 @@ private fun ConfirmButton(total: Double, enabled: Boolean, onClick: () -> Unit) 
     ) {
         Text(stringResource(R.string.pedidos_confirmar), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = textColor)
         if (enabled) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Bs. ${"%.2f".format(total)}", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = textColor)
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = textColor, modifier = Modifier.size(18.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Color(0x2EFFFFFF)),
+                ) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
+    }
+}
+
+private val previewCart = listOf(
+    CartItem(productoId = "1", productName = "Arroz premium", unitPrice = 12.50, catalogPrice = 12.50, quantity = 2),
+    CartItem(productoId = "2", productName = "Aceite girasol 1L", unitPrice = 18.00, catalogPrice = 18.00, quantity = 1),
+    CartItem(productoId = "3", productName = "Azúcar blanca", unitPrice = 7.00, catalogPrice = 8.50, quantity = 3),
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun CartPanelPreview() {
+    EcomerceCarlosVTheme {
+        CartPanel(cart = previewCart, onRemoveFromCart = {}, onEditItem = {}, onConfirm = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun CartPanelDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        CartPanel(cart = previewCart, onRemoveFromCart = {}, onEditItem = {}, onConfirm = {})
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Composable
+private fun CartPanelEmptyPreview() {
+    EcomerceCarlosVTheme {
+        CartPanel(cart = emptyList(), onRemoveFromCart = {}, onEditItem = {}, onConfirm = {})
     }
 }

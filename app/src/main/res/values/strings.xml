@@ -341,7 +341,7 @@
     <string name="pedidos_catalogo_vacio_subtitle">Agrega productos al catálogo para poder incluirlos en un pedido.</string>
     <string name="pedidos_pago_total_hint">El cliente pagó el total ahora</string>
     <string name="pedidos_pago_parcial_hint">Registrar un abono inicial</string>
-    <string name="pedidos_dejar_pendiente_hint">Suma al saldo del cliente</string>
+    <string name="pedidos_dejar_pendiente_hint">Sin cobro — el pedido queda pendiente</string>
     <string name="pedidos_precio_modificado">El precio ha sido modificado</string>
     <string name="pedidos_precio_modificado_desc">El precio estándar es Bs. %1$s. Estás registrando Bs. %2$s.</string>
     <string name="pedidos_nota_label">Nota</string>
@@ -370,9 +370,10 @@
     <string name="agregar_lista_negra_pending_placeholder">Disponible cuando se implementen los pedidos (Fase 4)</string>
     <string name="agregar_lista_negra_total_section">Total adeudado</string>
     <string name="agregar_lista_negra_auto_title">Calcular automáticamente</string>
-    <string name="agregar_lista_negra_auto_unavailable">Disponible en Fase 4 (requiere pedidos)</string>
+    <string name="agregar_lista_negra_auto_subtitle">Suma todos los pedidos pendientes</string>
     <string name="agregar_lista_negra_manual_title">Ingresar manualmente</string>
     <string name="agregar_lista_negra_manual_subtitle">Escribe un monto distinto</string>
+    <string name="agregar_lista_negra_pedidos_vacio">Sin pedidos pendientes</string>
     <string name="agregar_lista_negra_amount_label">Monto adeudado</string>
     <string name="agregar_lista_negra_reason_section">Motivo del veto</string>
     <string name="agregar_lista_negra_reason_placeholder">Explica por qué se agrega a la lista</string>

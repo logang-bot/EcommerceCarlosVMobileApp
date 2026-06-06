@@ -45,12 +45,14 @@ Global view of all blacklisted clients across all mercados. Accessible from the 
 ### AgregarListaNegraScreen
 
 - AppBar: "Agregar a Lista Negra", subtitle = client name (loaded from repo)
-- **Pedidos pendientes section** — Phase 4 placeholder: shows a `Receipt` icon card with "Disponible cuando se implementen los pedidos (Fase 4)"
-- **Total adeudado section** — two radio-style cards:
-  - "Calcular automáticamente" — shown as a permanently disabled (unselected, grayed) card with note "Disponible en Fase 4 (requiere pedidos)"
-  - "Ingresar manualmente" — always selected (accent tint background, primary border, filled radio dot); below it: `OutlinedTextField` with `Bs.` prefix, decimal keyboard
+- **Pedidos pendientes section** — `PendingPedidosList`: rounded 14dp card (`surface2` bg, 1dp `border`). Each `PendingPedidoRow` shows title + date (left) and pending amount in monospace (right), with `HorizontalDivider` between rows. Empty state: centered "Sin pedidos pendientes". Title is "Saldo extra" for `isSaldoExtra`, "Pedido" otherwise.
+- **Total adeudado section** — `TotalModeCard` composable renders both options:
+  - **AUTO** — when selected: `accentTint` bg, 1.5dp primary border, filled primary circle with white `Check` icon, trailing `Text` with `autoAmount` at 17sp bold in primary color
+  - **MANUAL** — when selected: same accent styling; `OutlinedTextField` (`Bs.` prefix, decimal keyboard) appears below the card
+  - Unselected card: `surface2` bg, 1dp `border`, empty circle with `border3` outline
+  - Default mode on first load: AUTO when `pendingPedidos.isNotEmpty()`, MANUAL otherwise; user selection preserved after initial load
 - **Motivo del veto** — multiline `OutlinedTextField`, required, min 120dp height
-- **Sticky bottom bar**: "Confirmar y agregar a Lista Negra" danger button (`redTint` bg, `redText` color, `Block` icon). Enabled only when reason non-blank AND amount > 0.
+- **Sticky bottom bar**: "Confirmar y agregar a Lista Negra" danger button (`redTint` bg, `redText` color, `Block` icon). Enabled only when reason non-blank AND `effectiveAmount > 0`.
 - On confirm: calls `blacklist()` → pops back to `DetalleClienteScreen`. Because `DetalleClienteViewModel` observes `getByIdFlow()`, the screen reactively updates: `isBlacklisted` becomes `true` and the "Agregar a Lista Negra" button disappears without any manual refresh
 
 ---
@@ -79,15 +81,24 @@ data class ListaNegraUiState(
 }
 
 // AgregarListaNegraUiState.kt
+enum class TotalMode { AUTO, MANUAL }
+
 data class AgregarListaNegraUiState(
     val clienteId: String = "",
     val clienteName: String = "",
+    val pendingPedidos: List<Pedido> = emptyList(),
+    val totalMode: TotalMode = TotalMode.MANUAL,
     val manualAmount: String = "",
     val reason: String = "",
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
 ) {
-    val canConfirm get() = reason.isNotBlank() && (manualAmount.toDoubleOrNull() ?: 0.0) > 0.0
+    val autoAmount: Double get() = pendingPedidos.sumOf { it.pending }
+    val effectiveAmount: Double get() = when (totalMode) {
+        TotalMode.AUTO -> autoAmount
+        TotalMode.MANUAL -> manualAmount.toDoubleOrNull() ?: 0.0
+    }
+    val canConfirm: Boolean get() = reason.isNotBlank() && effectiveAmount > 0.0
 }
 ```
 
@@ -97,7 +108,7 @@ data class AgregarListaNegraUiState(
 
 **`ListaNegraViewModel`** — injects `ClienteRepository` + `MercadoRepository`. Uses `combine(getBlacklisted(), mercadoAll, query)` for reactive search and mercado name resolution.
 
-**`AgregarListaNegraViewModel`** — injects `ClienteRepository`. Loads client name from `getById`. `onConfirm()` calls `clienteRepository.blacklist(id, reason, balance, at)` then invokes the success callback.
+**`AgregarListaNegraViewModel`** — injects `ClienteRepository` + `PedidoRepository`. Uses `combine(clienteRepository.getByIdFlow, pedidoRepository.getByCliente)` to reactively load the client name and filter non-PAID pedidos. Default `TotalMode` is set on first load (AUTO when pending list is non-empty, MANUAL otherwise) and preserved after. `onConfirm()` calls `clienteRepository.blacklist(id, reason, effectiveAmount, at)` then invokes the success callback.
 
 ---
 
@@ -130,14 +141,14 @@ Both methods are exposed through `ClienteRepository` / `ClienteRepositoryImpl`.
 | `ui/screen/lista_negra/ListaNegraUiState.kt` | `BlacklistUiModel` + `ListaNegraUiState` |
 | `ui/screen/lista_negra/ListaNegraViewModel.kt` | Reactive list with mercado resolution |
 | `ui/screen/lista_negra/ListaNegraScreen.kt` | Full list UI with search and banner |
-| `ui/screen/lista_negra/AgregarListaNegraUiState.kt` | Form state + `canConfirm` |
-| `ui/screen/lista_negra/AgregarListaNegraViewModel.kt` | Loads client name; calls `blacklist()` |
-| `ui/screen/lista_negra/AgregarListaNegraScreen.kt` | Phased form UI + danger CTA |
+| `ui/screen/lista_negra/AgregarListaNegraUiState.kt` | `TotalMode` enum + form state with `autoAmount`/`effectiveAmount`/`canConfirm` |
+| `ui/screen/lista_negra/AgregarListaNegraViewModel.kt` | `combine` flow for client + pending pedidos; default mode logic; calls `blacklist()` |
+| `ui/screen/lista_negra/AgregarListaNegraScreen.kt` | Screen entry + `AgregarListaNegraContent` + `SectionLabel` + full-screen previews |
+| `ui/screen/lista_negra/PendingPedidosSection.kt` | `PendingPedidosList` + `PendingPedidoRow` composables with previews |
+| `ui/screen/lista_negra/TotalModeCard.kt` | `TotalModeCard` composable (AUTO/MANUAL radio-style card) with previews |
 
 ---
 
 ## Open TODOs
 
-- [ ] Phase 4: replace "Pedidos pendientes" placeholder with real pending pedidos list
-- [ ] Phase 4: enable "Calcular automáticamente" — sum pending pedidos for the client
 - [ ] Tap row in `ListaNegraScreen` → navigate to `DetalleClienteRoute(clienteId)` (client detail is read-only when blacklisted, but useful for audit)

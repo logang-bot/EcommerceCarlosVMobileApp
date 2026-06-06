@@ -31,7 +31,10 @@ class DetalleClienteViewModel @Inject constructor(
         clienteRepository.getByIdFlow(clienteId),
         pedidoRepository.getByCliente(clienteId),
     ) { cliente, pedidos ->
-        val balance = pedidos.filter { it.status != PedidoStatus.PAID }.sumOf { it.pending }
+        val balance = pedidos.filter {
+            it.status == PedidoStatus.PARTIAL ||
+                (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
+        }.sumOf { it.pending }
         DetalleClienteUiState(
             cliente = cliente,
             pedidos = pedidos,
@@ -47,7 +50,10 @@ class DetalleClienteViewModel @Inject constructor(
 
     private fun computeStatus(balance: Double, pedidos: List<Pedido>): ClientStatus {
         if (balance <= 0.0) return ClientStatus.AL_DIA
-        val hasOldUnpaid = pedidos.any { it.status != PedidoStatus.PAID && isOlderThan30Days(it.createdAt) }
+        val hasOldUnpaid = pedidos.any {
+            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
+                isOlderThan30Days(it.createdAt)
+        }
         return if (hasOldUnpaid || balance > 200.0) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
     }
 

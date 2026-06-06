@@ -66,6 +66,8 @@ Two sub-features:
 | `CreacionPedidoUiState.kt` | Immutable UI state; exposes `filteredProductos`, `cartTotal`, `cartQuantityFor()` |
 | `CreacionPedidoViewModel.kt` | `@HiltViewModel`; drives all user interactions |
 
+`CreacionPedidoScreen` delegates its `Scaffold` to a private `CreacionPedidoContent(state, callbacks…)` composable; the screen entry point retains only the `LaunchedEffect` navigation side-effect and bottom-sheet overlays (`LineEditSheet`, `PagoSheet`).
+
 ### ProductGridSection
 
 - First cell always: `SearchCell` (search icon + "Buscar producto") — tapping activates the inline search bar on the top bar
@@ -73,13 +75,15 @@ Two sub-features:
 - `ProductCard` non-cart state: product icon tile + name + price (mono)
 - `ProductCard` in-cart state: green ring border, checkmark badge, `QuantityStepper` (− / qty / +) in place of price
 
+**`SearchCell` sizing**: mirrors `ProductCard`'s column structure — same 72dp top `Box` (surface3 bg) containing a 38×38 icon box, same `padding(horizontal=8.dp, vertical=7.dp)` content column with a fixed-height label — ensuring both cells have the same intrinsic height within the grid row.
+
 ### CartPanel
 
 - `DragHandle` pill at top
 - Header row: cart icon + "Carrito" + "· N productos"
 - Cart rows (`heightIn(max = 132dp)` scrollable): `×qty` label, name, unit info, subtotal, ×-remove; tapping row calls `onEditItem`
-- Empty state: "Agrega productos al pedido"
-- Confirm CTA (`height = 54dp`, `borderRadius = 15dp`): disabled (surface3 bg) when cart empty; enabled (primary bg + box-shadow) when filled — shows total amount (mono) + chevron
+- Empty state: Row with 38×38 icon tile (surface2 bg, 1dp border, `ShoppingCart` icon in text4) + "Agrega productos al pedido"
+- Confirm CTA (`height = 54dp`, `borderRadius = 15dp`): disabled (surface3 bg) when cart empty; enabled (primary bg) when filled — shows total amount (mono) + chevron icon in a 34×34 rounded box (`rgba white 18%` bg)
 
 ### LineEditSheet
 
@@ -93,12 +97,15 @@ Two sub-features:
 
 ### PagoSheet
 
-- Header: "Confirmar pedido" title, total in large mono, "N productos · clienteName"
-- Three `PaymentOptionRow` options:
-  - **Marcar como pagado** — green tint, `initialPayment = total`
-  - **Pago parcial** — accent tint, green border when selected; reveals `PartialAmountInput` with "Restan Bs. X.XX" suffix hint; `initialPayment = enteredAmount`
-  - **Dejar pendiente** — amber tint; `initialPayment = 0`
-- "Registrar pedido" CTA — shows `CircularProgressIndicator` while saving
+- Header: "Confirmar pedido" title (centered), total in large mono (centered), "N productos · clienteName" (centered)
+- Three `PaymentOptionRow` options — each has a 40×40 icon tile (rounded 12dp, tint bg), title/subtitle text, and a 20dp radio indicator circle:
+  - **Marcar como pagado** — `Check` icon, `green`/`greenTint` colors; radio filled with `green` when selected
+  - **Pago parcial** — `Payments` icon, `primary`/`accentTint` colors; reveals `PartialAmountInput` below when selected
+  - **Dejar pendiente** — `Tag` icon, `amber`/`amberTint` colors
+  - **Selected state**: row background = tint, 1.5dp colored border, radio filled with option color + white check
+  - **Unselected state**: row background = `surface2`, 1dp neutral `border`, radio = transparent + `border3` ring
+- `PartialAmountInput`: custom styled row (54dp, `surface2` bg, 1.5dp accent border, `BasicTextField` with mono style, "Restan Bs. X.XX" suffix); `initialPayment = enteredAmount`
+- "Registrar pedido" CTA — shows `CircularProgressIndicator` while saving; **disabled when "Pago parcial" is selected and the amount field is empty or zero** (`canConfirm = selected != PARTIAL || partialAmount > 0`)
 
 ### CreatePedidoUseCase
 
@@ -126,8 +133,8 @@ Status rules:
 ## DetalleClienteScreen — Phase 4 updates
 
 - `DetalleClienteViewModel` now `combine`s `clienteRepository.getByIdFlow` + `pedidoRepository.getByCliente` to compute real balance and status
-- Balance = sum of `(pedido.total - pedido.paid)` for non-PAID pedidos
-- Status: `AL_DIA` if balance == 0; `CRITICO` if balance > 200 or any unpaid pedido is older than 30 days; `ADVERTENCIA` otherwise
+- **Balance** = sum of `pending` for pedidos where `status == PARTIAL` OR (`status == PENDING && isSaldoExtra`). Regular PENDING pedidos are NOT counted — they represent unconfirmed orders, not actual debt. Saldo-extra entries always count since they are deliberate debt records.
+- **Status**: `AL_DIA` if balance == 0; `CRITICO` if balance > 200 or any balance-contributing pedido is older than 30 days; `ADVERTENCIA` otherwise
 - `PedidoRow` (in `ui/screen/cliente/`) renders each pedido: icon tile, product count + date, total (mono), `PayChip`
 - Empty state shown when no pedidos exist
 - FAB navigates to `CreacionPedidoRoute(clienteId, clienteName, mercadoName)`
