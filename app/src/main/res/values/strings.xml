@@ -113,6 +113,13 @@
     <string name="saldo_extra_categoria">Saldo</string>
     <string name="saldo_extra_descripcion">Descripción</string>
     <string name="saldo_extra_monto">Monto</string>
+    <string name="saldo_extra_fecha">Fecha</string>
+    <string name="saldo_extra_guardar">Guardar saldo extra</string>
+    <string name="saldo_extra_descripcion_placeholder">Explica el motivo del saldo extra</string>
+    <string name="saldo_extra_descripcion_error">La descripción es obligatoria</string>
+    <string name="saldo_extra_monto_error">Ingresa un monto válido</string>
+    <string name="pedidos_row_saldo_extra">Saldo extra</string>
+    <string name="pedidos_row_saldo_extra_badge">Manual</string>
 
     <!-- Reporte Diario -->
     <string name="reporte_diario_title">Reporte diario</string>
@@ -318,6 +325,38 @@
     <string name="lista_negra_search_placeholder">Buscar en lista negra…</string>
     <string name="lista_negra_no_results_title">Sin resultados</string>
     <string name="lista_negra_no_results_subtitle">Ningún cliente vetado coincide con la búsqueda.</string>
+
+    <!-- Creación de Pedido -->
+    <string name="pedidos_row_n_productos">%1$d productos</string>
+    <string name="pedidos_row_label">Pedido</string>
+    <string name="pedidos_carrito_label">Carrito</string>
+    <string name="pedidos_carrito_n_productos">%1$d productos</string>
+    <string name="pedidos_confirmar_titulo">Confirmar pedido</string>
+    <string name="pedidos_registrar">Registrar pedido</string>
+    <string name="pedidos_catalogo_vacio_subtitle">Agrega productos al catálogo para poder incluirlos en un pedido.</string>
+    <string name="pedidos_pago_total_hint">El cliente pagó el total ahora</string>
+    <string name="pedidos_pago_parcial_hint">Registrar un abono inicial</string>
+    <string name="pedidos_dejar_pendiente_hint">Suma al saldo del cliente</string>
+    <string name="pedidos_precio_modificado">El precio ha sido modificado</string>
+    <string name="pedidos_precio_modificado_desc">El precio estándar es Bs. %1$s. Estás registrando Bs. %2$s.</string>
+    <string name="pedidos_nota_label">Nota</string>
+    <string name="pedidos_nota_optional">(opcional)</string>
+    <string name="pedidos_nota_placeholder">Ej. Descuento acordado, producto dañado…</string>
+    <string name="pedidos_cantidad_label">Cantidad</string>
+    <string name="pedidos_precio_unitario_label">Precio unitario</string>
+    <string name="pedidos_subtotal_linea">Subtotal de la línea</string>
+    <string name="pedidos_precio_catalogo_ref">Precio de catálogo · Bs. %1$s</string>
+
+    <!-- Detalle Pedido -->
+    <string name="detalle_pedido_title">Detalle del pedido</string>
+    <string name="detalle_pedido_section_lineas">Líneas del pedido</string>
+    <string name="detalle_pedido_qty_precio">×%1$d · Bs. %2$s c/u</string>
+    <string name="detalle_pedido_total_label">Total del pedido</string>
+    <string name="detalle_pedido_pagado_label">Pagado</string>
+    <string name="detalle_pedido_pendiente_label">Saldo restante</string>
+    <string name="detalle_pedido_registrar_pago">Registrar pago</string>
+    <string name="detalle_pedido_monto_pago_label">Monto del pago</string>
+    <string name="detalle_pedido_pago_parcial_title">Registrar pago parcial</string>
 
     <!-- Agregar a Lista Negra -->
     <string name="agregar_lista_negra_title">Agregar a Lista Negra</string>

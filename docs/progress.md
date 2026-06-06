@@ -15,11 +15,11 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 2d | Login two-state (enrolled user screen), bottom navigation, Editar Perfil screen | ✅ Done |
 | 2e | User management screens redesign: Gestión de Usuarios, UsuarioDetalle, CrearUsuario | ✅ Done |
 | 2f | Mercados: long-press selection + edit, contextual action bar, Búsqueda Global screen stub, MercadoDto | ✅ Done |
-| 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | 🔄 In Progress (Clientes CRUD done; Saldo Extra pending) |
-| 4 | Creación de Pedido (cart flow) | 🔲 Pending |
+| 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | ✅ Done |
+| 4 | Creación de Pedido (cart flow) | ✅ Done |
 | 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
 | 6 | Catálogo de Productos, Crear/Editar Producto | ✅ Done |
-| 7 | Lista Negra, Agregar a Lista Negra | 🔲 Pending |
+| 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
 | 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
 
@@ -61,6 +61,37 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 
 - **Fonts**: ✅ Geist variable fonts added (`geist_variable.ttf`, `geist_mono_variable.ttf`)
 - **Icons**: `ic_shield_check.xml` replaced by `ic_admin_panel.xml` (imported). `ic_users.xml` imported. Both used via `painterResource(R.drawable.*)` at all call sites. `PedidosIcons.kt` removed.
+
+---
+
+## Phase 3 (completion) — implemented
+
+- `SaldoExtraScreen` + `SaldoExtraViewModel` + `SaldoExtraUiState` — form with locked category, description, amount, `DatePickerDialog`
+- `SaldoExtraRoute(clienteId)` wired in `AppRoutes` + `AppNavigation`
+- `CreateSaldoExtraUseCase` — creates a `Pedido` with `isSaldoExtra=true`, no line items, `notes` = description
+- `isSaldoExtra: Boolean` flag added to `PedidoEntity` / `Pedido` / `PedidoMapper` / `PedidoDto`
+- DB migration 9→10 (adds `isSaldoExtra` column); Room version bumped to 10
+- `PedidoRow` updated: amber Tag icon + "Manual" badge for saldo-extra rows
+
+## Phase 4 — implemented
+
+- `PedidoEntity`, `DetallePedidoEntity` — Room tables with FK cascade from `clientes`
+- `PedidoDao`, `DetallePedidoDao` — full CRUD
+- `PedidoMapper`, `DetallePedidoMapper` — entity ↔ domain
+- `PedidoDto`, `DetallePedidoDto` — Supabase-ready (Phase 9)
+- `PedidoRepository` interface + `PedidoRepositoryImpl`
+- `CreatePedidoUseCase` — creates pedido + line items atomically
+- `CreacionPedidoScreen` — 3-column product grid, active search bar, CartPanel, LineEditSheet, PagoSheet
+- `DetalleClienteScreen` — now shows live pedido list; balance/status computed from real pedido data
+- `PayChip` — shared composable for PAID/PARTIAL/PENDING status
+- DB migration 8→9
+
+## MercadosScreen live stats — implemented
+
+- `PedidoRepository.getAllUnpaid()` — new DAO + repo query for all non-PAID pedidos
+- `MercadosViewModel` now combines mercados + all clients + unpaid pedidos to compute `MercadoStat` per mercado
+- `MercadoStat(activeClientCount, hasWarning, hasCritical)` drives `MercadoStatRow` in each mercado row
+- Status dot: 6dp amber circle (ADVERTENCIA), red circle (CRITICO), hidden when AL_DIA; text color follows status
 
 ---
 

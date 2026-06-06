@@ -6,7 +6,7 @@
 
 ## Spec summary
 
-Entry point after login (tab 0). Shows all Mercados alphabetically. Each row shows a grid-icon tile, the mercado name, active client count (stubbed at 0 until Phase 3), and an optional status dot when any client inside is in Warning or Critical state. A "Lista Negra" card button at the bottom navigates to the global blacklist. FAB creates a new Mercado.
+Entry point after login (tab 0). Shows all Mercados alphabetically. Each row shows a grid-icon tile, the mercado name, live active client count, and an optional colored dot when any client inside is in Warning (amber) or Critical (red) state. A "Lista Negra" card button at the bottom navigates to the global blacklist. FAB creates a new Mercado.
 
 Long-pressing a mercado row enters **selection mode**: the normal top bar is replaced by a contextual action bar showing a close button, "1 seleccionado", and an "Editar" pill that navigates to the edit form. Tapping any mercado while in selection mode navigates to its detail screen as normal; long-pressing again deselects.
 
@@ -30,7 +30,7 @@ Long-pressing a mercado row enters **selection mode**: the normal top bar is rep
 
 - Large `PedidosTopBar` with title "Mercados" and subtitle "%d mercados"
 - Top-bar actions: Search icon (→ `BusquedaRoute`), Notifications icon (stub), Profile avatar (→ `PerfilRoute`)
-- `MercadoRow`: 44dp grid-icon tile (`surface3` bg, `border` inset, `GridView` icon) + name + "N clientes activos" subtitle + chevron
+- `MercadoRow`: 44dp grid-icon tile (`surface3` bg, `border` inset, `GridView` icon) + name + live "N clientes activos" subtitle (with a 6dp colored dot before the text when any client is ADVERTENCIA/CRITICO) + chevron
 - Dividers start at `start = 78.dp` to clear the tile
 - `ListaNegraButton` at the bottom: card style (54dp height, 14dp corners, `surfaceVariant` bg, 1dp border, 16dp inner padding)
 - Extended FAB anchored above the nav bar, label "Mercado"
@@ -148,9 +148,9 @@ data class MercadoDto(
 | `data/mapper/MercadoMapper.kt` | Entity ↔ Domain mapper |
 | `data/remote/dto/MercadoDto.kt` | Supabase DTO (`@SerialName` for snake_case) |
 | `data/repository/impl/MercadoRepositoryImpl.kt` | Repository implementation |
-| `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `isLoading`, `currentUserInitials`, `selectedMercadoId` |
-| `ui/screen/mercado/MercadosViewModel.kt` | Combines mercado list + session + selection state; `onMercadoLongPress()`, `clearSelection()` |
-| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon |
+| `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `stats: Map<String, MercadoStat>`, `isLoading`, `currentUserInitials`, `selectedMercadoId`; `MercadoStat(activeClientCount, hasWarning, hasCritical)` |
+| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data |
+| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon; `MercadoStatRow` shows count + colored status dot |
 | `ui/screen/mercado/DetalleMercadoUiState.kt` | `mercado`, `isLoading` |
 | `ui/screen/mercado/DetalleMercadoViewModel.kt` | Loads mercado by id; `onDelete()` removes from Room and pops back |
 | `ui/screen/mercado/DetalleMercadoScreen.kt` | Header, stats, maps link, meta rows, delete button |
@@ -168,7 +168,7 @@ Entry point after long-pressing a mercado row. Shows data + allows edit and dele
 
 - `PedidosTopBar` with back + Edit (pencil) icon action → `CreateMercadoRoute(mercadoId)`
 - **Header**: 60×60 `GridView` icon tile (surface-3 bg, border inset) + mercado name + address
-- **Stats row**: 3 equal `StatCard` cards (surface-2 bg, 14dp corners, border inset) — Clientes / Al día / En riesgo (all stubbed at 0 until Phase 3)
+- **Stats row**: 3 equal `StatCard` cards (surface-2 bg, 14dp corners, border inset) — Clientes / Al día / En riesgo (still hardcoded 0; real values can be wired using `clienteRepository.getByMercado()` + pedidos aggregate)
 - **Ubicación section** (shown only when `mapsUrl` is non-blank): section label + `MapsLinkField` (read-only, "Abrir" chip)
 - **Meta rows**: `SettingRow` for "Clientes activos" (chevron, navigates to clientes list in Phase 3) + "Creado" date (`SimpleDateFormat` formatted)
 - **Danger zone**: "Eliminar mercado" (50dp, 13dp corners, `redTint` bg, 22% red border) + disclaimer text — calls `DetalleMercadoViewModel.onDelete()` which deletes and pops back

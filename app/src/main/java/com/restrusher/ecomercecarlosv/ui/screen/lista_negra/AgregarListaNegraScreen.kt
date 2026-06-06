@@ -62,14 +62,7 @@ fun AgregarListaNegraScreen(
         onBack = { navController.popBackStack() },
         onAmountChange = viewModel::onAmountChange,
         onReasonChange = viewModel::onReasonChange,
-        onConfirm = {
-            viewModel.onConfirm {
-                // Pop both AgregarListaNegra and DetalleCliente so the user lands on
-                // ClientesScreen, which reactively excludes the newly blacklisted client.
-                navController.popBackStack()
-                navController.popBackStack()
-            }
-        },
+        onConfirm = { viewModel.onConfirm { navController.popBackStack() } },
     )
 }
 

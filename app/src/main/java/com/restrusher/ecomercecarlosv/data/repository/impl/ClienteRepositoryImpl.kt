@@ -21,6 +21,9 @@ class ClienteRepositoryImpl @Inject constructor(
     override fun getBlacklisted(): Flow<List<Cliente>> =
         dao.getBlacklisted().map { it.map(ClienteMapper::toDomain) }
 
+    override fun getByIdFlow(id: String): Flow<Cliente?> =
+        dao.getByIdFlow(id).map { it?.let(ClienteMapper::toDomain) }
+
     override suspend fun getById(id: String): Cliente? =
         dao.getById(id)?.let(ClienteMapper::toDomain)
 

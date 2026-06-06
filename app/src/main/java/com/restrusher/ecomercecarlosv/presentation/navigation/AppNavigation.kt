@@ -6,6 +6,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.SaldoExtraRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.CreacionPedidoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
@@ -25,8 +28,11 @@ import com.restrusher.ecomercecarlosv.ui.screen.busqueda.BusquedaScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.ClientesScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.CreateClienteScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.DetalleClienteScreen
+import com.restrusher.ecomercecarlosv.ui.screen.cliente.SaldoExtraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.AgregarListaNegraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
+import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
+import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.producto.CreateProductoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
@@ -92,6 +98,15 @@ fun AppNavigation() {
         }
         composable<AgregarListaNegraRoute> {
             AgregarListaNegraScreen(navController = navController)
+        }
+        composable<CreacionPedidoRoute> {
+            CreacionPedidoScreen(navController = navController)
+        }
+        composable<SaldoExtraRoute> {
+            SaldoExtraScreen(navController = navController)
+        }
+        composable<DetallePedidoRoute> {
+            DetallePedidoScreen(navController = navController)
         }
     }
 }

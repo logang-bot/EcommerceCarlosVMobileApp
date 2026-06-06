@@ -52,3 +52,16 @@ object ListaNegraRoute
 
 @Serializable
 data class AgregarListaNegraRoute(val clienteId: String)
+
+@Serializable
+data class CreacionPedidoRoute(
+    val clienteId: String,
+    val clienteName: String,
+    val mercadoName: String,
+)
+
+@Serializable
+data class DetallePedidoRoute(val pedidoId: String)
+
+@Serializable
+data class SaldoExtraRoute(val clienteId: String)

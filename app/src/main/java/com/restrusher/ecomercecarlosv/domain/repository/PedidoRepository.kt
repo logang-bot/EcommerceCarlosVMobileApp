@@ -1,0 +1,17 @@
+package com.restrusher.ecomercecarlosv.domain.repository
+
+import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
+import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import kotlinx.coroutines.flow.Flow
+
+interface PedidoRepository {
+    fun getByCliente(clienteId: String): Flow<List<Pedido>>
+    fun getAllUnpaid(): Flow<List<Pedido>>
+    fun getByIdFlow(id: String): Flow<Pedido?>
+    suspend fun getById(id: String): Pedido?
+    suspend fun getDetallesByPedido(pedidoId: String): List<DetallePedido>
+    suspend fun create(pedido: Pedido, detalles: List<DetallePedido>)
+    suspend fun updateStatus(id: String, status: PedidoStatus, paid: Double, paidAt: Long?)
+    suspend fun delete(id: String)
+}

@@ -23,7 +23,16 @@ The app has a single top-level navigation graph (`AppNavigation.kt`). After logi
 | `GestionUsuariosRoute` | `GestionUsuariosScreen` | Superuser only |
 | `UsuarioDetalleRoute(userId)` | `UsuarioDetalleScreen` | |
 | `CrearUsuarioRoute` | `CrearUsuarioScreen` | Create user with temp password |
-| `BusquedaRoute` | `BusquedaScreen` | Global client search (results stubbed until Phase 3) |
+| `BusquedaRoute` | `BusquedaScreen` | Global client search |
+| `ClientesRoute(mercadoId)` | `ClientesScreen` | Client list for a mercado |
+| `DetalleClienteRoute(clienteId)` | `DetalleClienteScreen` | Client detail + pedidos list |
+| `CreateClienteRoute(mercadoId, clienteId?)` | `CreateClienteScreen` | Create or edit client |
+| `ListaNegraRoute` | `ListaNegraScreen` | Global blacklist |
+| `AgregarListaNegraRoute(clienteId)` | `AgregarListaNegraScreen` | Add client to blacklist |
+| `CreateProductoRoute(productId?)` | `CreateProductoScreen` | Create or edit product |
+| `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `CreacionPedidoScreen` | Cart-based order creation (Phase 4) |
+| `DetallePedidoRoute(pedidoId)` | `DetallePedidoScreen` | Order detail + payment history (Phase 5 — pending) |
+| `SaldoExtraRoute(clienteId)` | `SaldoExtraScreen` | Manual balance entry (Phase 3) |
 
 All routes are `@Serializable` objects/data classes in `presentation/screens/AppRoutes.kt`.
 

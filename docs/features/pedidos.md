@@ -1,85 +1,167 @@
 # Feature: Pedidos
 
-## Status: 🔲 Pending (Phase 4–5)
+## Status: 🔄 In Progress — Phase 4 done, Phase 5 pending
 
 ---
 
 ## Spec summary
 
 Two sub-features:
-1. **Creación de Pedido** — "add to cart" flow: product grid, inline quantity controls, cart panel, price-override warning, confirm + payment sheet.
-2. **Detalle de Pedido** — view line items, payment history, mark as paid or register partial payment.
+1. **Creación de Pedido** *(Phase 4 — ✅ Done)* — "add to cart" flow: product grid, inline quantity controls, cart panel, price-override warning, confirm + payment sheet.
+2. **Detalle de Pedido** *(Phase 5 — 🔲 Pending)* — view line items, payment history, mark as paid or register partial payment.
 
 ---
 
 ## Screens
 
-| Screen | Route | File |
-|--------|-------|------|
-| Creación de Pedido | `CreacionPedidoRoute(clienteId)` | `ui/screen/pedido/CreacionPedidoScreen.kt` — TODO |
-| Detalle de Pedido | `DetallePedidoRoute(pedidoId)` | `ui/screen/pedido/DetallePedidoScreen.kt` — TODO |
+| Screen | Route | File | Status |
+|--------|-------|------|--------|
+| Creación de Pedido | `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `ui/screen/pedido/CreacionPedidoScreen.kt` | ✅ Done |
+| Detalle de Pedido | `DetallePedidoRoute(pedidoId)` | `ui/screen/pedido/DetallePedidoScreen.kt` | 🔲 Pending |
 
 ---
 
-## UI notes — Creación de Pedido (most complex screen)
+## Data layer
 
-**Two persistent regions:**
-
-**Top — Product grid (3 columns, scrollable):**
-- First cell always: "Buscar producto" (search icon)
-  - Tap → search bar slides in below app bar, grid filters live
-  - Cart panel stays visible during search
-  - Back/clear → dismisses search, restores full grid
-- Product cells: photo/glyph + name + price
-- In-cart state: highlighted border + quantity badge `×N` + inline − / + controls
-- Quantity → 0 removes from cart
-
-**Bottom — Cart panel (always visible, not scrolled away):**
-- Compact rows: name + qty + unit price + subtotal
-- Running total
-- Remove (×) per row
-- Tap row → expands / bottom sheet with:
-  - Quantity stepper (large tap targets)
-  - Unit price field (editable, pre-filled from catalogue)
-  - **Amber disclaimer banner** if price modified: "El precio ha sido modificado — El precio estándar es Bs. X.XX. Estás registrando Bs. Y.YY."
-  - Notes field (optional, multiline)
-- Empty cart: "Agrega productos al pedido" placeholder
-- "Confirmar Pedido" CTA — disabled when cart empty
-
-**On "Confirmar Pedido":**
-Bottom sheet with three options:
-- "Marcar como pagado"
-- "Dejar pendiente"
-- "Pago parcial" → reveals amount input field
+| File | Status |
+|------|--------|
+| `domain/model/Pedido.kt` | ✅ |
+| `domain/model/DetallePedido.kt` | ✅ |
+| `domain/model/PedidoStatus.kt` (enum: PENDING, PARTIAL, PAID) | ✅ |
+| `domain/repository/PedidoRepository.kt` | ✅ |
+| `data/local/entity/PedidoEntity.kt` | ✅ |
+| `data/local/entity/DetallePedidoEntity.kt` | ✅ |
+| `data/local/dao/PedidoDao.kt` | ✅ |
+| `data/local/dao/DetallePedidoDao.kt` | ✅ |
+| `data/remote/dto/PedidoDto.kt` | ✅ |
+| `data/remote/dto/DetallePedidoDto.kt` | ✅ |
+| `data/mapper/PedidoMapper.kt` | ✅ |
+| `data/mapper/DetallePedidoMapper.kt` | ✅ |
+| `data/repository/impl/PedidoRepositoryImpl.kt` | ✅ |
+| `domain/usecase/CreatePedidoUseCase.kt` | ✅ |
+| `domain/usecase/CreateSaldoExtraUseCase.kt` | ✅ |
+| Room migration 8→9 (`MIGRATION_8_9`) — creates `pedidos` + `detalle_pedido` | ✅ |
+| Room migration 9→10 (`MIGRATION_9_10`) — adds `isSaldoExtra` column to `pedidos` | ✅ |
 
 ---
 
-## UI notes — Detalle de Pedido
+## UI — Phase 4: Creación de Pedido
 
-- Date, line items (name / qty / unit price / subtotal)
-- Amber indicator + original catalogue price if price was overridden
-- Notes per line item (muted text below item)
-- Total + payment status chip
-- Payments section (if partial): list of payments made + "Registrar pago parcial" button
-- "Marcar como pagado" button (if not fully paid)
+### Screen structure
+
+`CreacionPedidoScreen` uses a `Scaffold` with:
+- `topBar` = `CreacionTopBar` (title "Nuevo pedido", subtitle "clienteName · mercadoName") + optional `SearchBar` injected below when search is active
+- `bottomBar` = `CartPanel` (always visible; Scaffold automatically pads the content for its dynamic height)
+- content = `ProductGridSection` (fills the padded area)
+
+### Files
+
+| File | Responsibility |
+|------|---------------|
+| `ProductGridSection.kt` | 3-column `LazyVerticalGrid` — search cell (fixed first), `ProductCard` per producto |
+| `CartPanel.kt` | Persistent bottom panel — drag handle, cart rows, confirm CTA |
+| `LineEditSheet.kt` | `ModalBottomSheet` — edit qty/price/notes for a cart line |
+| `PagoSheet.kt` | `ModalBottomSheet` — select payment type (paid/partial/pending) and submit |
+| `CartItem.kt` | UI-only data class for in-progress order lines |
+| `CreacionPedidoUiState.kt` | Immutable UI state; exposes `filteredProductos`, `cartTotal`, `cartQuantityFor()` |
+| `CreacionPedidoViewModel.kt` | `@HiltViewModel`; drives all user interactions |
+
+### ProductGridSection
+
+- First cell always: `SearchCell` (search icon + "Buscar producto") — tapping activates the inline search bar on the top bar
+- While search is active: `SearchCell` is replaced by the regular grid filtered by `searchQuery`; `CartPanel` stays visible
+- `ProductCard` non-cart state: product icon tile + name + price (mono)
+- `ProductCard` in-cart state: green ring border, checkmark badge, `QuantityStepper` (− / qty / +) in place of price
+
+### CartPanel
+
+- `DragHandle` pill at top
+- Header row: cart icon + "Carrito" + "· N productos"
+- Cart rows (`heightIn(max = 132dp)` scrollable): `×qty` label, name, unit info, subtotal, ×-remove; tapping row calls `onEditItem`
+- Empty state: "Agrega productos al pedido"
+- Confirm CTA (`height = 54dp`, `borderRadius = 15dp`): disabled (surface3 bg) when cart empty; enabled (primary bg + box-shadow) when filled — shows total amount (mono) + chevron
+
+### LineEditSheet
+
+- Product header: 48dp icon tile + name + "Precio de catálogo · Bs. X.XX"
+- Quantity stepper: 56dp container, `surface2` bg, minus/number/plus
+- Unit price field: `OutlinedTextField`; amber border when price ≠ catalogPrice
+- Amber disclaimer banner (`PriceModifiedBanner`): shown when unit price is modified, displays both catalogue and new price
+- Notes field: optional multiline (min 2 lines)
+- Subtotal row: live `unitPrice × quantity`
+- "Confirmar" primary CTA
+
+### PagoSheet
+
+- Header: "Confirmar pedido" title, total in large mono, "N productos · clienteName"
+- Three `PaymentOptionRow` options:
+  - **Marcar como pagado** — green tint, `initialPayment = total`
+  - **Pago parcial** — accent tint, green border when selected; reveals `PartialAmountInput` with "Restan Bs. X.XX" suffix hint; `initialPayment = enteredAmount`
+  - **Dejar pendiente** — amber tint; `initialPayment = 0`
+- "Registrar pedido" CTA — shows `CircularProgressIndicator` while saving
+
+### CreatePedidoUseCase
+
+Single atomic operation: computes total → derives `PedidoStatus` → creates `Pedido` domain object → maps items to `DetallePedido` list → calls `pedidoRepository.create(pedido, detalles)`.
+
+Status rules:
+- `initialPayment >= total` → `PAID`
+- `initialPayment > 0` → `PARTIAL`
+- `initialPayment == 0` → `PENDING`
 
 ---
 
-## Data models needed
+## Shared component
 
-- `Pedido` domain model: `id, clienteId, mercadoId, date, status(paid/pending/partial), total, lines[]`
-- `LineaPedido`: `productId?, productName, qty, unitPrice, cataloguePrice, notes`
-- `Pago`: `id, pedidoId, amount, date`
-- `PedidoRepository`, `PagoRepository`
+`ui/common/PayChip.kt` — reusable status pill used on `PedidoRow` (Detalle de Cliente) and future `DetallePedidoScreen`:
+
+| Status | Background | Text color |
+|--------|-----------|------------|
+| PAID | `greenTint` | `greenText` |
+| PARTIAL | `accentSoft` | `primary` |
+| PENDING | `amberTint` | `amberText` |
+
+---
+
+## DetalleClienteScreen — Phase 4 updates
+
+- `DetalleClienteViewModel` now `combine`s `clienteRepository.getByIdFlow` + `pedidoRepository.getByCliente` to compute real balance and status
+- Balance = sum of `(pedido.total - pedido.paid)` for non-PAID pedidos
+- Status: `AL_DIA` if balance == 0; `CRITICO` if balance > 200 or any unpaid pedido is older than 30 days; `ADVERTENCIA` otherwise
+- `PedidoRow` (in `ui/screen/cliente/`) renders each pedido: icon tile, product count + date, total (mono), `PayChip`
+- Empty state shown when no pedidos exist
+- FAB navigates to `CreacionPedidoRoute(clienteId, clienteName, mercadoName)`
+
+---
+
+## UI notes — Detalle de Pedido (Phase 5)
+
+- Date of pedido, line items (name / qty × unit price / subtotal)
+- Amber indicator + strikethrough catalogue price if price was overridden
+- Notes per line item (italic muted text)
+- Total block: total + paid (green) + divider + saldo restante (amber if unpaid)
+- Payments section: chronological list of payments with date + amount in green
+- Bottom bar: "Pago parcial" (secondary) + "Marcar pagado" (success green)
+
+---
+
+## SaldoExtra — special pedido type
+
+`isSaldoExtra: Boolean = false` is stored on `Pedido`/`PedidoEntity`. When `true`:
+- No `detalle_pedido` rows are created
+- `notes` stores the user-entered description
+- `total` = entered amount; `paid = 0`; `status = PENDING`
+- `PedidoRow` renders an amber Tag icon tile + "Saldo extra" label + amber "Manual" badge (no `PayChip`)
+
+`CreateSaldoExtraUseCase(clienteId, description, amount, date)` handles creation. Screen: `SaldoExtraScreen` (route `SaldoExtraRoute(clienteId)`) — category locked to "Saldo", description field, amount field, date picker (`DatePickerDialog`).
+
+`PedidoRepository.getAllUnpaid()` returns all non-PAID pedidos (including saldo-extra ones) — used by `MercadosViewModel` to compute per-mercado status.
 
 ---
 
 ## Open TODOs
 
-- [ ] Define all entities, DAOs, DTOs, mappers
-- [ ] Implement `CreacionPedidoScreen` — grid + cart split layout
-- [ ] Implement search-in-grid (no navigation, inline filter)
-- [ ] Implement line item bottom sheet with price-change disclaimer
-- [ ] Implement confirm + payment-type bottom sheet
-- [ ] Implement `DetallePedidoScreen` with partial payment history
-- [ ] `RecordPedidoUseCase` — creates pedido, updates client balance
+- [ ] Implement `DetallePedidoScreen` (Phase 5)
+- [ ] Implement `RegisterPartialPaymentUseCase` (Phase 5)
+- [ ] Add pagos tracking table or accumulate via `updateStatus` (decide in Phase 5)
+- [ ] Wire "Calcular automáticamente" in `AgregarListaNegraScreen` using real pedido balance (`pedidoRepository.getByCliente(clienteId)` is available)

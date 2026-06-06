@@ -5,11 +5,15 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
+import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import com.restrusher.ecomercecarlosv.data.local.entity.ClienteEntity
+import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.MercadoEntity
+import com.restrusher.ecomercecarlosv.data.local.entity.PedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.ProductoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.UserEntity
 
@@ -52,6 +56,49 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `pedidos` (
+                `id` TEXT NOT NULL,
+                `clienteId` TEXT NOT NULL,
+                `status` TEXT NOT NULL,
+                `total` REAL NOT NULL,
+                `paid` REAL NOT NULL,
+                `notes` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `paidAt` INTEGER,
+                PRIMARY KEY(`id`),
+                FOREIGN KEY(`clienteId`) REFERENCES `clientes`(`id`) ON DELETE CASCADE
+            )""",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pedidos_clienteId` ON `pedidos` (`clienteId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pedidos_status` ON `pedidos` (`status`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pedidos_createdAt` ON `pedidos` (`createdAt`)")
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `detalle_pedido` (
+                `id` TEXT NOT NULL,
+                `pedidoId` TEXT NOT NULL,
+                `productoId` TEXT NOT NULL,
+                `productName` TEXT NOT NULL,
+                `quantity` INTEGER NOT NULL,
+                `unitPrice` REAL NOT NULL,
+                `catalogPrice` REAL NOT NULL,
+                `notes` TEXT,
+                PRIMARY KEY(`id`),
+                FOREIGN KEY(`pedidoId`) REFERENCES `pedidos`(`id`) ON DELETE CASCADE
+            )""",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_detalle_pedido_pedidoId` ON `detalle_pedido` (`pedidoId`)")
+    }
+}
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE pedidos ADD COLUMN isSaldoExtra INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -76,8 +123,10 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         UserEntity::class,
         ClienteEntity::class,
         ProductoEntity::class,
+        PedidoEntity::class,
+        DetallePedidoEntity::class,
     ],
-    version = 8,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -85,4 +134,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun clienteDao(): ClienteDao
     abstract fun productoDao(): ProductoDao
+    abstract fun pedidoDao(): PedidoDao
+    abstract fun detallePedidoDao(): DetallePedidoDao
 }

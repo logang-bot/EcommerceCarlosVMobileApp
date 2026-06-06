@@ -1,0 +1,19 @@
+package com.restrusher.ecomercecarlosv.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
+
+@Dao
+interface DetallePedidoDao {
+    @Query("SELECT * FROM detalle_pedido WHERE pedidoId = :pedidoId")
+    suspend fun getByPedido(pedidoId: String): List<DetallePedidoEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(detalles: List<DetallePedidoEntity>)
+
+    @Query("DELETE FROM detalle_pedido WHERE pedidoId = :pedidoId")
+    suspend fun deleteByPedido(pedidoId: String)
+}

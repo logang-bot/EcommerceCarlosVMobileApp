@@ -178,6 +178,7 @@ private fun MercadosContent(
                     val selected = mercado.id == state.selectedMercadoId
                     MercadoRow(
                         mercado = mercado,
+                        stat = state.stats[mercado.id] ?: MercadoStat(),
                         selected = selected,
                         onClick = { onMercadoClick(mercado.id) },
                         onLongClick = { onMercadoLongPress(mercado.id) },
@@ -265,6 +266,7 @@ private fun SelectionHint() {
 private fun MercadoRow(
     modifier: Modifier = Modifier,
     mercado: Mercado,
+    stat: MercadoStat,
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -295,12 +297,7 @@ private fun MercadoRow(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                 )
-                Text(
-                    text = stringResource(R.string.mercados_clientes_active, 0),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ext.text2,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                MercadoStatRow(stat = stat)
             }
             if (selected) {
                 Box(
@@ -326,6 +323,36 @@ private fun MercadoRow(
                 )
             }
         }
+}
+
+@Composable
+private fun MercadoStatRow(stat: MercadoStat) {
+    val ext = MaterialTheme.extendedColors
+    val dotColor = when {
+        stat.hasCritical -> ext.redText
+        stat.hasWarning -> ext.amberText
+        else -> null
+    }
+    val textColor = dotColor ?: ext.text2
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 2.dp),
+    ) {
+        if (dotColor != null) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+            )
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(
+            text = stringResource(R.string.mercados_clientes_active, stat.activeClientCount),
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor,
+        )
+    }
 }
 
 @Composable

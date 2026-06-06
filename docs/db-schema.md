@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **7**. Supabase integration: Phase 9.
+Room version: **10**. Supabase integration: Phase 9.
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v7)
+## Current tables (Room v8)
 
 ### `users`
 
@@ -52,7 +52,7 @@ Shared resource. All users can read and write.
 
 ---
 
-### `clientes` *(Room v6 — Phase 3)*
+### `clientes` *(Room v8 — Phase 3 + 7)*
 
 Belongs to a `mercados` row. Represents an individual customer at a market stall.
 
@@ -66,11 +66,12 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `phones` | `String` | `text` | — | Pipe-separated list: `"0414-123\|0424-456"`. Empty string if none. |
 | `mapsUrl` | `String?` | `text` | ✓ | URL that opens the device map app — no lat/lng stored |
 | `isBlacklisted` | `Boolean` | `boolean` | — | Default `false` |
-| `blacklistReason` | `String?` | `text` | ✓ | Set when `is_blacklisted = true` |
+| `blacklistReason` | `String?` | `text` | ✓ | Set when `isBlacklisted = true` |
 | `blacklistedAt` | `Long?` | `bigint` | ✓ | Epoch ms |
+| `blacklistBalance` | `Double` | `float8` | — | Owed balance recorded at time of blacklisting; default `0.0` *(added v8)* |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
-**DAO operations:** `getByMercado(mercadoId)` flow (active, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
+**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at)`
 
 **Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`.
 
@@ -104,11 +105,11 @@ Global product catalogue, shared across all users.
 
 ---
 
-## Planned tables (Phase 4+)
+## Implemented tables (Phase 4)
 
 ---
 
-### `pedidos` *(Phase 4)*
+### `pedidos` *(Room v9 — Phase 4)*
 
 A delivery order. Belongs to a `clientes` row.
 
@@ -122,12 +123,13 @@ A delivery order. Belongs to a `clientes` row.
 | `notes` | `text` | ✓ | Optional delivery note |
 | `created_at` | `bigint` | — | Epoch ms |
 | `paid_at` | `bigint` | ✓ | Epoch ms; set when `status = paid` |
+| `is_saldo_extra` | `boolean` | — | `true` for manual balance entries (Saldo Extra) — no line items; default `false` *(added v10)* |
 
 **Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`.
 
 ---
 
-### `detalle_pedido` *(Phase 4)*
+### `detalle_pedido` *(Room v9 — Phase 4)*
 
 Line items inside a `pedidos` row.
 
@@ -138,6 +140,7 @@ Line items inside a `pedidos` row.
 | `producto_id` | `uuid` FK → `productos.id` | — | `ON DELETE RESTRICT` |
 | `quantity` | `int4` | — | |
 | `unit_price` | `float8` | — | Snapshot of price at time of order |
+| `catalog_price` | `float8` | — | Catalogue price at time of order — used to show amber "price modified" indicator |
 | `notes` | `text` | ✓ | Per-item note |
 
 **Suggested index:** `detalle_pedido(pedido_id)`.
@@ -146,19 +149,13 @@ Line items inside a `pedidos` row.
 
 ---
 
-### `saldo_extra` *(Phase 3)*
+### `saldo_extra` *(implemented as flag on `pedidos` — Room v10)*
 
-A manual balance entry attached to a `clientes` row (not linked to any specific pedido).
+Saldo Extra entries are stored directly in the `pedidos` table with `isSaldoExtra = true` and no corresponding `detalle_pedido` rows. No separate table is needed.
 
-| Column | Supabase type | Nullable | Notes |
-|--------|---------------|----------|-------|
-| `id` | `uuid` PK | — | |
-| `cliente_id` | `uuid` FK → `clientes.id` | — | `ON DELETE CASCADE` |
-| `amount` | `float8` | — | Positive = debt added |
-| `description` | `text` | — | Reason for the extra balance |
-| `created_at` | `bigint` | — | Epoch ms |
-
-**Suggested index:** `saldo_extra(cliente_id)`.
+- `notes` on the pedido stores the description.
+- `total` stores the amount; `paid = 0`, `status = PENDING`.
+- `PedidoRow` renders these with an amber Tag icon and a "Manual" badge instead of the normal PayChip.
 
 ---
 

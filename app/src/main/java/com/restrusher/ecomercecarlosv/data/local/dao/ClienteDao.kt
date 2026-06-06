@@ -23,6 +23,9 @@ interface ClienteDao {
     suspend fun blacklist(id: String, reason: String, balance: Double, at: Long)
 
     @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
+    fun getByIdFlow(id: String): Flow<ClienteEntity?>
+
+    @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ClienteEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

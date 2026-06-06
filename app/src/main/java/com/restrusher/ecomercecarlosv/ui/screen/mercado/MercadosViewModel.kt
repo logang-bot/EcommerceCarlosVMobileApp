@@ -2,7 +2,12 @@ package com.restrusher.ecomercecarlosv.ui.screen.mercado
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restrusher.ecomercecarlosv.domain.model.Cliente
+import com.restrusher.ecomercecarlosv.domain.model.Mercado
+import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,16 +19,23 @@ import javax.inject.Inject
 @HiltViewModel
 class MercadosViewModel @Inject constructor(
     mercadoRepository: MercadoRepository,
+    clienteRepository: ClienteRepository,
+    pedidoRepository: PedidoRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
 
     private val _selectedMercadoId = MutableStateFlow<String?>(null)
 
     val uiState = combine(
-        mercadoRepository.getAll(),
+        combine(
+            mercadoRepository.getAll(),
+            clienteRepository.getAll(),
+            pedidoRepository.getAllUnpaid(),
+        ) { mercados, clientes, unpaid -> Triple(mercados, clientes, unpaid) },
         sessionManager.currentUser,
         _selectedMercadoId,
-    ) { mercados, user, selectedId ->
+    ) { triple, user, selectedId ->
+        val (mercados, clientes, unpaidPedidos) = triple
         val initials = user?.name
             ?.split(' ')
             ?.filter(String::isNotBlank)
@@ -32,6 +44,7 @@ class MercadosViewModel @Inject constructor(
             ?.joinToString("") ?: ""
         MercadosUiState(
             mercados = mercados,
+            stats = buildStats(mercados, clientes, unpaidPedidos),
             isLoading = false,
             currentUserInitials = initials,
             selectedMercadoId = selectedId,
@@ -49,4 +62,37 @@ class MercadosViewModel @Inject constructor(
     fun clearSelection() {
         _selectedMercadoId.value = null
     }
+
+    private fun buildStats(
+        mercados: List<Mercado>,
+        clientes: List<Cliente>,
+        unpaidPedidos: List<Pedido>,
+    ): Map<String, MercadoStat> {
+        val clientesByMercado = clientes.groupBy { it.mercadoId }
+        val pedidosByCliente = unpaidPedidos.groupBy { it.clienteId }
+        return mercados.associate { mercado ->
+            val mercadoClientes = clientesByMercado[mercado.id].orEmpty()
+            var hasWarning = false
+            var hasCritical = false
+            for (cliente in mercadoClientes) {
+                val pedidos = pedidosByCliente[cliente.id].orEmpty()
+                val balance = pedidos.sumOf { it.pending }
+                if (balance > 0) {
+                    if (pedidos.any { isOlderThan30Days(it.createdAt) } || balance > 200.0) {
+                        hasCritical = true
+                    } else {
+                        hasWarning = true
+                    }
+                }
+            }
+            mercado.id to MercadoStat(
+                activeClientCount = mercadoClientes.size,
+                hasWarning = hasWarning,
+                hasCritical = hasCritical,
+            )
+        }
+    }
+
+    private fun isOlderThan30Days(createdAt: Long): Boolean =
+        (System.currentTimeMillis() - createdAt) > 30L * 24 * 60 * 60 * 1000
 }

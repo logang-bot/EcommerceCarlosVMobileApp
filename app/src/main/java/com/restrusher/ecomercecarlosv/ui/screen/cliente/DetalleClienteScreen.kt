@@ -54,8 +54,12 @@ import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
+import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.CreacionPedidoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.SaldoExtraRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -75,7 +79,19 @@ fun DetalleClienteScreen(
             navController.navigate(CreateClienteRoute(mercadoId = mercadoId, clienteId = clienteId))
         },
         onListaNegraClick = { state.cliente?.let { navController.navigate(AgregarListaNegraRoute(it.id)) } },
-        onSaldoExtraClick = { /* TODO: Phase 3 — SaldoExtraRoute */ },
+        onSaldoExtraClick = { state.cliente?.let { navController.navigate(SaldoExtraRoute(it.id)) } },
+        onNuevoPedidoClick = {
+            state.cliente?.let { c ->
+                navController.navigate(
+                    CreacionPedidoRoute(
+                        clienteId = c.id,
+                        clienteName = c.name,
+                        mercadoName = "",
+                    ),
+                )
+            }
+        },
+        onPedidoClick = { pedidoId -> navController.navigate(DetallePedidoRoute(pedidoId)) },
     )
 }
 
@@ -87,6 +103,7 @@ private fun DetalleClienteContent(
     onListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
     onNuevoPedidoClick: () -> Unit = {},
+    onPedidoClick: (pedidoId: String) -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -118,10 +135,12 @@ private fun DetalleClienteContent(
                 cliente = state.cliente,
                 status = state.status,
                 balance = state.balance,
+                pedidos = state.pedidos,
                 innerPadding = innerPadding,
                 onEditClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) },
                 onListaNegraClick = onListaNegraClick,
                 onSaldoExtraClick = onSaldoExtraClick,
+                onPedidoClick = onPedidoClick,
             )
         }
     }
@@ -132,10 +151,12 @@ private fun ClienteData(
     cliente: Cliente,
     status: ClientStatus,
     balance: Double,
+    pedidos: List<Pedido>,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
     onEditClick: () -> Unit,
     onListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
+    onPedidoClick: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -152,7 +173,7 @@ private fun ClienteData(
             onSaldoExtraClick = onSaldoExtraClick,
         )
         Spacer(Modifier.height(24.dp))
-        PedidosSection()
+        PedidosSection(pedidos = pedidos, onPedidoClick = onPedidoClick)
         Spacer(Modifier.height(80.dp))
     }
 }
@@ -299,7 +320,7 @@ private fun ActionButtons(isBlacklisted: Boolean, onListaNegraClick: () -> Unit,
 }
 
 @Composable
-private fun PedidosSection() {
+private fun PedidosSection(pedidos: List<Pedido>, onPedidoClick: (String) -> Unit) {
     val ext = MaterialTheme.extendedColors
     Text(
         text = stringResource(R.string.detalle_cliente_pedidos_section).uppercase(),
@@ -308,14 +329,20 @@ private fun PedidosSection() {
         letterSpacing = 0.5.sp,
         modifier = Modifier.padding(start = 20.dp, bottom = 8.dp),
     )
-    EmptyState(
-        icon = Icons.Default.Receipt,
-        title = stringResource(R.string.detalle_cliente_pedidos_empty_title),
-        subtitle = stringResource(R.string.detalle_cliente_pedidos_empty_subtitle),
-        hint = stringResource(R.string.detalle_cliente_pedidos_empty_hint),
-        compact = true,
-        modifier = Modifier.height(240.dp),
-    )
+    if (pedidos.isEmpty()) {
+        EmptyState(
+            icon = Icons.Default.Receipt,
+            title = stringResource(R.string.detalle_cliente_pedidos_empty_title),
+            subtitle = stringResource(R.string.detalle_cliente_pedidos_empty_subtitle),
+            hint = stringResource(R.string.detalle_cliente_pedidos_empty_hint),
+            compact = true,
+            modifier = Modifier.height(240.dp),
+        )
+    } else {
+        pedidos.forEach { pedido ->
+            PedidoRow(pedido = pedido, onClick = { onPedidoClick(pedido.id) })
+        }
+    }
 }
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
