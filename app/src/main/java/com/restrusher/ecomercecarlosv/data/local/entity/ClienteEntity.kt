@@ -30,5 +30,6 @@ data class ClienteEntity(
     val isBlacklisted: Boolean,
     val blacklistReason: String?,
     val blacklistedAt: Long?,
+    val blacklistBalance: Double,
     val createdAt: Long,
 )

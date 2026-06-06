@@ -60,12 +60,14 @@ import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
 import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -87,7 +89,7 @@ fun MercadosScreen(
         onMercadoLongPress = viewModel::onMercadoLongPress,
         onCreateClick = { navController.navigate(CreateMercadoRoute()) },
         onVerDetallesClick = { mercadoId -> navController.navigate(DetalleMercadoRoute(mercadoId)) },
-        onListaNegraClick = { /* TODO: navigate to ListaNegraRoute — Phase 7 */ },
+        onListaNegraClick = { navController.navigate(ListaNegraRoute) },
         onPerfilClick = { navController.navigate(PerfilRoute) },
         onSearchClick = { navController.navigate(BusquedaRoute) },
         onClearSelection = viewModel::clearSelection,
@@ -285,7 +287,7 @@ private fun MercadoRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-            MercadoTile()
+            MercadoTile(photoUrl = mercado.photoUrl)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = mercado.name,
@@ -327,23 +329,24 @@ private fun MercadoRow(
 }
 
 @Composable
-private fun MercadoTile(modifier: Modifier = Modifier) {
+private fun MercadoTile(modifier: Modifier = Modifier, photoUrl: String? = null) {
     val ext = MaterialTheme.extendedColors
-    Box(
-        contentAlignment = Alignment.Center,
+    PhotoThumbnail(
+        photoUrl = photoUrl,
         modifier = modifier
             .size(44.dp)
             .clip(RoundedCornerShape(13.dp))
             .background(ext.surface3)
             .border(1.dp, ext.border, RoundedCornerShape(13.dp)),
-    ) {
-        Icon(
-            imageVector = Icons.Default.GridView,
-            contentDescription = null,
-            tint = ext.text2,
-            modifier = Modifier.size(20.dp),
-        )
-    }
+        fallback = {
+            Icon(
+                imageVector = Icons.Default.GridView,
+                contentDescription = null,
+                tint = ext.text2,
+                modifier = Modifier.size(20.dp),
+            )
+        },
+    )
 }
 
 @Composable

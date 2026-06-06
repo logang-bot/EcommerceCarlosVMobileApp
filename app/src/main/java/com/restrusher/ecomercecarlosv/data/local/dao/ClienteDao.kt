@@ -13,6 +13,15 @@ interface ClienteDao {
     @Query("SELECT * FROM clientes WHERE mercadoId = :mercadoId AND isBlacklisted = 0 ORDER BY name ASC")
     fun getByMercado(mercadoId: String): Flow<List<ClienteEntity>>
 
+    @Query("SELECT * FROM clientes WHERE isBlacklisted = 0 ORDER BY name ASC")
+    fun getAll(): Flow<List<ClienteEntity>>
+
+    @Query("SELECT * FROM clientes WHERE isBlacklisted = 1 ORDER BY blacklistedAt DESC")
+    fun getBlacklisted(): Flow<List<ClienteEntity>>
+
+    @Query("UPDATE clientes SET isBlacklisted = 1, blacklistReason = :reason, blacklistBalance = :balance, blacklistedAt = :at WHERE id = :id")
+    suspend fun blacklist(id: String, reason: String, balance: Double, at: Long)
+
     @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ClienteEntity?
 

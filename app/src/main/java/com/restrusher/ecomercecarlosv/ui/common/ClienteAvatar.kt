@@ -19,10 +19,13 @@ import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
+
+
 @Composable
 fun ClienteAvatar(
     modifier: Modifier = Modifier,
     name: String,
+    photoUrl: String? = null,
     size: Dp = 46.dp,
     status: ClientStatus? = null,
 ) {
@@ -45,8 +48,8 @@ fun ClienteAvatar(
         .mapNotNull { it.firstOrNull()?.uppercaseChar() }
         .joinToString("")
 
-    Box(
-        contentAlignment = Alignment.Center,
+    PhotoThumbnail(
+        photoUrl = photoUrl,
         modifier = modifier
             .size(size)
             .drawBehind {
@@ -57,13 +60,14 @@ fun ClienteAvatar(
             }
             .clip(CircleShape)
             .background(bgColor),
-    ) {
-        Text(
-            text = initials,
-            fontSize = (size.value * 0.36f).sp,
-            fontWeight = FontWeight.SemiBold,
-            color = textColor,
-            letterSpacing = 0.3.sp,
-        )
-    }
+        fallback = {
+            Text(
+                text = initials,
+                fontSize = (size.value * 0.36f).sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor,
+                letterSpacing = 0.3.sp,
+            )
+        },
+    )
 }

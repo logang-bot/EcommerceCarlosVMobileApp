@@ -2,10 +2,12 @@ package com.restrusher.ecomercecarlosv.di
 
 import com.restrusher.ecomercecarlosv.data.repository.impl.ClienteRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.MercadoRepositoryImpl
+import com.restrusher.ecomercecarlosv.data.repository.impl.ProductoRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.UserRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.session.SessionManagerImpl
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.ProductoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.Binds
@@ -33,4 +35,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindClienteRepository(impl: ClienteRepositoryImpl): ClienteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProductoRepository(impl: ProductoRepositoryImpl): ProductoRepository
 }

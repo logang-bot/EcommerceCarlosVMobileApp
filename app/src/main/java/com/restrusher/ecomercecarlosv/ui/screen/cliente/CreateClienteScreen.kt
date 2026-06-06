@@ -54,7 +54,12 @@ import com.restrusher.ecomercecarlosv.ui.common.CameraPermissionTextProvider
 import com.restrusher.ecomercecarlosv.ui.common.MapsLinkField
 import com.restrusher.ecomercecarlosv.ui.common.PermissionDialog
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.copyImageToCache
+import com.restrusher.ecomercecarlosv.ui.common.createCameraImageUri
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CreateClienteScreen(
@@ -97,16 +102,22 @@ private fun CreateClienteContent(
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionPermanentlyDeclined by remember { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) onPhotoSelected(pendingCameraUri)
     }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) onPhotoSelected(uri)
+        if (uri != null) {
+            coroutineScope.launch {
+                val cachedUri = withContext(Dispatchers.IO) { copyImageToCache(context, uri) }
+                onPhotoSelected(cachedUri ?: uri)
+            }
+        }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            val uri = createClienteCameraUri(context)
+            val uri = createCameraImageUri(context)
             pendingCameraUri = uri
             cameraLauncher.launch(uri)
         } else if (activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false) {
@@ -118,7 +129,7 @@ private fun CreateClienteContent(
     fun handleCameraRequest() {
         when {
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
-                val uri = createClienteCameraUri(context)
+                val uri = createCameraImageUri(context)
                 pendingCameraUri = uri
                 cameraLauncher.launch(uri)
             }
@@ -167,7 +178,7 @@ private fun CreateClienteContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            CirclePhotoPicker(photoUri = state.photoUri, onClick = { showPhotoSheet = true })
+            CirclePhotoPicker(photoUri = state.photoUri, name = state.name, isEditing = state.isEditing, onClick = { showPhotoSheet = true })
             ClienteNameField(state = state, onNameChange = onNameChange)
             ClienteDescriptionField(state = state, onDescriptionChange = onDescriptionChange)
             PhoneListField(phones = state.phones, onPhoneChange = onPhoneChange, onAddPhone = onAddPhone, onRemovePhone = onRemovePhone)

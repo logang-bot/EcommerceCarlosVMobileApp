@@ -71,7 +71,10 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 - Location is **only** a URL (`mapsUrl`) — no lat/lng. User pastes the link; tapping opens the device map app.
 - Row color uses the **Fuerte** variant from the design: `bgAlpha = if (isDark) 0.30f else 0.22f`, bar 6dp, balance colored by status.
 - Phase 3 balance/status defaults: all clients default to `AL_DIA` / `0.0` until Phase 4 wires pedidos.
-- `ClienteAvatar` uses `hsl(nameHash % 360, 32%, 26%)` for deterministic hue from the name.
+- `ClienteAvatar` accepts an optional `photoUrl`; when set it renders the photo (via `PhotoThumbnail`) while preserving the status ring. Falls back to initials with deterministic `hsl(nameHash % 360, 32%, 26%)` bg.
+- `CirclePhotoPicker` (in `CreateClienteComponents.kt`): 96dp circle picker used in create/edit forms. Create mode shows a `Person` icon placeholder; edit mode shows the existing `ClienteAvatar` when no new photo is picked; both modes use `BitmapFactory`/`LaunchedEffect` to render the actual photo once selected. Camera button (32dp) always present at bottom-right.
+- `CreateClienteViewModel`: `init` block restores `photoUri` from `c.photoUrl` when editing; `onSave` includes `photoUrl = s.photoUri?.toString()` when saving the `Cliente`.
+- Gallery picks are copied to `cacheDir/images/` via `copyImageToCache()` on selection (same as other photo flows).
 - `formatBalance` is `internal fun` defined in `ClientesScreen.kt`, shared with `DetalleClienteScreen.kt` via module scope.
 
 ---

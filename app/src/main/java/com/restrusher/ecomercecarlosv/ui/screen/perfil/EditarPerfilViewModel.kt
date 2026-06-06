@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.perfil
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
@@ -32,28 +33,23 @@ class EditarPerfilViewModel @Inject constructor(
             phone = user.phone ?: "",
             role = user.role,
             initials = computeInitials(user.name),
+            photoUri = user.photoUrl?.let { Uri.parse(it) },
             isLoading = false,
         )
     }
 
-    fun onNameChange(value: String) {
-        _state.value = _state.value.copy(name = value)
-    }
-
-    fun onEmailChange(value: String) {
-        _state.value = _state.value.copy(email = value)
-    }
-
-    fun onPhoneChange(value: String) {
-        _state.value = _state.value.copy(phone = value)
-    }
+    fun onNameChange(value: String) { _state.value = _state.value.copy(name = value) }
+    fun onEmailChange(value: String) { _state.value = _state.value.copy(email = value) }
+    fun onPhoneChange(value: String) { _state.value = _state.value.copy(phone = value) }
+    fun onPhotoSelected(uri: Uri?) { _state.value = _state.value.copy(photoUri = uri) }
 
     fun saveChanges(onSaved: () -> Unit) {
         val user = sessionManager.currentUser.value ?: return
         val s = _state.value
         _state.value = s.copy(isSaving = true)
         viewModelScope.launch {
-            userRepository.updateProfile(user.id, s.name.trim(), s.email.trim(), s.phone.trim().ifEmpty { null })
+            val photoUrl = s.photoUri?.toString()
+            userRepository.updateProfile(user.id, s.name.trim(), s.email.trim(), s.phone.trim().ifEmpty { null }, photoUrl)
             // TODO (Phase 9): Sync profile changes to Supabase before updating Room:
             //   supabaseClient.auth.admin.updateUserById(user.id) {
             //       if (s.email.trim() != user.email) email = s.email.trim()
@@ -63,7 +59,7 @@ class EditarPerfilViewModel @Inject constructor(
             //       }
             //   }
             //   Note: email changes require re-verification in Supabase by default.
-            val updated = user.copy(name = s.name.trim(), email = s.email.trim(), phone = s.phone.trim().ifEmpty { null })
+            val updated = user.copy(name = s.name.trim(), email = s.email.trim(), phone = s.phone.trim().ifEmpty { null }, photoUrl = photoUrl)
             sessionManager.setCurrentUser(updated)
             _state.value = s.copy(isSaving = false)
             onSaved()

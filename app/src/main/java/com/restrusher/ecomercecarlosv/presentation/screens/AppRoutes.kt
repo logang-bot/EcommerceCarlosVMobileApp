@@ -43,3 +43,12 @@ data class DetalleClienteRoute(val clienteId: String)
 
 @Serializable
 data class CreateClienteRoute(val mercadoId: String, val clienteId: String? = null)
+
+@Serializable
+data class CreateProductoRoute(val productId: String? = null)
+
+@Serializable
+object ListaNegraRoute
+
+@Serializable
+data class AgregarListaNegraRoute(val clienteId: String)

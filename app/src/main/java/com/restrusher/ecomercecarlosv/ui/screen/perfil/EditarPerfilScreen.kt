@@ -1,7 +1,17 @@
 package com.restrusher.ecomercecarlosv.ui.screen.perfil
 
-import android.content.res.Configuration
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,41 +27,61 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.ui.common.CameraPermissionTextProvider
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.PermissionDialog
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
 import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
-import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
+import com.restrusher.ecomercecarlosv.ui.common.copyImageToCache
+import com.restrusher.ecomercecarlosv.ui.common.createCameraImageUri
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
+import android.graphics.BitmapFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun EditarPerfilScreen(
@@ -65,6 +95,7 @@ fun EditarPerfilScreen(
         onNameChange = viewModel::onNameChange,
         onEmailChange = viewModel::onEmailChange,
         onPhoneChange = viewModel::onPhoneChange,
+        onPhotoSelected = viewModel::onPhotoSelected,
         onSave = { viewModel.saveChanges { navController.popBackStack() } },
     )
 }
@@ -76,8 +107,56 @@ private fun EditarPerfilContent(
     onNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onPhoneChange: (String) -> Unit,
+    onPhotoSelected: (Uri?) -> Unit,
     onSave: () -> Unit,
 ) {
+    val ext = MaterialTheme.extendedColors
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    var showPhotoSheet by remember { mutableStateOf(false) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var permissionPermanentlyDeclined by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) onPhotoSelected(pendingCameraUri)
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val cachedUri = withContext(Dispatchers.IO) { copyImageToCache(context, uri) }
+                onPhotoSelected(cachedUri ?: uri)
+            }
+        }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val uri = createCameraImageUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else if (activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false) {
+            permissionPermanentlyDeclined = true
+            showPermissionDialog = true
+        }
+    }
+
+    fun handleCameraRequest() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
+                val uri = createCameraImageUri(context)
+                pendingCameraUri = uri
+                cameraLauncher.launch(uri)
+            }
+            activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == true -> {
+                permissionPermanentlyDeclined = false
+                showPermissionDialog = true
+            }
+            else -> permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -93,7 +172,7 @@ private fun EditarPerfilContent(
         },
         bottomBar = {
             Column {
-                HorizontalDivider(color = MaterialTheme.extendedColors.border)
+                HorizontalDivider(color = ext.border)
                 Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     SaveButton(isSaving = state.isSaving, onClick = onSave)
                 }
@@ -108,7 +187,11 @@ private fun EditarPerfilContent(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            PhotoSection(initials = state.initials)
+            PhotoSection(
+                initials = state.initials,
+                photoUri = state.photoUri,
+                onClick = { showPhotoSheet = true },
+            )
             ProfileField(
                 label = stringResource(R.string.editar_perfil_nombre),
                 value = state.name,
@@ -131,21 +214,128 @@ private fun EditarPerfilContent(
             RoleReadOnlyField(role = state.role)
         }
     }
+
+    if (showPhotoSheet) {
+        PerfilPhotoSheet(
+            onDismiss = { showPhotoSheet = false },
+            onCamera = { showPhotoSheet = false; handleCameraRequest() },
+            onGallery = {
+                showPhotoSheet = false
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+        )
+    }
+
+    if (showPermissionDialog) {
+        PermissionDialog(
+            permissionTextProvider = CameraPermissionTextProvider(),
+            isPermanentlyDeclined = permissionPermanentlyDeclined,
+            onDismiss = { showPermissionDialog = false },
+            onOkClick = { showPermissionDialog = false; permissionLauncher.launch(Manifest.permission.CAMERA) },
+            onGoToAppSettingsClick = {
+                showPermissionDialog = false
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    },
+                )
+            },
+        )
+    }
 }
 
 @Composable
-private fun PhotoSection(modifier: Modifier = Modifier, initials: String) {
+private fun PhotoSection(modifier: Modifier = Modifier, initials: String, photoUri: Uri?, onClick: () -> Unit) {
+    val context = LocalContext.current
+    var bitmap by remember(photoUri) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(photoUri) {
+        bitmap = if (photoUri != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(photoUri)?.use {
+                        BitmapFactory.decodeStream(it)?.asImageBitmap()
+                    }
+                } catch (e: Exception) { null }
+            }
+        } else null
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ProfileAvatar(initials = initials, size = 104)
+        Box(
+            modifier = Modifier.size(104.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .shadow(elevation = 8.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap!!,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    ProfileAvatar(initials = initials, size = 104)
+                }
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(onClick = onClick),
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(R.string.editar_perfil_foto_hint),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.extendedColors.text4,
         )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PerfilPhotoSheet(onDismiss: () -> Unit, onCamera: () -> Unit, onGallery: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        containerColor = MaterialTheme.extendedColors.surface2,
+    ) {
+        Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            Text(
+                text = stringResource(R.string.editar_perfil_foto_hint),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            )
+            HorizontalDivider(color = MaterialTheme.extendedColors.border)
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.photo_sheet_take_photo)) },
+                leadingContent = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
+                modifier = Modifier.clickable(onClick = onCamera),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.photo_sheet_choose_gallery)) },
+                leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
+                modifier = Modifier.clickable(onClick = onGallery),
+            )
+        }
     }
 }
 
@@ -239,23 +429,5 @@ private fun SaveButton(modifier: Modifier = Modifier, isSaving: Boolean, onClick
         } else {
             Text(stringResource(R.string.editar_perfil_guardar), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         }
-    }
-}
-
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
-@Composable
-private fun EditarPerfilDarkPreview() {
-    EcomerceCarlosVTheme(darkTheme = true) {
-        EditarPerfilContent(
-            state = EditarPerfilUiState(
-                name      = "Carlos Villarroel",
-                email     = "carlos@comercializadora.ve",
-                phone     = "0414-2230198",
-                role      = UserRole.SUPERUSUARIO,
-                initials  = "CV",
-                isLoading = false,
-            ),
-            onClose = {}, onNameChange = {}, onEmailChange = {}, onPhoneChange = {}, onSave = {},
-        )
     }
 }

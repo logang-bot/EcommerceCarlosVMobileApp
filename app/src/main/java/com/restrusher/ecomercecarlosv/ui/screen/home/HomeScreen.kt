@@ -7,6 +7,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.MercadosScreen
+import com.restrusher.ecomercecarlosv.ui.screen.producto.CatalogoScreen
 
 @Composable
 fun HomeScreen(navController: NavController) {
@@ -18,7 +19,8 @@ fun HomeScreen(navController: NavController) {
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
         )
-        1 -> ProductosStubScreen(
+        1 -> CatalogoScreen(
+            navController = navController,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
         )

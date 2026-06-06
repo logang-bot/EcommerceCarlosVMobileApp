@@ -1,12 +1,12 @@
 # Feature: Búsqueda Global
 
-## Status: 🟡 Partial — UI done (Phase 2f), results wired in Phase 3
+## Status: ✅ Done
 
 ---
 
 ## Spec summary
 
-Global search across all clientes by name or phone number. Accessible from the search icon in the Mercados top bar. Results show the client name, their mercado, current debt status badge, and balance. Tapping a result navigates to that cliente's detail screen.
+Global search across all clientes and mercados by name or phone number. Accessible from the search icon in the Mercados top bar. Results are split into two sections: Clientes and Mercados. Tapping a cliente navigates to `DetalleClienteRoute`; tapping a mercado navigates to `DetalleMercadoRoute`.
 
 ---
 
@@ -24,10 +24,12 @@ Global search across all clientes by name or phone number. Accessible from the s
 - Layout: back button + `BasicTextField` search bar in a `Row` at the top; results (or empty state) fill the rest
 - Search bar: 44dp height, 13dp corners, `surface2` background, `border2` inset, `Search` icon left, clear (`×`) button appears when query is non-empty
 - Keyboard focus is requested automatically on `LaunchedEffect(Unit)`
-- **Empty state — no query**: Search icon + "Busca clientes" + instructional subtitle
-- **Empty state — query with no results**: Person icon + "Sin resultados" subtitle
-- **Results**: `LazyColumn` of `SearchResultRow` items with `border` dividers starting at `start = 75.dp`
-- Each `SearchResultRow`: 42dp circular avatar (initials), name, mercado name — status badge and balance will be added in Phase 3
+- **Empty state — no query**: Search icon + "Busca clientes y mercados" + instructional subtitle
+- **Empty state — query with no results**: Search icon + "Sin resultados" subtitle (mentions both clientes and mercados)
+- **Results**: `LazyColumn` with two sections, each preceded by a `SearchGroupLabel` (icon + uppercase label + count):
+  - **Clientes** (`Person` icon): `ClienteResultRow` — 42dp `ClienteAvatar` + name + mercado name + status badge chip + balance. Divider at `start = 75.dp`.
+  - **Mercados** (`GridView` icon): `MercadoResultRow` — 42dp rounded tile (`PhotoThumbnail`, `GridView` fallback) + name + "N clientes activos" + chevron. Divider at `start = 75.dp`.
+- Sections only rendered when they have at least one result.
 
 ---
 
@@ -36,18 +38,39 @@ Global search across all clientes by name or phone number. Accessible from the s
 ```kotlin
 data class BusquedaUiState(
     val query: String = "",
-    val results: List<ClienteSearchResult> = emptyList(),
+    val clienteResults: List<ClienteSearchResult> = emptyList(),
+    val mercadoResults: List<MercadoSearchResult> = emptyList(),
     val isSearching: Boolean = false,
-)
+) {
+    val hasResults get() = clienteResults.isNotEmpty() || mercadoResults.isNotEmpty()
+}
 
 data class ClienteSearchResult(
     val clienteId: String,
     val name: String,
+    val photoUrl: String?,
     val mercadoName: String,
     val status: ClientStatus,
     val balance: Double,
 )
+
+data class MercadoSearchResult(
+    val mercadoId: String,
+    val name: String,
+    val photoUrl: String?,
+    val clientesCount: Int,
+)
 ```
+
+---
+
+## ViewModel
+
+`BusquedaViewModel` injects `ClienteRepository` and `MercadoRepository`. Uses `combine(_query, clienteRepository.getAll(), mercadoRepository.getAll())` to reactively filter both lists by query. Clientes are matched on name or phone; mercados on name. `clientesCount` per mercado is derived from the client list in-memory (no extra DB call).
+
+> Client status and balance default to `AL_DIA / 0.0` until Phase 4 wires real pedidos.
+
+`ClienteRepository` needed a new `getAll(): Flow<List<Cliente>>` method (added to DAO, interface, and impl).
 
 ---
 
@@ -55,15 +78,12 @@ data class ClienteSearchResult(
 
 | File | Description |
 |------|-------------|
-| `ui/screen/busqueda/BusquedaUiState.kt` | `BusquedaUiState` + `ClienteSearchResult` |
-| `ui/screen/busqueda/BusquedaViewModel.kt` | Exposes `query` flow; maps to empty results until Phase 3 |
-| `ui/screen/busqueda/BusquedaScreen.kt` | Search bar + empty states + result rows |
+| `ui/screen/busqueda/BusquedaUiState.kt` | `BusquedaUiState` + `ClienteSearchResult` + `MercadoSearchResult` |
+| `ui/screen/busqueda/BusquedaViewModel.kt` | `combine` on both repos; real search wired |
+| `ui/screen/busqueda/BusquedaScreen.kt` | Sectioned results with `SearchGroupLabel`, `ClienteResultRow`, `MercadoResultRow` |
 
 ---
 
 ## Open TODOs
 
-- [ ] Inject `ClienteRepository` into `BusquedaViewModel` and wire real search (Phase 3)
-- [ ] Render `StatusBadge` (debt status chip) and balance in `SearchResultRow` (Phase 3)
-- [ ] Navigate to `DetalleClienteRoute(clienteId)` on row tap (Phase 3)
-- [ ] Add phone number search support in the DAO query (Phase 3)
+- [ ] Phase 4: replace hardcoded `AL_DIA / 0.0` defaults in `ClienteSearchResult` with real balance/status from pedidos

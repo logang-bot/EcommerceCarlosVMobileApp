@@ -1,6 +1,8 @@
 package com.restrusher.ecomercecarlosv.ui.screen.cliente
 
+import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,24 +39,54 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
-import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
-internal fun CirclePhotoPicker(modifier: Modifier = Modifier, photoUri: Uri?, onClick: () -> Unit) {
+internal fun CirclePhotoPicker(
+    modifier: Modifier = Modifier,
+    photoUri: Uri?,
+    name: String = "",
+    isEditing: Boolean = false,
+    onClick: () -> Unit,
+) {
     val ext = MaterialTheme.extendedColors
+    val context = LocalContext.current
+    var bitmap by remember(photoUri) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(photoUri) {
+        bitmap = if (photoUri != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(photoUri)?.use {
+                        BitmapFactory.decodeStream(it)?.asImageBitmap()
+                    }
+                } catch (e: Exception) { null }
+            }
+        } else null
+    }
+
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
@@ -63,14 +97,21 @@ internal fun CirclePhotoPicker(modifier: Modifier = Modifier, photoUri: Uri?, on
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            if (photoUri != null) {
-                ClienteAvatar(name = "", size = 96.dp)
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap!!,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (isEditing) {
+                ClienteAvatar(name = name, size = 96.dp)
             } else {
                 Icon(
-                    imageVector = Icons.Default.CameraAlt,
+                    imageVector = Icons.Default.Person,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
+                    tint = ext.text3,
+                    modifier = Modifier.size(30.dp),
                 )
             }
         }
@@ -78,12 +119,12 @@ internal fun CirclePhotoPicker(modifier: Modifier = Modifier, photoUri: Uri?, on
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 4.dp, end = 4.dp)
-                .size(26.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -163,8 +204,3 @@ internal fun ClientePhotoPickerSheet(onDismiss: () -> Unit, onCamera: () -> Unit
     }
 }
 
-internal fun createClienteCameraUri(context: android.content.Context): Uri {
-    val imagesDir = File(context.cacheDir, "images").also { it.mkdirs() }
-    val imageFile = File(imagesDir, "camera_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imageFile)
-}

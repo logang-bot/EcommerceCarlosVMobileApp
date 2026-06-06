@@ -4,10 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
@@ -22,6 +25,9 @@ import com.restrusher.ecomercecarlosv.ui.screen.busqueda.BusquedaScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.ClientesScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.CreateClienteScreen
 import com.restrusher.ecomercecarlosv.ui.screen.cliente.DetalleClienteScreen
+import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.AgregarListaNegraScreen
+import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
+import com.restrusher.ecomercecarlosv.ui.screen.producto.CreateProductoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.DetalleMercadoScreen
@@ -77,6 +83,15 @@ fun AppNavigation() {
         }
         composable<CreateClienteRoute> {
             CreateClienteScreen(navController = navController)
+        }
+        composable<CreateProductoRoute> {
+            CreateProductoScreen(navController = navController)
+        }
+        composable<ListaNegraRoute> {
+            ListaNegraScreen(navController = navController)
+        }
+        composable<AgregarListaNegraRoute> {
+            AgregarListaNegraScreen(navController = navController)
         }
     }
 }

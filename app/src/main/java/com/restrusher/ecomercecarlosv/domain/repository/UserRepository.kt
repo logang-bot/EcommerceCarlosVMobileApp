@@ -12,5 +12,5 @@ interface UserRepository {
     suspend fun setBiometricEnabled(id: String, enabledAt: Long?)
     suspend fun hasBiometricEnabled(): Boolean
     suspend fun getBiometricEnabledUser(): AppUser?
-    suspend fun updateProfile(id: String, name: String, email: String, phone: String?)
+    suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)
 }

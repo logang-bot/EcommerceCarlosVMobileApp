@@ -1,12 +1,12 @@
 # Feature: Catálogo de Productos
 
-## Status: 🔲 Pending (Phase 6)
+## Status: ✅ Done (Phase 6)
 
 ---
 
 ## Spec summary
 
-Global product catalogue shared across all users. Products appear in the Creación de Pedido grid. Users can create, edit, and delete products. Each product has a photo (required), name, optional description, and price.
+Global product catalogue shared across all users. Products appear in the Creación de Pedido grid. Users can create, edit, and delete products. Each product has an optional photo, name, optional description, and price.
 
 ---
 
@@ -14,43 +14,50 @@ Global product catalogue shared across all users. Products appear in the Creaci�
 
 | Screen | Route | File |
 |--------|-------|------|
-| Lista de Productos | `ProductosRoute` | `ui/screen/producto/ProductosScreen.kt` — TODO |
-| Crear / Editar Producto | `CreateProductoRoute(productoId?)` | `ui/screen/producto/CreateProductoScreen.kt` — TODO |
+| Catálogo (tab 1 of HomeScreen) | tab 1 inside `HomeRoute` | `ui/screen/producto/CatalogoScreen.kt` |
+| Crear / Editar Producto | `CreateProductoRoute(productId?)` | `ui/screen/producto/CreateProductoScreen.kt` |
+
+`CatalogoScreen` is not directly in `AppNavigation` — it lives as tab index 1 inside `HomeScreen`, same pattern as `MercadosScreen`.
 
 ---
 
 ## UI notes
 
-**Lista de Productos:**
-- Title: "Productos"
-- Scrollable list (or grid) — each row: photo thumbnail + name + price
-- Tap row → opens edit screen (no swipe-to-reveal — confirmed design decision)
-- FAB: "Producto"
-- Search bar in app bar
+**CatalogoScreen:**
+- Large top bar: "Productos" / "N productos en catálogo"
+- Inline search bar (always visible, live-filters the list)
+- Product rows: 50×50 tile + name + description + price + chevron
+- Tapping a row navigates to `CreateProductoRoute(productId)` for editing
+- FAB "Producto" → `CreateProductoRoute()` (create)
+- Empty state: `Icons.Default.Tag`, title "Catálogo vacío", hint "Nuevo producto"
 
 **Crear / Editar Producto:**
-- Photo (required) — tap to pick from gallery or camera
-- Name (required)
-- Description (optional)
-- Price (required, numeric, in Bs.)
-- "Guardar" primary CTA
-- Edit mode only: "Eliminar producto" destructive button + confirmation dialog
+- 132×132 square photo picker (optional) — camera or gallery
+- Name (required), Description (optional), Price in Bs. (required)
+- "Guardar" primary CTA; edit mode adds "Eliminar producto" danger button with `AlertDialog` confirm
 
 ---
 
-## Data models needed
+## Data layer
 
-- `Producto` domain model: `id, name, description, price, imageUrl, createdAt`
-- `ProductoRepository` interface + impl
-- Room entity: `ProductoEntity`
-- Supabase storage: `productos/{productoId}/image.jpg`
+| File | Location |
+|------|----------|
+| `Producto.kt` | `domain/model/` |
+| `ProductoRepository.kt` | `domain/repository/` |
+| `ProductoEntity.kt` | `data/local/entity/` |
+| `ProductoDao.kt` | `data/local/dao/` |
+| `ProductoMapper.kt` | `data/mapper/` |
+| `ProductoDto.kt` | `data/remote/dto/` |
+| `ProductoRepositoryImpl.kt` | `data/repository/impl/` |
+
+Room migration `MIGRATION_6_7` creates the `productos` table (version 7).
+
+> `kind` (glyph key: bottle/bag/box/can/jar/block) from the design mockup is intentionally omitted — not surfaced in the create form and adds no business value without a picker UI.
 
 ---
 
 ## Open TODOs
 
-- [ ] Define `ProductoEntity`, `ProductoDao`, `ProductoDto`, `ProductoMapper`
-- [ ] Implement `ProductosScreen` and `ProductosViewModel`
-- [ ] Implement `CreateProductoScreen` with camera + gallery image picker
-- [ ] Wire Supabase Storage upload for product images
-- [ ] Add `ProductosRoute` to `AppRoutes.kt` and `AppNavigation.kt`
+- [ ] Wire Supabase Storage upload for product photos (Phase 9)
+- [x] Show actual photo in `ProductoTile` — done via `PhotoThumbnail` (no Coil needed; local FileProvider URIs loaded with `BitmapFactory`)
+- [ ] Add `kind`-based colored tile icons if design is updated to include a picker

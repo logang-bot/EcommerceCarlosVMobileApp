@@ -11,5 +11,6 @@ data class Cliente(
     val isBlacklisted: Boolean = false,
     val blacklistReason: String? = null,
     val blacklistedAt: Long? = null,
+    val blacklistBalance: Double = 0.0,
     val createdAt: Long,
 )

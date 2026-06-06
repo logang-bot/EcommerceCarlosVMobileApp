@@ -18,7 +18,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 3 | Detalle de Cliente, Crear Cliente, Saldo Extra | 🔄 In Progress (Clientes CRUD done; Saldo Extra pending) |
 | 4 | Creación de Pedido (cart flow) | 🔲 Pending |
 | 5 | Detalle de Pedido, Historial de Pagos | 🔲 Pending |
-| 6 | Catálogo de Productos, Crear/Editar Producto | 🔲 Pending |
+| 6 | Catálogo de Productos, Crear/Editar Producto | ✅ Done |
 | 7 | Lista Negra, Agregar a Lista Negra | 🔲 Pending |
 | 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |

@@ -54,6 +54,7 @@ import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
+import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
@@ -73,7 +74,7 @@ fun DetalleClienteScreen(
         onEditClick = { clienteId, mercadoId ->
             navController.navigate(CreateClienteRoute(mercadoId = mercadoId, clienteId = clienteId))
         },
-        onListaNegraClick = { /* TODO: Phase 7 */ },
+        onListaNegraClick = { state.cliente?.let { navController.navigate(AgregarListaNegraRoute(it.id)) } },
         onSaldoExtraClick = { /* TODO: Phase 3 — SaldoExtraRoute */ },
     )
 }

@@ -61,6 +61,7 @@ import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
@@ -79,7 +80,7 @@ fun ClientesScreen(
         onBack = { navController.popBackStack() },
         onClienteClick = { navController.navigate(DetalleClienteRoute(it)) },
         onCreateClick = { navController.navigate(CreateClienteRoute(viewModel.mercadoId)) },
-        onListaNegraClick = { /* TODO: Phase 7 */ },
+        onListaNegraClick = { navController.navigate(ListaNegraRoute) },
         onSortChange = viewModel::onSortChange,
         onSearchChange = viewModel::onSearchChange,
     )
@@ -215,7 +216,7 @@ internal fun ClienteRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        ClienteAvatar(name = model.cliente.name, size = 46.dp, status = model.status)
+        ClienteAvatar(name = model.cliente.name, photoUrl = model.cliente.photoUrl, size = 46.dp, status = model.status)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = model.cliente.name,

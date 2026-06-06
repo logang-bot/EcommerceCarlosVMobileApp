@@ -37,6 +37,6 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE biometricEnabledAt IS NOT NULL LIMIT 1")
     suspend fun getBiometricEnabledUser(): UserEntity?
 
-    @Query("UPDATE users SET name = :name, email = :email, phone = :phone WHERE id = :id")
-    suspend fun updateProfile(id: String, name: String, email: String, phone: String?)
+    @Query("UPDATE users SET name = :name, email = :email, phone = :phone, photoUrl = :photoUrl WHERE id = :id")
+    suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)
 }

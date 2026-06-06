@@ -74,7 +74,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -83,10 +82,12 @@ import com.restrusher.ecomercecarlosv.ui.common.CameraPermissionTextProvider
 import com.restrusher.ecomercecarlosv.ui.common.MapsLinkField
 import com.restrusher.ecomercecarlosv.ui.common.PermissionDialog
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.copyImageToCache
+import com.restrusher.ecomercecarlosv.ui.common.createCameraImageUri
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 @Composable
 fun CreateMercadoScreen(
@@ -124,18 +125,24 @@ private fun CreateMercadoContent(
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionPermanentlyDeclined by remember { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) onPhotoSelected(pendingCameraUri)
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) onPhotoSelected(uri)
+        if (uri != null) {
+            coroutineScope.launch {
+                val cachedUri = withContext(Dispatchers.IO) { copyImageToCache(context, uri) }
+                onPhotoSelected(cachedUri ?: uri)
+            }
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            val uri = createCameraOutputUri(context)
+            val uri = createCameraImageUri(context)
             pendingCameraUri = uri
             cameraLauncher.launch(uri)
         } else if (activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false) {
@@ -145,7 +152,7 @@ private fun CreateMercadoContent(
     }
 
     fun launchCamera() {
-        val uri = createCameraOutputUri(context)
+        val uri = createCameraImageUri(context)
         pendingCameraUri = uri
         cameraLauncher.launch(uri)
     }
@@ -509,8 +516,3 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     cursorColor = MaterialTheme.colorScheme.primary,
 )
 
-private fun createCameraOutputUri(context: android.content.Context): Uri {
-    val imagesDir = File(context.cacheDir, "images").also { it.mkdirs() }
-    val imageFile = File(imagesDir, "camera_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imageFile)
-}

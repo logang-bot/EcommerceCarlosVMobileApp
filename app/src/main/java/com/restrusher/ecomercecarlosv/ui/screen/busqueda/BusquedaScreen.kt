@@ -1,8 +1,8 @@
 package com.restrusher.ecomercecarlosv.ui.screen.busqueda
 
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +21,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
@@ -41,16 +43,20 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
+import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
+import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
-import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
+import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
 @Composable
@@ -67,7 +73,8 @@ fun BusquedaScreen(
         onBack = { navController.popBackStack() },
         onQueryChange = viewModel::onQueryChange,
         onClearQuery = viewModel::clearQuery,
-        onResultClick = { /* TODO Phase 3: navController.navigate(DetalleClienteRoute(it)) */ },
+        onClienteClick = { navController.navigate(DetalleClienteRoute(it)) },
+        onMercadoClick = { navController.navigate(DetalleMercadoRoute(it)) },
     )
 }
 
@@ -78,7 +85,8 @@ private fun BusquedaContent(
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onClearQuery: () -> Unit,
-    onResultClick: (String) -> Unit,
+    onClienteClick: (String) -> Unit,
+    onMercadoClick: (String) -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
     Scaffold(
@@ -112,32 +120,164 @@ private fun BusquedaContent(
                         subtitle = stringResource(R.string.busqueda_no_query_subtitle),
                     )
                 }
-                state.results.isEmpty() -> {
+                !state.hasResults -> {
                     EmptyState(
-                        icon = Icons.Default.Person,
+                        icon = Icons.Default.Search,
                         title = stringResource(R.string.busqueda_empty_title),
                         subtitle = stringResource(R.string.busqueda_empty_subtitle),
                     )
                 }
                 else -> {
-                    Text(
-                        text = stringResource(R.string.busqueda_results_count, state.results.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ext.text3,
-                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
-                    )
-                    LazyColumn {
-                        items(state.results, key = { it.clienteId }) { result ->
-                            SearchResultRow(result = result, onClick = { onResultClick(result.clienteId) })
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 75.dp),
-                                color = ext.border,
-                            )
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        if (state.clienteResults.isNotEmpty()) {
+                            item {
+                                SearchGroupLabel(
+                                    icon = { Icon(Icons.Default.Person, contentDescription = null, tint = ext.text3, modifier = Modifier.size(15.dp)) },
+                                    label = stringResource(R.string.busqueda_section_clientes),
+                                    count = state.clienteResults.size,
+                                    modifier = Modifier.padding(top = 6.dp),
+                                )
+                            }
+                            items(state.clienteResults, key = { it.clienteId }) { result ->
+                                ClienteResultRow(result = result, onClick = { onClienteClick(result.clienteId) })
+                                HorizontalDivider(modifier = Modifier.padding(start = 75.dp), color = ext.border)
+                            }
+                        }
+                        if (state.mercadoResults.isNotEmpty()) {
+                            item {
+                                SearchGroupLabel(
+                                    icon = { Icon(Icons.Default.GridView, contentDescription = null, tint = ext.text3, modifier = Modifier.size(15.dp)) },
+                                    label = stringResource(R.string.busqueda_section_mercados),
+                                    count = state.mercadoResults.size,
+                                    modifier = Modifier.padding(top = 22.dp),
+                                )
+                            }
+                            items(state.mercadoResults, key = { it.mercadoId }) { result ->
+                                MercadoResultRow(result = result, onClick = { onMercadoClick(result.mercadoId) })
+                                HorizontalDivider(modifier = Modifier.padding(start = 75.dp), color = ext.border)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SearchGroupLabel(
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+    label: String,
+    count: Int,
+) {
+    val ext = MaterialTheme.extendedColors
+    Row(
+        modifier = modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        icon()
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = ext.text3,
+            letterSpacing = 0.5.sp,
+        )
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = ext.text4,
+        )
+    }
+}
+
+@Composable
+private fun ClienteResultRow(result: ClienteSearchResult, onClick: () -> Unit) {
+    val ext = MaterialTheme.extendedColors
+    val statusColor = when (result.status) {
+        ClientStatus.CRITICO -> ext.redText
+        ClientStatus.ADVERTENCIA -> ext.amberText
+        ClientStatus.AL_DIA -> ext.greenText
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        ClienteAvatar(name = result.name, photoUrl = result.photoUrl, size = 42.dp, status = result.status)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(result.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(result.mercadoName, style = MaterialTheme.typography.bodySmall, color = ext.text2, maxLines = 1)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(statusColor.copy(alpha = 0.15f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = when (result.status) {
+                        ClientStatus.CRITICO -> stringResource(R.string.cliente_status_critico)
+                        ClientStatus.ADVERTENCIA -> stringResource(R.string.cliente_status_advertencia)
+                        ClientStatus.AL_DIA -> stringResource(R.string.cliente_status_al_dia)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (result.balance > 0.0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Bs. %.2f".format(result.balance),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ext.text2,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MercadoResultRow(result: MercadoSearchResult, onClick: () -> Unit) {
+    val ext = MaterialTheme.extendedColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        PhotoThumbnail(
+            photoUrl = result.photoUrl,
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(ext.surface3)
+                .border(1.dp, ext.border, RoundedCornerShape(12.dp)),
+            fallback = {
+                Icon(Icons.Default.GridView, contentDescription = null, tint = ext.text2, modifier = Modifier.size(19.dp))
+            },
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(result.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.busqueda_mercado_clientes, result.clientesCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = ext.text2,
+            )
+        }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text3, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -181,16 +321,10 @@ private fun SearchField(
                     innerTextField()
                 }
                 if (query.isNotEmpty()) {
-                    IconButton(
-                        onClick = onClearQuery,
-                        modifier = Modifier.size(22.dp),
-                    ) {
+                    IconButton(onClick = onClearQuery, modifier = Modifier.size(22.dp)) {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(ext.surface3),
+                            modifier = Modifier.size(22.dp).clip(CircleShape).background(ext.surface3),
                         ) {
                             Icon(Icons.Default.Close, contentDescription = null, tint = ext.text2, modifier = Modifier.size(13.dp))
                         }
@@ -199,50 +333,4 @@ private fun SearchField(
             }
         },
     )
-}
-
-@Composable
-private fun SearchResultRow(result: ClienteSearchResult, onClick: () -> Unit) {
-    // TODO Phase 3: render avatar, status badge — implemented when clientes exist
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            Text(
-                text = result.name.firstOrNull()?.uppercase() ?: "?",
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(result.name, style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(2.dp))
-            Text(result.mercadoName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extendedColors.text2)
-        }
-    }
-}
-
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
-@Composable
-private fun BusquedaScreenDarkPreview() {
-    EcomerceCarlosVTheme(darkTheme = true) {
-        BusquedaContent(BusquedaUiState(), onBack = {}, onQueryChange = {}, onClearQuery = {}, onResultClick = {})
-    }
-}
-
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
-@Composable
-private fun BusquedaScreenPreview() {
-    EcomerceCarlosVTheme(darkTheme = false) {
-        BusquedaContent(BusquedaUiState(), onBack = {}, onQueryChange = {}, onClearQuery = {}, onResultClick = {})
-    }
 }

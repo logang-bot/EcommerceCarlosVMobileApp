@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **6**. Supabase integration: Phase 9.
+Room version: **7**. Supabase integration: Phase 9.
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v6)
+## Current tables (Room v7)
 
 ### `users`
 
@@ -78,6 +78,32 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 
 ---
 
+### `productos` *(Room v7 — Phase 6)*
+
+Global product catalogue, shared across all users.
+
+| Column | Room type | Supabase type | Nullable | Notes |
+|--------|-----------|---------------|----------|-------|
+| `id` | `String` PK | `uuid` PK | — | |
+| `name` | `String` | `text` | — | |
+| `description` | `String?` | `text` | ✓ | Variant, size, or note |
+| `price` | `Double` | `float8` | — | Current price |
+| `photoUrl` | `String?` | `text` | ✓ | Supabase Storage URL |
+| `isActive` | `Boolean` | `boolean` | — | Default `true`; soft-delete |
+| `createdAt` | `Long` | `bigint` | — | Epoch ms |
+
+**DAO operations:** `getAll()` flow (active only, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
+
+**Index:** `productos(name)`.
+
+**Domain model:** `Producto.kt` — fields match Room columns 1:1.  
+**DTO:** `ProductoDto.kt` — snake_case field names for Supabase.  
+**Repository:** `ProductoRepository` interface + `ProductoRepositoryImpl`.
+
+> `kind` (glyph key: bottle/bag/box/can/jar/block) from the design is intentionally omitted — not surfaced in the create form. Can be added in a later phase if needed.
+
+---
+
 ## Planned tables (Phase 4+)
 
 ---
@@ -117,25 +143,6 @@ Line items inside a `pedidos` row.
 **Suggested index:** `detalle_pedido(pedido_id)`.
 
 > `unit_price` is a snapshot — it must not reference the live `productos.price` so historical orders remain accurate after a price change.
-
----
-
-### `productos` *(Phase 6)*
-
-Global product catalogue, shared across all users.
-
-| Column | Supabase type | Nullable | Notes |
-|--------|---------------|----------|-------|
-| `id` | `uuid` PK | — | |
-| `name` | `text` | — | |
-| `description` | `text` | ✓ | Variant, size, or note |
-| `price` | `float8` | — | Current price |
-| `kind` | `text` | — | Glyph key: `bottle` \| `bag` \| `box` \| `can` \| `jar` \| `block` |
-| `photo_url` | `text` | ✓ | Supabase Storage URL |
-| `is_active` | `boolean` | — | Default `true`; soft-delete |
-| `created_at` | `bigint` | — | Epoch ms |
-
-**Suggested index:** `productos(name)`.
 
 ---
 

@@ -60,7 +60,8 @@ Long-pressing a mercado row enters **selection mode**: the normal top bar is rep
   - **Photo picker** (160dp height, 16dp corners):
     - Create mode: `surface2` bg + `border2` inset, centered camera icon + "Agregar foto" label
     - Edit mode: `surface3` bg + `border` inset, `GridView` icon centre, accent camera button (34×34, 11dp corners) bottom-right overlay
-    - Photo upload wired in Phase 9 (Supabase storage)
+    - Both camera and gallery picks are stored in `cacheDir/images/` via `createCameraImageUri()` / `copyImageToCache()` (`ui/common/PhotoUtils.kt`) — survives app restarts
+    - `photoUrl` stored as a local FileProvider URI string; Supabase Storage upload wired in Phase 9
 - **Bottom bar**: `HorizontalDivider` + full-width 52dp button labeled "Guardar mercado" / "Guardar cambios"
 - Validation: empty name sets `nameError = true` and blocks save
 - Delete button **removed** from this screen — moved to `DetalleMercadoScreen`
@@ -149,7 +150,7 @@ data class MercadoDto(
 | `data/repository/impl/MercadoRepositoryImpl.kt` | Repository implementation |
 | `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `isLoading`, `currentUserInitials`, `selectedMercadoId` |
 | `ui/screen/mercado/MercadosViewModel.kt` | Combines mercado list + session + selection state; `onMercadoLongPress()`, `clearSelection()` |
-| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state |
+| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon |
 | `ui/screen/mercado/DetalleMercadoUiState.kt` | `mercado`, `isLoading` |
 | `ui/screen/mercado/DetalleMercadoViewModel.kt` | Loads mercado by id; `onDelete()` removes from Room and pops back |
 | `ui/screen/mercado/DetalleMercadoScreen.kt` | Header, stats, maps link, meta rows, delete button |

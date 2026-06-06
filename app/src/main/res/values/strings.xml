@@ -104,7 +104,6 @@
     <string name="status_critico">Crítico</string>
 
     <!-- Lista Negra -->
-    <string name="lista_negra_title">Lista Negra</string>
     <string name="lista_negra_confirmar">Confirmar y agregar a Lista Negra</string>
     <string name="lista_negra_calcular_auto">Calcular automáticamente</string>
     <string name="lista_negra_ingresar_manual">Ingresar manualmente</string>
@@ -123,12 +122,17 @@
     <string name="reporte_pendiente_dia">Pendiente del día</string>
 
     <!-- Búsqueda Global -->
-    <string name="busqueda_placeholder">Buscar clientes…</string>
-    <string name="busqueda_results_count">%1$d resultados en clientes</string>
-    <string name="busqueda_no_query_title">Busca clientes</string>
-    <string name="busqueda_no_query_subtitle">Escribe un nombre o número de teléfono para encontrar clientes en todos los mercados.</string>
+    <string name="busqueda_placeholder">Buscar clientes y mercados…</string>
+    <string name="busqueda_no_query_title">Busca clientes y mercados</string>
+    <string name="busqueda_no_query_subtitle">Escribe un nombre o número de teléfono para encontrar clientes y mercados.</string>
     <string name="busqueda_empty_title">Sin resultados</string>
-    <string name="busqueda_empty_subtitle">No encontramos clientes con ese nombre o teléfono.</string>
+    <string name="busqueda_empty_subtitle">No encontramos clientes ni mercados que coincidan. Revisa el nombre o el teléfono.</string>
+    <string name="busqueda_section_clientes">Clientes</string>
+    <string name="busqueda_section_mercados">Mercados</string>
+    <string name="busqueda_mercado_clientes">%1$d clientes activos</string>
+    <string name="cliente_status_critico">Crítico</string>
+    <string name="cliente_status_advertencia">Advertencia</string>
+    <string name="cliente_status_al_dia">Al día</string>
 
     <!-- Permissions -->
     <string name="permission_required">Permiso requerido</string>
@@ -163,7 +167,32 @@
     <string name="nav_productos">Productos</string>
     <string name="nav_reporte">Reporte</string>
 
-    <!-- Stub screens (Phase 6 / 8 placeholders) -->
+    <!-- Catálogo de Productos -->
+    <string name="catalogo_subtitle">%1$d productos en catálogo</string>
+    <string name="catalogo_search_placeholder">Buscar en el catálogo</string>
+    <string name="catalogo_empty_title">Catálogo vacío</string>
+    <string name="catalogo_empty_subtitle">Crea productos con foto y precio para poder agregarlos a los pedidos.</string>
+    <string name="catalogo_empty_hint">Nuevo producto</string>
+
+    <!-- Crear / Editar Producto -->
+    <string name="create_producto_title_new">Nuevo producto</string>
+    <string name="create_producto_title_edit">Editar producto</string>
+    <string name="create_producto_photo_placeholder">Agregar foto</string>
+    <string name="create_producto_photo_hint">Toca para elegir de la galería o cámara</string>
+    <string name="create_producto_name_label">Nombre</string>
+    <string name="create_producto_name_placeholder">Ej. Harina PAN 1kg</string>
+    <string name="create_producto_name_error">El nombre es obligatorio</string>
+    <string name="create_producto_desc_label">Descripción</string>
+    <string name="create_producto_desc_placeholder">Variante, tamaño o nota</string>
+    <string name="create_producto_desc_hint">Opcional — ayuda a identificar el producto.</string>
+    <string name="create_producto_price_label">Precio</string>
+    <string name="create_producto_price_placeholder">0,00</string>
+    <string name="create_producto_price_error">Ingresa un precio válido</string>
+    <string name="create_producto_save_new">Guardar</string>
+    <string name="create_producto_save_edit">Guardar cambios</string>
+    <string name="create_producto_delete_confirm">¿Eliminar este producto? Esta acción no se puede deshacer.</string>
+
+    <!-- Stub screens (Phase 8 placeholder) -->
     <string name="stub_productos_title">Catálogo próximamente</string>
     <string name="stub_productos_subtitle">Aquí podrás gestionar tus productos y precios.</string>
     <string name="stub_reporte_title">Reporte próximamente</string>
@@ -223,7 +252,7 @@
     <!-- Clientes screen -->
     <string name="clientes_title_fallback">Clientes</string>
     <string name="clientes_subtitle">%1$d clientes</string>
-    <string name="clientes_empty_title">Sin clientes todavía</string>
+    <string name="clientes_empty_title">Sin clientes en este mercado</string>
     <string name="clientes_empty_subtitle">Agrega el primer cliente para llevar el control de sus pedidos y saldos.</string>
     <string name="clientes_empty_hint">Nuevo cliente</string>
     <string name="clientes_sort_label">Ordenar y filtrar</string>
@@ -244,7 +273,7 @@
     <string name="detalle_cliente_saldo_total">Saldo total</string>
     <string name="detalle_cliente_pedidos_section">Pedidos</string>
     <string name="detalle_cliente_pedidos_empty_title">Sin pedidos todavía</string>
-    <string name="detalle_cliente_pedidos_empty_subtitle">Los pedidos de este cliente aparecerán aquí.</string>
+    <string name="detalle_cliente_pedidos_empty_subtitle">Este cliente aún no tiene pedidos registrados.</string>
     <string name="detalle_cliente_pedidos_empty_hint">Nuevo pedido</string>
 
     <!-- Crear / Editar Cliente -->
@@ -277,4 +306,30 @@
     <string name="crear_usuario_contrasena_error">La contraseña es obligatoria</string>
     <string name="crear_usuario_rol">Rol</string>
     <string name="crear_usuario_cta">Crear usuario</string>
+
+    <!-- Lista Negra -->
+    <string name="lista_negra_title">Lista Negra</string>
+    <string name="lista_negra_subtitle">Todos los mercados · solo lectura</string>
+    <string name="lista_negra_empty_title">Lista negra vacía</string>
+    <string name="lista_negra_empty_subtitle">No hay clientes vetados. Cuando agregues uno desde su perfil aparecerá aquí.</string>
+    <string name="lista_negra_banner_count">%1$d clientes vetados</string>
+    <string name="lista_negra_banner_total">Saldo total irrecuperable · %1$s</string>
+    <string name="lista_negra_added_on">Agregado el %1$s</string>
+    <string name="lista_negra_search_placeholder">Buscar en lista negra…</string>
+    <string name="lista_negra_no_results_title">Sin resultados</string>
+    <string name="lista_negra_no_results_subtitle">Ningún cliente vetado coincide con la búsqueda.</string>
+
+    <!-- Agregar a Lista Negra -->
+    <string name="agregar_lista_negra_title">Agregar a Lista Negra</string>
+    <string name="agregar_lista_negra_pending_section">Pedidos pendientes</string>
+    <string name="agregar_lista_negra_pending_placeholder">Disponible cuando se implementen los pedidos (Fase 4)</string>
+    <string name="agregar_lista_negra_total_section">Total adeudado</string>
+    <string name="agregar_lista_negra_auto_title">Calcular automáticamente</string>
+    <string name="agregar_lista_negra_auto_unavailable">Disponible en Fase 4 (requiere pedidos)</string>
+    <string name="agregar_lista_negra_manual_title">Ingresar manualmente</string>
+    <string name="agregar_lista_negra_manual_subtitle">Escribe un monto distinto</string>
+    <string name="agregar_lista_negra_amount_label">Monto adeudado</string>
+    <string name="agregar_lista_negra_reason_section">Motivo del veto</string>
+    <string name="agregar_lista_negra_reason_placeholder">Explica por qué se agrega a la lista</string>
+    <string name="agregar_lista_negra_confirm">Confirmar y agregar a Lista Negra</string>
 </resources>

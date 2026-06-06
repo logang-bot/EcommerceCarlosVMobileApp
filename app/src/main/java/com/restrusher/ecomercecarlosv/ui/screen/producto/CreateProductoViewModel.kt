@@ -1,0 +1,93 @@
+package com.restrusher.ecomercecarlosv.ui.screen.producto
+
+import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.domain.model.Producto
+import com.restrusher.ecomercecarlosv.domain.repository.ProductoRepository
+import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import java.util.UUID
+import javax.inject.Inject
+
+@HiltViewModel
+class CreateProductoViewModel @Inject constructor(
+    private val productoRepository: ProductoRepository,
+    savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+
+    private val route = savedStateHandle.toRoute<CreateProductoRoute>()
+    private val productId: String? = route.productId
+
+    private val _state = MutableStateFlow(CreateProductoFormState())
+    val state: StateFlow<CreateProductoFormState> = _state.asStateFlow()
+
+    init {
+        if (productId != null) {
+            _state.value = _state.value.copy(isEditing = true)
+            viewModelScope.launch {
+                val p = productoRepository.getById(productId) ?: return@launch
+                _state.value = CreateProductoFormState(
+                    name = p.name,
+                    description = p.description.orEmpty(),
+                    price = "%.2f".format(p.price),
+                    photoUri = p.photoUrl?.let { Uri.parse(it) },
+                    isEditing = true,
+                )
+            }
+        }
+    }
+
+    fun onNameChange(v: String) { _state.value = _state.value.copy(name = v, nameError = false) }
+    fun onDescriptionChange(v: String) { _state.value = _state.value.copy(description = v) }
+    fun onPriceChange(v: String) { _state.value = _state.value.copy(price = v, priceError = false) }
+    fun onPhotoSelected(uri: Uri?) { _state.value = _state.value.copy(photoUri = uri) }
+
+    fun onShowDeleteDialog() { _state.value = _state.value.copy(showDeleteDialog = true) }
+    fun onDismissDeleteDialog() { _state.value = _state.value.copy(showDeleteDialog = false) }
+
+    fun onSave(onSuccess: () -> Unit) {
+        val s = _state.value
+        var hasError = false
+        if (s.name.isBlank()) {
+            _state.value = s.copy(nameError = true)
+            hasError = true
+        }
+        val price = s.price.replace(",", ".").toDoubleOrNull()
+        if (price == null || price <= 0.0) {
+            _state.value = _state.value.copy(priceError = true)
+            hasError = true
+        }
+        if (hasError) return
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true)
+            productoRepository.save(
+                Producto(
+                    id = productId ?: UUID.randomUUID().toString(),
+                    name = s.name.trim(),
+                    description = s.description.trim().ifBlank { null },
+                    price = price!!,
+                    photoUrl = s.photoUri?.toString(),
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+            onSuccess()
+        }
+    }
+
+    fun onDelete(onSuccess: () -> Unit) {
+        val id = productId ?: return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, showDeleteDialog = false)
+            productoRepository.delete(id)
+            onSuccess()
+        }
+    }
+}

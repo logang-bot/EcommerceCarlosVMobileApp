@@ -12,8 +12,14 @@ class ClienteRepositoryImpl @Inject constructor(
     private val dao: ClienteDao,
 ) : ClienteRepository {
 
+    override fun getAll(): Flow<List<Cliente>> =
+        dao.getAll().map { it.map(ClienteMapper::toDomain) }
+
     override fun getByMercado(mercadoId: String): Flow<List<Cliente>> =
         dao.getByMercado(mercadoId).map { it.map(ClienteMapper::toDomain) }
+
+    override fun getBlacklisted(): Flow<List<Cliente>> =
+        dao.getBlacklisted().map { it.map(ClienteMapper::toDomain) }
 
     override suspend fun getById(id: String): Cliente? =
         dao.getById(id)?.let(ClienteMapper::toDomain)
@@ -23,4 +29,7 @@ class ClienteRepositoryImpl @Inject constructor(
 
     override suspend fun delete(id: String) =
         dao.deleteById(id)
+
+    override suspend fun blacklist(id: String, reason: String, balance: Double, at: Long) =
+        dao.blacklist(id, reason, balance, at)
 }

@@ -36,6 +36,6 @@ class UserRepositoryImpl @Inject constructor(
     override suspend fun getBiometricEnabledUser(): AppUser? =
         dao.getBiometricEnabledUser()?.let(UserMapper::toDomain)
 
-    override suspend fun updateProfile(id: String, name: String, email: String, phone: String?) =
-        dao.updateProfile(id, name, email, phone)
+    override suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?) =
+        dao.updateProfile(id, name, email, phone, photoUrl)
 }

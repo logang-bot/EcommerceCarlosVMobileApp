@@ -39,6 +39,7 @@ class CreateClienteViewModel @Inject constructor(
                     description = c.description,
                     phones = c.phones.ifEmpty { listOf("") },
                     mapsUrl = c.mapsUrl.orEmpty(),
+                    photoUri = c.photoUrl?.let { Uri.parse(it) },
                     isEditing = true,
                 )
             }
@@ -82,6 +83,7 @@ class CreateClienteViewModel @Inject constructor(
                     description = s.description.trim(),
                     phones = phones,
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
+                    photoUrl = s.photoUri?.toString(),
                     createdAt = System.currentTimeMillis(),
                 ),
             )

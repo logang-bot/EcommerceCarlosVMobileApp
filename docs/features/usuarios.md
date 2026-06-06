@@ -35,7 +35,7 @@ Mapping is handled by `UserMapper.kt` (`data/mapper/`). `UserUiModel` is purely 
 | `name` | `String` | |
 | `role` | `UserRole` | Enum stored as string in Room |
 | `phone` | `String?` | Nullable; editable from `EditarPerfilScreen` |
-| `photoUrl` | `String?` | Reserved for future phase |
+| `photoUrl` | `String?` | Local FileProvider URI; set from `EditarPerfilScreen` |
 | `isActive` | `Boolean` | |
 | `createdAt` | `Long` | Epoch millis |
 | `lastSeenAt` | `Long?` | |
@@ -57,7 +57,7 @@ interface UserRepository {
     suspend fun setBiometricEnabled(id: String, enabledAt: Long?)
     suspend fun hasBiometricEnabled(): Boolean
     suspend fun getBiometricEnabledUser(): AppUser?       // used by LoginViewModel
-    suspend fun updateProfile(id: String, name: String, email: String, phone: String?)
+    suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)
 }
 ```
 
@@ -102,11 +102,12 @@ val USER_ID_KEY = stringPreferencesKey("current_user_id")
 
 - **Route**: `EditarPerfilRoute` (no arguments)
 - **Reached from**: pencil icon in `PerfilScreen`
-- Shows `ProfileAvatar` (104dp initials, with photo hint below)
+- **Photo section**: 104dp circle — shows actual photo (`BitmapFactory` via `LaunchedEffect`) when `photoUri` is set, falls back to `ProfileAvatar` (initials); 34dp accent camera button overlay at bottom-right; tapping either opens a bottom sheet (camera / gallery). Gallery picks are copied to `cacheDir/images/` via `copyImageToCache()` for persistence.
 - Fields: Nombre (required), Correo (required), Teléfono (optional)
 - Role field: read-only, shows `RoleBadge` + "Solo un super usuario puede cambiarlo" hint
 - Sticky bottom bar: "Guardar cambios" CTA
-- On save: calls `userRepository.updateProfile(...)`, updates `SessionManager`, pops back
+- On save: calls `userRepository.updateProfile(...)` (now includes `photoUrl`), updates `SessionManager`, pops back
+- `EditarPerfilUiState` exposes `photoUri: Uri?`; restored from `user.photoUrl` on load
 
 ### GestionUsuariosScreen (`ui/screen/usuario/`)
 
