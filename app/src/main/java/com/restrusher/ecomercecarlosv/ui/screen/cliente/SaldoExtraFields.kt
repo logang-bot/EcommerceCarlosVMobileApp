@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -112,12 +114,11 @@ internal fun SaldoExtraAmountHero(value: String, isError: Boolean, onValueChange
             modifier = Modifier.padding(bottom = 10.dp),
         )
         Row(
-            modifier = Modifier.fillMaxWidth(0.75f),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("Bs.", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = ext.text2)
-            Box(Modifier.weight(1f)) {
+            Box {
                 if (value.isEmpty()) {
                     Text(
                         text = "0,00",
@@ -141,7 +142,7 @@ internal fun SaldoExtraAmountHero(value: String, isError: Boolean, onValueChange
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     cursorBrush = SolidColor(accent),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.width(IntrinsicSize.Min),
                 )
             }
         }
