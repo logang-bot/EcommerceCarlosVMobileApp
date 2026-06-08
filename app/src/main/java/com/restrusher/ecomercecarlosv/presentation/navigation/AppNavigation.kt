@@ -22,6 +22,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.HomeRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CrearUsuarioRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.UmbralesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
 import com.restrusher.ecomercecarlosv.ui.screen.auth.LoginScreen
 import com.restrusher.ecomercecarlosv.ui.screen.busqueda.BusquedaScreen
@@ -39,6 +40,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.DetalleMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.perfil.EditarPerfilScreen
 import com.restrusher.ecomercecarlosv.ui.screen.perfil.PerfilScreen
+import com.restrusher.ecomercecarlosv.ui.screen.perfil.UmbralesScreen
 import com.restrusher.ecomercecarlosv.ui.screen.usuario.GestionUsuariosScreen
 import com.restrusher.ecomercecarlosv.ui.screen.usuario.CrearUsuarioScreen
 import com.restrusher.ecomercecarlosv.ui.screen.usuario.UsuarioDetalleScreen
@@ -68,6 +70,9 @@ fun AppNavigation() {
         }
         composable<EditarPerfilRoute> {
             EditarPerfilScreen(navController = navController)
+        }
+        composable<UmbralesRoute> {
+            UmbralesScreen(navController = navController)
         }
         composable<GestionUsuariosRoute> {
             GestionUsuariosScreen(navController = navController)

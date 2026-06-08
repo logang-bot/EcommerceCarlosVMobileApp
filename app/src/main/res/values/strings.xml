@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Pedidos &amp; Cuentas</string>
+    <string name="app_name">CarlosVCommerce</string>
 
     <!-- Login -->
     <string name="login_title">Comercializadora Carlos V</string>
@@ -236,6 +236,29 @@
     <string name="perfil_super_hint">Administra el equipo</string>
     <string name="perfil_gestion_usuarios">Gestión de usuarios</string>
     <string name="perfil_cambiar_contrasena">Cambiar contraseña</string>
+    <string name="perfil_section_ajustes">Ajustes</string>
+    <string name="perfil_umbrales_title">Umbrales de estado</string>
+
+    <!-- Umbrales de estado -->
+    <string name="umbrales_title">Umbrales de estado</string>
+    <string name="umbrales_header">El estado se decide sobre todo por <b>cuánto tiempo lleva sin pagarse</b> la deuda — no por el monto. Configura cuándo un cliente pasa a <b>Crítico</b>; lo demás se calcula solo.</string>
+    <string name="umbrales_status_al_dia">Al día</string>
+    <string name="umbrales_status_advertencia">Advertencia</string>
+    <string name="umbrales_status_critico">Crítico</string>
+    <string name="umbrales_al_dia_desc">El cliente no debe nada: su balance es Bs. 0.</string>
+    <string name="umbrales_advertencia_desc">Debe dinero, pero todavía no llega a Crítico. Cualquier saldo mayor a Bs. 0 empieza aquí.</string>
+    <string name="umbrales_critico_desc">Se marca en rojo cuando ocurre cualquiera de estas dos cosas:</string>
+    <string name="umbrales_automatico">Automático</string>
+    <string name="umbrales_monto_maximo">Monto máximo</string>
+    <string name="umbrales_monto_hint">Si el balance del cliente pasa este monto, entra en Crítico al instante.</string>
+    <string name="umbrales_monto_prefix">Más de  ·  Bs.</string>
+    <string name="umbrales_dias_label">Días sin pagar</string>
+    <string name="umbrales_dias_hint">Cuenta los días desde que se generó una deuda que aún no se salda.</string>
+    <string name="umbrales_dias_prefix">Más de</string>
+    <string name="umbrales_dias_suffix">días</string>
+    <string name="umbrales_or_connector">O</string>
+    <string name="umbrales_info_note">La antigüedad solo cuenta sobre deuda que ya suma al balance: abonos parciales y saldos extra pendientes. Un pedido pendiente normal nunca se marca como deuda vencida, por más viejo que sea.</string>
+    <string name="umbrales_guardar">Guardar umbrales</string>
 
     <!-- Gestión de Usuarios -->
     <string name="gestion_usuarios_title">Gestión de usuarios</string>

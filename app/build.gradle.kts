@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.compose.material.icons.extended)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.core.splashscreen)
     ksp(libs.hilt.compiler)
     ksp(libs.room.compiler)
     testImplementation(libs.junit)

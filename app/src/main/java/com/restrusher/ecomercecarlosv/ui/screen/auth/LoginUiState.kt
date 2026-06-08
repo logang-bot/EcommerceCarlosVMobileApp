@@ -8,9 +8,9 @@ data class LoginFormState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isBiometricEnabled: Boolean = false,
+    val showPasswordLogin: Boolean = false,
     val enrolledUserName: String = "",
     val enrolledUserEmail: String = "",
     val enrolledUserRole: UserRole = UserRole.USUARIO,
     val enrolledUserInitials: String = "",
-    val showPasswordLogin: Boolean = false,
 )

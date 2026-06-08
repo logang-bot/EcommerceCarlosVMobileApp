@@ -24,6 +24,9 @@ object PerfilRoute
 object EditarPerfilRoute
 
 @Serializable
+object UmbralesRoute
+
+@Serializable
 object GestionUsuariosRoute
 
 @Serializable

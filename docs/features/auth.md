@@ -31,7 +31,10 @@ After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inc
 |------|---------------|
 | `ui/screen/auth/LoginUiState.kt` | `LoginFormState` — all login form state including enrolled-user fields |
 | `ui/screen/auth/LoginViewModel.kt` | `@HiltViewModel` — biometric availability check, password login, biometric login, account switching |
-| `ui/screen/auth/LoginScreen.kt` | Two-state composable UI + `BiometricPrompt` wiring |
+| `ui/screen/auth/LoginScreen.kt` | Thin router: reads state, wires `BiometricPrompt`, delegates to content composables |
+| `ui/screen/auth/LoginContent.kt` | Regular login state UI + `BrandSection` + previews |
+| `ui/screen/auth/LoginBiometricoContent.kt` | Enrolled-user login state UI + `WelcomeBackCard` + `BrandSectionCompact` + previews |
+| `ui/screen/auth/LoginComponents.kt` | Shared internal composables: `BrandMark`, `LoginTextField`, `PrimaryLoginButton`, `DividerOr` |
 
 ---
 
@@ -40,13 +43,11 @@ After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inc
 ```
 Column (horizontal padding 26dp)
   ├── Spacer (weight 1f)
-  ├── BrandMark — 64dp rounded square, gradient #6E9BF5→#4878DD, "CV" label
-  ├── "Comercializadora Carlos V" — headlineMedium
-  ├── "Pedidos & Cuentas" — bodyMedium, text2
+  ├── BrandSection — BrandMark (img_logo.png, 80dp) + "Comercializadora Carlos V" headlineMedium + subtitle
   ├── Spacer 40dp
   ├── LoginTextField — "Correo"
   ├── Spacer 12dp
-  ├── LoginTextField — "Contraseña"
+  ├── LoginTextField — "Contraseña" (password, eye toggle)
   ├── [error text — shown when errorMessage != null]
   ├── Spacer 20dp
   ├── PrimaryLoginButton — "Iniciar sesión"
@@ -58,21 +59,38 @@ Column (horizontal padding 26dp)
 
 ## State: Enrolled user ("usuario recurrente")
 
-Shown when `isBiometricEnabled == true && showPasswordLogin == false`.
+Shown when `isBiometricEnabled == true`. Has two internal sub-states controlled by `showPasswordLogin`.
+
+### Sub-state A — default (`showPasswordLogin == false`)
 
 ```
 Column (horizontal padding 26dp, centered)
   ├── Spacer (weight 1f)
-  ├── BrandSectionCompact — 64dp brand mark + company name subtitle
-  ├── Spacer 30dp
-  ├── WelcomeBackCard — surface2 card:
-  │     "Bienvenido de nuevo" label · ProfileAvatar (68dp) · name · email · RoleBadge
-  ├── Spacer 18dp
-  ├── BiometricLoginButton — "Entrar con huella" (primary, filled)
-  ├── Spacer 11dp
-  ├── "Usar contraseña" — outlined secondary button → sets showPasswordLogin = true
+  ├── BrandSectionCompact — BrandMark (img_logo.png, 64dp) + company name titleMedium
+  ├── Spacer 24dp
+  ├── WelcomeBackCard — surfaceVariant card:
+  │     "Bienvenido de nuevo" labelMedium · ProfileAvatar (68dp) · name titleLarge · email bodySmall · RoleBadge
+  ├── Spacer 20dp
+  ├── Button — Fingerprint icon + "Entrar con huella" (primary filled) → triggers BiometricPrompt
+  ├── Spacer 10dp
+  ├── OutlinedButton — "Entrar con contraseña" → switchToPasswordLogin()
   ├── Spacer (weight 1.1f)
-  └── "Entrar con otra cuenta" — accent text link → resets isBiometricEnabled = false
+  └── "Entrar con otra cuenta" — accent text link → switchToOtherAccount()
+```
+
+### Sub-state B — password mode (`showPasswordLogin == true`)
+
+```
+  ├── WelcomeBackCard (same as above)
+  ├── Spacer 20dp
+  ├── LoginTextField — "Contraseña" (password, eye toggle)
+  ├── [error text — shown when errorMessage != null]
+  ├── Spacer 16dp
+  ├── PrimaryLoginButton — "Iniciar sesión" → onBiometricPasswordLogin
+  ├── Spacer 12dp
+  ├── Row (clickable) — Fingerprint icon + "Entrar con huella" → triggers BiometricPrompt
+  ├── Spacer (weight 1.1f)
+  └── "Entrar con otra cuenta" — accent text link → switchToOtherAccount()
 ```
 
 ---
@@ -91,8 +109,16 @@ Enrolled user taps "Entrar con huella":
     → onAuthenticationSucceeded → LoginViewModel.onBiometricSuccess(onLoginSuccess)
         → getBiometricEnabledUser() → sessionManager.setCurrentUser → navigate(HomeRoute)
 
-Enrolled user taps "Usar contraseña":
-  viewModel.switchToPasswordLogin() → showPasswordLogin = true → regular login shown
+Enrolled user taps "Entrar con contraseña":
+  viewModel.switchToPasswordLogin() → showPasswordLogin = true → password sub-state shown
+
+Enrolled user types password + taps "Iniciar sesión" (password sub-state):
+  viewModel.onBiometricPasswordLogin(onLoginSuccess)
+    → validates password against the enrolled user (stub: password == "admin")
+    → getBiometricEnabledUser() → sessionManager.setCurrentUser → navigate(HomeRoute)
+
+Enrolled user taps "Entrar con huella" (password sub-state):
+  triggerBiometric → BiometricPrompt.authenticate() → same as default biometric path
 
 User taps "Entrar con otra cuenta":
   viewModel.switchToOtherAccount() → isBiometricEnabled = false → regular login shown
@@ -108,14 +134,14 @@ Regular login:
 
 | Field | Purpose |
 |-------|---------|
-| `email`, `password` | Regular login form inputs |
+| `email`, `password` | Form inputs; `password` is also used by the biometric screen |
 | `isLoading`, `errorMessage` | Loading/error UI state |
 | `isBiometricEnabled` | Whether to show the enrolled-user screen |
+| `showPasswordLogin` | True when enrolled user has tapped "Entrar con contraseña" |
 | `enrolledUserName` | Name shown in the welcome-back card |
 | `enrolledUserEmail` | Email shown in the welcome-back card |
 | `enrolledUserRole` | Role shown as `RoleBadge` in the welcome-back card |
 | `enrolledUserInitials` | Initials for `ProfileAvatar` in the welcome-back card |
-| `showPasswordLogin` | True when enrolled user taps "Usar contraseña" |
 
 ---
 

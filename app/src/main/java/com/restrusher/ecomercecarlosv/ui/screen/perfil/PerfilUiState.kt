@@ -12,5 +12,6 @@ data class PerfilUiState(
     val isBiometricEnrolled: Boolean = false,
     val biometricEnabledDate: String? = null,
     val teamSummary: String = "",
+    val umbralesSummary: String = "Crítico desde Bs. 200 o 30 días sin pagar",
     val isLoading: Boolean = true,
 )

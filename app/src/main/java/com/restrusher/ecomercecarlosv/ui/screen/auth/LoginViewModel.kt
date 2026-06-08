@@ -124,8 +124,28 @@ class LoginViewModel @Inject constructor(
 
     fun onBiometricFailed() { /* no-op */ }
 
+    fun onBiometricPasswordLogin(onSuccess: () -> Unit) {
+        _state.value = _state.value.copy(isLoading = true, errorMessage = null)
+        viewModelScope.launch {
+            val s = _state.value
+            // STUB: replace with Supabase signIn(enrolledUserEmail, password) in Phase 9
+            delay(300)
+            if (s.password == "admin") {
+                val user = userRepository.getBiometricEnabledUser() ?: run {
+                    _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
+                    return@launch
+                }
+                sessionManager.setCurrentUser(user)
+                _state.value = s.copy(isLoading = false)
+                onSuccess()
+            } else {
+                _state.value = s.copy(isLoading = false, errorMessage = "Contraseña incorrecta")
+            }
+        }
+    }
+
     fun switchToPasswordLogin() {
-        _state.value = _state.value.copy(showPasswordLogin = true)
+        _state.value = _state.value.copy(showPasswordLogin = true, errorMessage = null)
     }
 
     fun switchToOtherAccount() {

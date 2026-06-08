@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
@@ -22,6 +24,7 @@ import javax.inject.Inject
 class DetalleClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     pedidoRepository: PedidoRepository,
+    umbralesManager: UmbralesManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -30,7 +33,8 @@ class DetalleClienteViewModel @Inject constructor(
     val uiState: StateFlow<DetalleClienteUiState> = combine(
         clienteRepository.getByIdFlow(clienteId),
         pedidoRepository.getByCliente(clienteId),
-    ) { cliente, pedidos ->
+        umbralesManager.umbrales,
+    ) { cliente, pedidos, umbrales ->
         val balance = pedidos.filter {
             it.status == PedidoStatus.PARTIAL ||
                 (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
@@ -39,7 +43,7 @@ class DetalleClienteViewModel @Inject constructor(
             cliente = cliente,
             pedidos = pedidos,
             balance = balance,
-            status = computeStatus(balance, pedidos),
+            status = computeStatus(balance, pedidos, umbrales),
             isLoading = false,
         )
     }.stateIn(
@@ -48,19 +52,19 @@ class DetalleClienteViewModel @Inject constructor(
         initialValue = DetalleClienteUiState(),
     )
 
-    private fun computeStatus(balance: Double, pedidos: List<Pedido>): ClientStatus {
-        if (balance <= 0.0) return ClientStatus.AL_DIA
-        val hasOldUnpaid = pedidos.any {
-            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
-                isOlderThan30Days(it.createdAt)
-        }
-        return if (hasOldUnpaid || balance > 200.0) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
-    }
-
     fun unblacklist() {
         viewModelScope.launch { clienteRepository.unblacklist(clienteId) }
     }
 
-    private fun isOlderThan30Days(createdAt: Long): Boolean =
-        (System.currentTimeMillis() - createdAt) > 30L * 24 * 60 * 60 * 1000
+    private fun computeStatus(balance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
+        if (balance <= 0.0) return ClientStatus.AL_DIA
+        val hasOldUnpaid = pedidos.any {
+            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
+                isOlderThan(it.createdAt, umbrales.diasMaximos)
+        }
+        return if (hasOldUnpaid || balance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
+    }
+
+    private fun isOlderThan(createdAt: Long, days: Int): Boolean =
+        (System.currentTimeMillis() - createdAt) > days.toLong() * 24 * 60 * 60 * 1000
 }

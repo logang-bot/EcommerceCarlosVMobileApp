@@ -20,6 +20,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 5 | Detalle de Pedido, Historial de Pagos | ✅ Done |
 | 6 | Catálogo de Productos, Crear/Editar Producto | ✅ Done |
 | 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
+| 2h | Splash screen, app icon, app rename, real logo in Login, biometric screen redesign, file splits | ✅ Done |
 | 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
 
@@ -105,6 +106,19 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 
 ---
 
+## Phase 2h — implemented
+
+- **Splash screen** — `androidx.core:core-splashscreen 1.0.1`; `ic_splash.xml` (`<layer-list>` + `<bitmap android:src="@drawable/img_logo">`, 30dp insets); `Theme.EcomerceCarlosV.Splash` in `themes.xml`; `installSplashScreen()` called before `enableEdgeToEdge()` in `MainActivity`
+- **App icon** — Image Asset Studio with `img_logo.png` as foreground; adaptive icon XMLs in `mipmap-anydpi-v26/`; background color `#FFFFFF` in `values/ic_launcher_background.xml`
+- **App name** — renamed from "Pedidos & Cuentas" to "CarlosVCommerce" in `strings.xml`
+- **BrandMark** — replaced placeholder gradient box with `Image(painterResource(R.drawable.img_logo))` (80dp default, 64dp compact)
+- **Biometric screen redesign** — removed "Usar contraseña" sub-state; enrolled-user screen now always shows password field + "Iniciar sesión" + "Entrar con huella" row; `showPasswordLogin` removed from `LoginFormState`; `onBiometricPasswordLogin()` added to `LoginViewModel`
+- **LoginScreen split** — `LoginScreen.kt` (thin router) · `LoginContent.kt` (regular state) · `LoginBiometricoContent.kt` (enrolled-user state) · `LoginComponents.kt` (shared: `BrandMark`, `LoginTextField`, `PrimaryLoginButton`, `DividerOr`)
+- **PerfilScreen split** — `BiometricCard` + `BiometricToggle` extracted to `BiometricCard.kt`
+- **UmbralesScreen** — `UmbralesScreen.kt` wired to `UmbralesRoute` in `AppNavigation`; `PerfilScreen` Ajustes section navigates to it
+
+---
+
 ## Build config snapshots
 
 | Tool | Version |
@@ -118,3 +132,4 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 | AppCompat | 1.7.0 |
 | Biometric | 1.1.0 |
 | Room | 2.8.4 |
+| SplashScreen | 1.0.1 |

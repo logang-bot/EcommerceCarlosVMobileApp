@@ -6,6 +6,8 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
+import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
@@ -26,6 +28,7 @@ class PerfilViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
+    private val umbralesManager: UmbralesManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PerfilUiState())
@@ -33,6 +36,20 @@ class PerfilViewModel @Inject constructor(
 
     init {
         loadProfile()
+        viewModelScope.launch {
+            umbralesManager.umbrales.collect { u ->
+                _state.value = _state.value.copy(umbralesSummary = formatUmbralesSummary(u))
+            }
+        }
+    }
+
+    private fun formatUmbralesSummary(u: Umbrales): String {
+        val monto = if (u.montoMaximo == u.montoMaximo.toLong().toDouble()) {
+            u.montoMaximo.toLong().toString()
+        } else {
+            "%.2f".format(u.montoMaximo)
+        }
+        return "Crítico desde Bs. $monto o ${u.diasMaximos} días sin pagar"
     }
 
     private fun loadProfile() {

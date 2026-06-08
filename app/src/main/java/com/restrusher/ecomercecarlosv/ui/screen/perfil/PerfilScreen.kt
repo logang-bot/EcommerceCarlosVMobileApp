@@ -7,7 +7,6 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,17 +18,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,10 +39,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -61,12 +57,11 @@ import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.UmbralesRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
 import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
 import com.restrusher.ecomercecarlosv.ui.common.SettingRow
-import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.ui.res.painterResource
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
@@ -115,6 +110,7 @@ fun PerfilScreen(
             }
         },
         onGestionUsuariosClick = { navController.navigate(GestionUsuariosRoute) },
+        onUmbralesClick = { navController.navigate(UmbralesRoute) },
         onLogout = {
             viewModel.logout {
                 navController.navigate(LoginRoute) {
@@ -132,6 +128,7 @@ private fun PerfilContent(
     onEditProfile: () -> Unit = {},
     onBiometricToggle: () -> Unit,
     onGestionUsuariosClick: () -> Unit,
+    onUmbralesClick: () -> Unit = {},
     onLogout: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -156,7 +153,7 @@ private fun PerfilContent(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // ── Identity header ────────────────────────────────────────
+            // Identity header
             Row(
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -186,11 +183,11 @@ private fun PerfilContent(
                 }
             }
 
-            // ── Cuenta ────────────────────────────────────────────────
+            // Cuenta
             SectionHeader(stringResource(R.string.perfil_section_cuenta))
             Column {
                 SettingRow(
-                    icon = Icons.Default.Notifications,
+                    icon = Icons.Default.Email,
                     title = stringResource(R.string.perfil_correo),
                     subtitle = state.email,
                     onClick = onEditProfile,
@@ -206,7 +203,7 @@ private fun PerfilContent(
                 )
             }
 
-            // ── Seguridad ─────────────────────────────────────────────
+            // Seguridad
             Spacer(Modifier.height(14.dp))
             SectionHeader(stringResource(R.string.perfil_section_seguridad))
             BiometricCard(
@@ -218,13 +215,13 @@ private fun PerfilContent(
             )
             Spacer(Modifier.height(10.dp))
             SettingRow(
-                icon = Icons.Default.Check,
+                icon = Icons.Default.Lock,
                 title = stringResource(R.string.perfil_cambiar_contrasena),
                 onClick = { /* TODO: Change password flow — Phase 9 */ },
                 trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
             )
 
-            // ── Equipo (superuser only) ────────────────────────────────
+            // Equipo + Ajustes (superuser only)
             if (state.role == UserRole.SUPERUSUARIO) {
                 Spacer(Modifier.height(14.dp))
                 SectionHeader(stringResource(R.string.perfil_section_equipo))
@@ -242,9 +239,18 @@ private fun PerfilContent(
                         }
                     },
                 )
+                Spacer(Modifier.height(14.dp))
+                SectionHeader(stringResource(R.string.perfil_section_ajustes))
+                SettingRow(
+                    icon = Icons.Default.BarChart,
+                    title = stringResource(R.string.perfil_umbrales_title),
+                    subtitle = state.umbralesSummary,
+                    onClick = onUmbralesClick,
+                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
+                )
             }
 
-            // ── Logout ────────────────────────────────────────────────
+            // Logout
             Spacer(Modifier.height(20.dp))
             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Box(
@@ -265,120 +271,6 @@ private fun PerfilContent(
             }
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun BiometricCard(
-    available: Boolean,
-    enrolled: Boolean,
-    enrolledDate: String?,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val ext = MaterialTheme.extendedColors
-    val cardBg = if (enrolled) ext.accentSoft else ext.surface2
-    val cardBorder = if (enrolled) ext.accentTint else ext.border
-    val iconBg = if (enrolled) ext.accentTint else ext.surface3
-    val iconTint = if (enrolled) MaterialTheme.colorScheme.primary else ext.text2
-    val subColor = when {
-        !available -> ext.text4
-        enrolled -> MaterialTheme.colorScheme.primary
-        else -> ext.text3
-    }
-    val subtitleText = when {
-        !available -> stringResource(R.string.perfil_biometrica_not_available)
-        enrolled -> stringResource(R.string.perfil_biometrica_active)
-        else -> stringResource(R.string.perfil_biometrica_hint)
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (available) 1f else 0.55f)
-            .clip(RoundedCornerShape(16.dp))
-            .background(cardBg)
-            .border(1.dp, cardBorder, RoundedCornerShape(16.dp)),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(15.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(iconBg),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Fingerprint,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.perfil_biometrica_title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = subtitleText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = subColor,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            BiometricToggle(
-                on = enrolled,
-                onToggle = onToggle,
-                enabled = available,
-            )
-        }
-        if (enrolled && enrolledDate != null) {
-            HorizontalDivider(color = ext.border)
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = ext.greenText, modifier = Modifier.size(16.dp))
-                Text(
-                    text = stringResource(R.string.perfil_biometrica_registered, enrolledDate),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ext.text2,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BiometricToggle(on: Boolean, onToggle: () -> Unit, enabled: Boolean = true) {
-    val accent = MaterialTheme.colorScheme.primary
-    val ext = MaterialTheme.extendedColors
-    Box(
-        modifier = Modifier
-            .width(46.dp)
-            .height(28.dp)
-            .clip(CircleShape)
-            .background(if (on) accent else ext.surface3)
-            .border(if (on) 0.dp else 1.dp, ext.border2, CircleShape)
-            .then(if (enabled) Modifier.clickable(onClick = onToggle) else Modifier)
-            .padding(3.dp),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(Color.White),
-        )
     }
 }
 

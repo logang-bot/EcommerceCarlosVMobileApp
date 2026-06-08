@@ -4,9 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
+import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +25,8 @@ import javax.inject.Inject
 class ClientesViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val mercadoRepository: MercadoRepository,
+    private val pedidoRepository: PedidoRepository,
+    private val umbralesManager: UmbralesManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -30,22 +37,34 @@ class ClientesViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
 
     val uiState = combine(
-        clienteRepository.getByMercado(mercadoId),
+        combine(
+            clienteRepository.getByMercado(mercadoId),
+            pedidoRepository.getAllUnpaid(),
+            umbralesManager.umbrales,
+        ) { clientes, allUnpaid, umbrales ->
+            val pedidosByCliente = allUnpaid.groupBy { it.clienteId }
+            clientes.map { cliente ->
+                val pedidos = pedidosByCliente[cliente.id].orEmpty()
+                val balance = pedidos.filter {
+                    it.status == PedidoStatus.PARTIAL ||
+                        (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
+                }.sumOf { it.pending }
+                ClienteUiModel(cliente, computeStatus(balance, pedidos, umbrales), balance)
+            }
+        },
         _sortMode,
         _mercadoName,
         _searchQuery,
-    ) { clientes, sort, name, query ->
-        val filtered = if (query.isBlank()) clientes
-        else clientes.filter { it.name.contains(query, ignoreCase = true) }
-        // Balance and status are computed from pedidos (Phase 4). Defaults: AL_DIA / 0.0.
-        val models = filtered.map { ClienteUiModel(it, ClientStatus.AL_DIA, 0.0) }
+    ) { models, sort, name, query ->
+        val filtered = if (query.isBlank()) models
+        else models.filter { it.cliente.name.contains(query, ignoreCase = true) }
         val sorted = when (sort) {
-            ClienteSortMode.AZ -> models.sortedBy { it.cliente.name }
-            ClienteSortMode.CRITICOS_FIRST -> models.sortedWith(
+            ClienteSortMode.AZ -> filtered.sortedBy { it.cliente.name }
+            ClienteSortMode.CRITICOS_FIRST -> filtered.sortedWith(
                 compareBy<ClienteUiModel> { it.status.ordinal }.thenByDescending { it.balance },
             )
-            ClienteSortMode.MAYOR_SALDO -> models.sortedByDescending { it.balance }
-            ClienteSortMode.SOLO_CON_DEUDA -> models.filter { it.balance > 0 }.sortedByDescending { it.balance }
+            ClienteSortMode.MAYOR_SALDO -> filtered.sortedByDescending { it.balance }
+            ClienteSortMode.SOLO_CON_DEUDA -> filtered.filter { it.balance > 0 }.sortedByDescending { it.balance }
         }
         ClientesUiState(
             clientes = sorted,
@@ -69,4 +88,16 @@ class ClientesViewModel @Inject constructor(
 
     fun onSortChange(mode: ClienteSortMode) { _sortMode.value = mode }
     fun onSearchChange(query: String) { _searchQuery.value = query }
+
+    private fun computeStatus(balance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
+        if (balance <= 0.0) return ClientStatus.AL_DIA
+        val hasOldUnpaid = pedidos.any {
+            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
+                isOlderThan(it.createdAt, umbrales.diasMaximos)
+        }
+        return if (hasOldUnpaid || balance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
+    }
+
+    private fun isOlderThan(createdAt: Long, days: Int): Boolean =
+        (System.currentTimeMillis() - createdAt) > days.toLong() * 24 * 60 * 60 * 1000
 }

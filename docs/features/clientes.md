@@ -119,7 +119,7 @@ Each composable gets its own label above (13sp, `FontWeight.Medium`, `text2`) vi
 
 ## Client Status Thresholds
 
-Computed live in `DetalleClienteViewModel` from `clienteFlow + pedidosFlow`:
+Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combine`). Thresholds are configurable by superusers from **Mi Perfil → Ajustes → Umbrales de estado**.
 
 **Balance** = sum of `pending` amounts for pedidos where:
 - `status == PARTIAL` (partial payment made but not settled), OR
@@ -132,14 +132,19 @@ Computed live in `DetalleClienteViewModel` from `clienteFlow + pedidosFlow`:
 | Status | Condition | Color |
 |--------|-----------|-------|
 | `AL_DIA` | `balance == 0` | green |
-| `CRITICO` | `balance > 200` OR any balance-contributing pedido (`PARTIAL` or saldo-extra `PENDING`) has `createdAt` older than 30 days | red |
+| `CRITICO` | `balance > montoMaximo` OR any balance-contributing pedido (`PARTIAL` or saldo-extra `PENDING`) has `createdAt` older than `diasMaximos` days | red |
 | `ADVERTENCIA` | `balance > 0` and neither CRITICO condition applies | amber |
 
-> The 30-day check only runs on pedidos that already count toward the balance. A regular `PENDING` order is never flagged as old debt no matter how old it is.
+> The days check only runs on pedidos that already count toward the balance. A regular `PENDING` order is never flagged as old debt no matter how old it is.
 
-**"Older than 30 days"**: `(System.currentTimeMillis() - pedido.createdAt) > 30 * 24 * 60 * 60 * 1000`
+**Threshold defaults**: `montoMaximo = 200.0 Bs`, `diasMaximos = 30 days`.
 
-**Implementation**: `DetalleClienteViewModel.kt` — `computeStatus()` + `isOlderThan30Days()`.
+**"Older than N days"**: `(System.currentTimeMillis() - pedido.createdAt) > days.toLong() * 24 * 60 * 60 * 1000`
+
+**Implementation**:
+- `DetalleClienteViewModel.kt` — `computeStatus(balance, pedidos, umbrales)` + `isOlderThan(createdAt, days)`
+- `ClientesViewModel.kt` — same logic applied over `getAllUnpaid()` grouped by `clienteId`
+- `UmbralesManager.kt` — `@Singleton` `StateFlow<Umbrales>` backed by `SharedPreferences`; all injecting ViewModels recompute automatically on threshold change
 
 ---
 
