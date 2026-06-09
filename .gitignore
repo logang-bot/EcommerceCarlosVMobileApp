@@ -1,15 +1,53 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
+# ── Gradle ────────────────────────────────────────────────────────────────────
+.gradle/
+**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# ── Android Studio / IntelliJ ─────────────────────────────────────────────────
+/.idea/caches/
+/.idea/libraries/
 /.idea/modules.xml
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+/.idea/.gitignore
+*.iml
+
+# ── Local config (never commit secrets) ──────────────────────────────────────
 local.properties
+*.env
+.env.*
+
+# ── Build artifacts ───────────────────────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+app/release/
+/captures/
+*.hprof
+
+# ── Signing keys (security) ───────────────────────────────────────────────────
+*.keystore
+*.jks
+
+# ── Native builds ─────────────────────────────────────────────────────────────
+.externalNativeBuild/
+.cxx/
+
+# ── Kotlin ────────────────────────────────────────────────────────────────────
+.kotlin/
+
+# ── Lint / reports ────────────────────────────────────────────────────────────
+lint-results*
+lint/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*~
+
+# ── Merge artifacts ───────────────────────────────────────────────────────────
+*.orig
