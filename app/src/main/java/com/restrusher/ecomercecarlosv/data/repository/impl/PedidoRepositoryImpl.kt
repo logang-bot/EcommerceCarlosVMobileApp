@@ -41,5 +41,7 @@ class PedidoRepositoryImpl @Inject constructor(
         pedidoDao.updateStatus(id, status.name, paid, paidAt)
     }
 
+    override suspend fun updateDate(id: String, createdAt: Long) = pedidoDao.updateDate(id, createdAt)
+
     override suspend fun delete(id: String) = pedidoDao.deleteById(id)
 }

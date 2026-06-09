@@ -15,11 +15,16 @@ class MercadoRepositoryImpl @Inject constructor(
     override fun getAll(): Flow<List<Mercado>> =
         dao.getAll().map { it.map(MercadoMapper::toDomain) }
 
+    override fun getByIdFlow(id: String): Flow<Mercado?> =
+        dao.getByIdFlow(id).map { it?.let(MercadoMapper::toDomain) }
+
     override suspend fun getById(id: String): Mercado? =
         dao.getById(id)?.let(MercadoMapper::toDomain)
 
-    override suspend fun save(mercado: Mercado) =
-        dao.insert(MercadoMapper.toEntity(mercado))
+    override suspend fun save(mercado: Mercado) {
+        val entity = MercadoMapper.toEntity(mercado)
+        if (dao.insert(entity) == -1L) dao.update(entity)
+    }
 
     override suspend fun delete(id: String) =
         dao.deleteById(id)

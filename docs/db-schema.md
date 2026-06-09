@@ -6,7 +6,7 @@ All primary keys are client-generated UUIDs (`String`). All timestamp columns st
 
 ---
 
-## Current tables (Room v8)
+## Current tables (Room v10)
 
 ### `users`
 
@@ -46,13 +46,13 @@ Shared resource. All users can read and write.
 | `longitude` | `Double?` | `float8` | ✓ | Extracted from `mapsUrl` on save |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
-**DAO operations:** `getAll()` flow (ordered `name ASC`) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
+**DAO operations:** `getAll()` flow (ordered `name ASC`) · `getById()` (suspend) · `getByIdFlow()` (Flow — reactive) · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()`
 
 **Supabase notes:** Consider a `geography(Point)` column as an alternative to separate lat/lng if you want PostGIS distance queries later. Suggested index: `mercados(name)`.
 
 ---
 
-### `clientes` *(Room v8 — Phase 3 + 7)*
+### `clientes` *(Room v8 → v10 — Phase 3 + 7)*
 
 Belongs to a `mercados` row. Represents an individual customer at a market stall.
 
@@ -71,7 +71,7 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `blacklistBalance` | `Double` | `float8` | — | Owed balance recorded at time of blacklisting; default `0.0` *(added v8)* |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
-**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at)`
+**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at)`
 
 **Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`.
 
@@ -94,6 +94,8 @@ Global product catalogue, shared across all users.
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
 **DAO operations:** `getAll()` flow (active only, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
+
+> `ProductoDao` safely keeps `REPLACE` — `productos` has no inbound FK CASCADE references.
 
 **Index:** `productos(name)`.
 
@@ -122,8 +124,10 @@ A delivery order. Belongs to a `clientes` row.
 | `paid` | `float8` | — | Amount paid so far; default `0` |
 | `notes` | `text` | ✓ | Optional delivery note |
 | `created_at` | `bigint` | — | Epoch ms |
-| `paid_at` | `bigint` | ✓ | Epoch ms; set when `status = paid` |
+| `paid_at` | `bigint` | ✓ | Epoch ms; set on every payment (partial or full) — always reflects the most recent payment date |
 | `is_saldo_extra` | `boolean` | — | `true` for manual balance entries (Saldo Extra) — no line items; default `false` *(added v10)* |
+
+**DAO operations:** `getByCliente(clienteId)` flow · `getByIdFlow(id)` flow · `getById(id)` · `getAllUnpaid()` flow · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `deleteById(id)`
 
 **Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`.
 
@@ -163,15 +167,38 @@ Saldo Extra entries are stored directly in the `pedidos` table with `isSaldoExtr
 
 ```
 users (standalone — auth layer)
+  No FK references from any other table. Editing user info
+  never affects mercados, clientes, pedidos, or productos.
 
 mercados
-└── clientes
-    ├── pedidos
-    │   └── detalle_pedido → productos
-    └── saldo_extra
+└── clientes  (FK mercadoId → mercados.id  ON DELETE CASCADE)
+    ├── pedidos  (FK clienteId → clientes.id  ON DELETE CASCADE)
+    │   └── detalle_pedido  (FK pedidoId → pedidos.id  ON DELETE CASCADE)
+    └── saldo_extra  (stored as pedido rows with isSaldoExtra = true)
 
 productos (standalone catalogue)
 ```
+
+> **Data integrity — two critical rules:**
+>
+> **1. Never use `fallbackToDestructiveMigration`.** It was removed from `DatabaseModule`. Room will now throw an `IllegalStateException` if a migration is missing, forcing an explicit migration to be written. The destructive fallback drops *all* tables (not just changed ones) when a schema version bump has no matching migration — irreversible data loss.
+>
+> **2. Never use `@Insert(onConflict = REPLACE)` on any parent table that has child tables with `ON DELETE CASCADE`.** Room 2.7+ enables `PRAGMA foreign_keys = ON` by default. With FK enforcement active, `INSERT OR REPLACE` first DELETEs the existing row — firing the cascade — then inserts the new one. Updating a mercado this way would silently wipe all its clientes and pedidos. The safe upsert pattern for all parent DAOs (`mercados`, `clientes`) is:
+> ```kotlin
+> // DAO
+> @Insert(onConflict = OnConflictStrategy.IGNORE)
+> suspend fun insert(entity: Entity): Long   // returns -1 on PK conflict
+>
+> @Update
+> suspend fun update(entity: Entity)
+>
+> // Repository
+> override suspend fun save(item: DomainModel) {
+>     val entity = Mapper.toEntity(item)
+>     if (dao.insert(entity) == -1L) dao.update(entity)
+> }
+> ```
+> `PedidoDao` and `DetallePedidoDao` also use `IGNORE` (purely defensive — these are insert-only, IDs are fresh UUIDs). `UserDao` and `ProductoDao` may safely keep `REPLACE` because neither table has inbound FK CASCADE references.
 
 ---
 

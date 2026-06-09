@@ -42,6 +42,8 @@ Two sub-features:
 | `domain/usecase/CreateSaldoExtraUseCase.kt` | ✅ |
 | Room migration 8→9 (`MIGRATION_8_9`) — creates `pedidos` + `detalle_pedido` | ✅ |
 | Room migration 9→10 (`MIGRATION_9_10`) — adds `isSaldoExtra` column to `pedidos` | ✅ |
+| `PedidoDao.updateDate(id, createdAt)` — `UPDATE pedidos SET createdAt = :createdAt` | ✅ |
+| `PedidoRepository.updateDate(id, createdAt)` + `PedidoRepositoryImpl` impl | ✅ |
 
 ---
 
@@ -147,9 +149,9 @@ Status rules:
 
 | File | Responsibility |
 |------|---------------|
-| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet` |
-| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (5 flows); loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, sheet toggle |
-| `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody` |
+| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet`, `showDeleteConfirm`, `showDatePicker` |
+| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (5 flows) + two chained `.combine` for modal flags; loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, sheet toggles, `onDeletePedido()`, `onUpdateDate(createdAt)` |
+| `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody`, `PedidoOverflowMenu`, `PedidoMenuItem`, delete `AlertDialog`, `DatePickerDialog` |
 | `DetallePedidoActions.kt` | `DetallePedidoBottomBar`, `PagoParcialSheet`, `PagoParcialSheetContent` |
 | `DetallePedidoLineItem.kt` | `LineItemsSection`, `LineItemRow`, `PriceModifiedHint` |
 | `DetallePedidoSummary.kt` | `TotalBlock`, `PagosSection`, `DetalleSectionLabel` |
@@ -157,8 +159,8 @@ Status rules:
 ### Screen structure
 
 `DetallePedidoScreen` uses a `Scaffold` with:
-- `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026", no action slot)
-- `bottomBar` = `DetallePedidoBottomBar` — hidden when `status == PAID`; "Pago parcial" (outlined, `Add` icon) + "Marcar pagado" (green, `Check` icon); both use `heightIn(min = 50.dp)` to avoid text clipping
+- `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026") + `PedidoOverflowMenu` in the `actions` slot
+- `bottomBar` = `DetallePedidoBottomBar` — hidden when `status == PAID`; "Pago parcial" (outlined, `Add` icon) + "Marcar pagado" (`primary` bg, `Check` icon); both use `heightIn(min = 50.dp)` to avoid text clipping
 - content = scrollable `Column`: `PedidoStatusStrip` → `HorizontalDivider` → body → `HorizontalDivider` → `TotalBlock` → (if `paid > 0`) `HorizontalDivider` + `PagosSection`
 
 **`PedidoStatusStrip`**: `Row` with `PayChip` + subtitle text.
@@ -181,15 +183,34 @@ Body adapts by pedido type:
 
 Shown when `paid > 0`. Single-row simplified history (no separate `pagos` table exists): 30×30 `greenTint` tile + `Check` icon + date (`paidAt ?: createdAt`, formatted "dd MMM yyyy" in Spanish) + "+ Bs. X.XX" in `greenText` mono. A future `pagos` table would enable full per-payment history.
 
+### PedidoOverflowMenu
+
+`DropdownMenu` composable anchored to a `MoreVert` `IconButton` in the top-bar `actions` slot. Matches `ClientesFilterMenu` design (`elevated` container color, `border2` 1dp stroke, `RoundedCornerShape(16.dp)`, `shadowElevation = 16.dp`, width 220dp). Two `PedidoMenuItem` rows:
+
+- **Modificar fecha** (`CalendarToday` icon) — opens a Material3 `DatePickerDialog` pre-filled with `pedido.createdAt`. On confirm, `selectedDateMillis` is adjusted from UTC midnight to local midnight (`utcMidnight - TimeZone.getDefault().getOffset(utcMidnight)`) before calling `onUpdateDate(Long)`. This prevents the date appearing one day early on UTC-negative devices.
+- **Eliminar pedido** (`Delete` icon, `error` color) — opens an `AlertDialog` confirmation. On confirm, calls `pedidoRepository.delete(pedidoId)` and pops back.
+
 ### PagoParcialSheet
 
-`ModalBottomSheet` (experimental): title + remaining balance label, `OutlinedTextField` with `Bs.` prefix + decimal keyboard, "Registrar pago" CTA. Amount is clamped to remaining balance before calling `onRegistrarPago`.
+`ModalBottomSheet` (experimental): title + remaining balance label, `OutlinedTextField` with `Bs.` prefix + decimal keyboard, "Registrar pago" CTA.
+
+Validation mirrors `PagoSheet` in Creación de Pedido:
+- `isAmountEmpty` — blank input
+- `isAmountTooHigh` — entered amount exceeds remaining balance
+- `canConfirm = !isAmountEmpty && !isAmountTooHigh`
+- Button is always tappable but alpha-dimmed to 50% when `!canConfirm`; tapping while invalid sets `showError = true`
+- `isError` on `OutlinedTextField` + error text below (reuses `pedidos_pago_parcial_error_vacio` / `pedidos_pago_parcial_error_maximo` strings)
+- `LaunchedEffect(amountText)` resets `showError` on every keystroke
 
 ### ViewModel payment logic
 
 `onMarcarPagado()` — sets `status = PAID`, `paid = total`, `paidAt = now`.
 
-`onRegistrarPago(amount)` — `newPaid = (paid + amount).coerceAtMost(total)`; status becomes `PAID` if `newPaid >= total`, `PARTIAL` otherwise; `paidAt` only set when fully paid.
+`onRegistrarPago(amount)` — `newPaid = (paid + amount).coerceAtMost(total)`; status becomes `PAID` if `newPaid >= total`, `PARTIAL` otherwise; `paidAt = System.currentTimeMillis()` always set (so `PagosSection` shows the payment date, not the pedido creation date).
+
+`onDeletePedido(onSuccess)` — calls `pedidoRepository.delete(pedidoId)` then invokes the callback.
+
+`onUpdateDate(createdAt)` — calls `pedidoRepository.updateDate(pedidoId, createdAt)`; dismisses the date picker.
 
 ---
 

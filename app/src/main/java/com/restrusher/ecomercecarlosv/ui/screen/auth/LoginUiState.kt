@@ -13,4 +13,5 @@ data class LoginFormState(
     val enrolledUserEmail: String = "",
     val enrolledUserRole: UserRole = UserRole.USUARIO,
     val enrolledUserInitials: String = "",
+    val enrolledUserPhotoUrl: String? = null,
 )

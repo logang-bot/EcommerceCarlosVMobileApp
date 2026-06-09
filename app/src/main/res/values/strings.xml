@@ -364,6 +364,8 @@
     <string name="pedidos_catalogo_vacio_subtitle">Agrega productos al catálogo para poder incluirlos en un pedido.</string>
     <string name="pedidos_pago_total_hint">El cliente pagó el total ahora</string>
     <string name="pedidos_pago_parcial_hint">Registrar un abono inicial</string>
+    <string name="pedidos_pago_parcial_error_vacio">Ingresa un monto para continuar</string>
+    <string name="pedidos_pago_parcial_error_maximo">El monto no puede superar Bs. %1$s</string>
     <string name="pedidos_dejar_pendiente_hint">Sin cobro — el pedido queda pendiente</string>
     <string name="pedidos_precio_modificado">El precio ha sido modificado</string>
     <string name="pedidos_precio_modificado_desc">El precio estándar es Bs. %1$s. Estás registrando Bs. %2$s.</string>
@@ -386,6 +388,9 @@
     <string name="detalle_pedido_pagos_section">Pagos registrados</string>
     <string name="detalle_pedido_marcar_pagado">Marcar pagado</string>
     <string name="detalle_pedido_saldo_extra_label">Saldo extra · %1$s</string>
+    <string name="detalle_pedido_menu_eliminar">Eliminar pedido</string>
+    <string name="detalle_pedido_menu_modificar_fecha">Modificar fecha</string>
+    <string name="detalle_pedido_eliminar_confirm">¿Eliminar este pedido? Esta acción no se puede deshacer.</string>
 
     <!-- Agregar a Lista Negra -->
     <string name="agregar_lista_negra_title">Agregar a Lista Negra</string>

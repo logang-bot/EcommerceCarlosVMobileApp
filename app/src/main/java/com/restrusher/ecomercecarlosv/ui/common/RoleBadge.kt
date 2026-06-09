@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -79,6 +80,7 @@ fun RoleBadge(
 fun ProfileAvatar(
     initials: String,
     modifier: Modifier = Modifier,
+    photoUrl: String? = null,
     size: Int = 30,
 ) {
     Box(
@@ -89,11 +91,17 @@ fun ProfileAvatar(
             .background(MaterialTheme.colorScheme.primaryContainer)
             .border(1.dp, MaterialTheme.extendedColors.border2, CircleShape),
     ) {
-        Text(
-            text = initials.take(2),
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = (size * 0.36).sp,
+        PhotoThumbnail(
+            photoUrl = photoUrl,
+            modifier = Modifier.fillMaxSize(),
+            fallback = {
+                Text(
+                    text = initials.take(2),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = (size * 0.36).sp,
+                )
+            },
         )
     }
 }

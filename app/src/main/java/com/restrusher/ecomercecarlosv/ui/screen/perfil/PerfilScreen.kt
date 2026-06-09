@@ -159,7 +159,7 @@ private fun PerfilContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(15.dp),
             ) {
-                ProfileAvatar(initials = state.initials, size = 66)
+                ProfileAvatar(initials = state.initials, photoUrl = state.photoUrl, size = 66)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = state.name,

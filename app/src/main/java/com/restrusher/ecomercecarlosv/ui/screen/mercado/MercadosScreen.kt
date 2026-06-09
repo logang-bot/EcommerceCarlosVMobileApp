@@ -88,7 +88,10 @@ fun MercadosScreen(
         onMercadoClick = { navController.navigate(ClientesRoute(it)) },
         onMercadoLongPress = viewModel::onMercadoLongPress,
         onCreateClick = { navController.navigate(CreateMercadoRoute()) },
-        onVerDetallesClick = { mercadoId -> navController.navigate(DetalleMercadoRoute(mercadoId)) },
+        onVerDetallesClick = { mercadoId ->
+            viewModel.clearSelection()
+            navController.navigate(DetalleMercadoRoute(mercadoId))
+        },
         onListaNegraClick = { navController.navigate(ListaNegraRoute) },
         onPerfilClick = { navController.navigate(PerfilRoute) },
         onSearchClick = { navController.navigate(BusquedaRoute) },
@@ -135,7 +138,7 @@ private fun MercadosContent(
                             Icon(Icons.Default.Notifications, contentDescription = null)
                         }
                         IconButton(onClick = onPerfilClick) {
-                            ProfileAvatar(initials = state.currentUserInitials.ifBlank { "?" }, size = 30)
+                            ProfileAvatar(initials = state.currentUserInitials.ifBlank { "?" }, photoUrl = state.currentUserPhotoUrl, size = 30)
                         }
                     },
                 )
@@ -160,6 +163,7 @@ private fun MercadosContent(
                 title = stringResource(R.string.mercados_empty_title),
                 subtitle = stringResource(R.string.mercados_empty_subtitle),
                 hint = stringResource(R.string.mercados_empty_hint),
+                onActionClick = onCreateClick,
             )
         } else {
             LazyColumn(

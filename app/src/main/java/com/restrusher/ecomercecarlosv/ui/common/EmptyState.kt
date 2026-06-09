@@ -2,6 +2,7 @@ package com.restrusher.ecomercecarlosv.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ fun EmptyState(
     subtitle: String,
     hint: String? = null,
     compact: Boolean = false,
+    onActionClick: (() -> Unit)? = null,
 ) {
     val containerSize = if (compact) 60.dp else 74.dp
     val cornerRadius = if (compact) 18.dp else 22.dp
@@ -84,6 +86,7 @@ fun EmptyState(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .background(ext.accentSoft)
+                        .then(if (onActionClick != null) Modifier.clickable(onClick = onActionClick) else Modifier)
                         .padding(horizontal = 13.dp, vertical = 8.dp),
                 ) {
                     Icon(

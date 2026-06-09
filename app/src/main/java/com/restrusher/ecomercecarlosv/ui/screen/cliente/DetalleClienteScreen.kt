@@ -159,6 +159,7 @@ private fun DetalleClienteContent(
                 onQuitarListaNegraClick = onQuitarListaNegraClick,
                 onSaldoExtraClick = onSaldoExtraClick,
                 onPedidoClick = onPedidoClick,
+                onNuevoPedidoClick = onNuevoPedidoClick,
             )
         }
     }
@@ -175,6 +176,7 @@ private fun ClienteData(
     onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
     onPedidoClick: (String) -> Unit,
+    onNuevoPedidoClick: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -195,7 +197,11 @@ private fun ClienteData(
             onSaldoExtraClick = onSaldoExtraClick,
         )
         Spacer(Modifier.height(24.dp))
-        PedidosSection(pedidos = pedidos, onPedidoClick = onPedidoClick)
+        PedidosSection(
+            pedidos = pedidos,
+            onPedidoClick = onPedidoClick,
+            onNuevoPedidoClick = if (!cliente.isBlacklisted) onNuevoPedidoClick else null,
+        )
         Spacer(Modifier.height(80.dp))
     }
 }
@@ -438,7 +444,7 @@ private fun ActionButtons(
 }
 
 @Composable
-private fun PedidosSection(pedidos: List<Pedido>, onPedidoClick: (String) -> Unit) {
+private fun PedidosSection(pedidos: List<Pedido>, onPedidoClick: (String) -> Unit, onNuevoPedidoClick: (() -> Unit)? = null) {
     val ext = MaterialTheme.extendedColors
     Text(
         text = stringResource(R.string.detalle_cliente_pedidos_section).uppercase(),
@@ -455,6 +461,7 @@ private fun PedidosSection(pedidos: List<Pedido>, onPedidoClick: (String) -> Uni
             hint = stringResource(R.string.detalle_cliente_pedidos_empty_hint),
             compact = true,
             modifier = Modifier.height(240.dp),
+            onActionClick = onNuevoPedidoClick,
         )
     } else {
         pedidos.forEach { pedido ->

@@ -30,6 +30,8 @@ class DetallePedidoViewModel @Inject constructor(
     private val _showPagoSheet = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
     private val _clienteName = MutableStateFlow("")
+    private val _showDeleteConfirm = MutableStateFlow(false)
+    private val _showDatePicker = MutableStateFlow(false)
 
     val uiState = combine(
         combine(pedidoRepository.getByIdFlow(pedidoId), _detalles) { pedido, detalles ->
@@ -47,6 +49,10 @@ class DetallePedidoViewModel @Inject constructor(
             isSaving = saving,
             showPagoSheet = showSheet,
         )
+    }.combine(_showDeleteConfirm) { state, showDelete ->
+        state.copy(showDeleteConfirm = showDelete)
+    }.combine(_showDatePicker) { state, showDate ->
+        state.copy(showDatePicker = showDate)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -66,6 +72,26 @@ class DetallePedidoViewModel @Inject constructor(
 
     fun onShowPagoSheet() { _showPagoSheet.value = true }
     fun onDismissPagoSheet() { _showPagoSheet.value = false }
+
+    fun onShowDeleteConfirm() { _showDeleteConfirm.value = true }
+    fun onDismissDeleteConfirm() { _showDeleteConfirm.value = false }
+
+    fun onDeletePedido(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            pedidoRepository.delete(pedidoId)
+            onSuccess()
+        }
+    }
+
+    fun onShowDatePicker() { _showDatePicker.value = true }
+    fun onDismissDatePicker() { _showDatePicker.value = false }
+
+    fun onUpdateDate(createdAt: Long) {
+        viewModelScope.launch {
+            pedidoRepository.updateDate(pedidoId, createdAt)
+            _showDatePicker.value = false
+        }
+    }
 
     fun onMarcarPagado() {
         val pedido = uiState.value.pedido ?: return
@@ -93,7 +119,7 @@ class DetallePedidoViewModel @Inject constructor(
                 id = pedidoId,
                 status = newStatus,
                 paid = newPaid,
-                paidAt = if (newStatus == PedidoStatus.PAID) System.currentTimeMillis() else null,
+                paidAt = System.currentTimeMillis(),
             )
             _isSaving.value = false
         }

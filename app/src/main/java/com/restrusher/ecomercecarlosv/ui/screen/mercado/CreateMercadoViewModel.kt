@@ -37,6 +37,7 @@ class CreateMercadoViewModel @Inject constructor(
                     name = mercado.name,
                     address = mercado.address,
                     mapsUrl = mercado.mapsUrl.orEmpty(),
+                    photoUri = mercado.photoUrl?.let { Uri.parse(it) },
                     isEditing = true,
                 )
             }
@@ -59,6 +60,7 @@ class CreateMercadoViewModel @Inject constructor(
                     id = mercadoId ?: UUID.randomUUID().toString(),
                     name = s.name.trim(),
                     address = s.address.trim(),
+                    photoUrl = s.photoUri?.toString(),
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
                     latitude = coords?.first,
                     longitude = coords?.second,

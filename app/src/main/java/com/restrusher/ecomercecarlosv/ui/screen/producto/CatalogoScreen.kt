@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sell
-import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -118,10 +117,11 @@ private fun CatalogoContent(
         if (state.productos.isEmpty() && !state.isLoading) {
             EmptyState(
                 modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.Tag,
+                icon = Icons.Default.Sell,
                 title = stringResource(R.string.catalogo_empty_title),
                 subtitle = stringResource(R.string.catalogo_empty_subtitle),
                 hint = stringResource(R.string.catalogo_empty_hint),
+                onActionClick = onCreateClick,
             )
         } else {
             LazyColumn(

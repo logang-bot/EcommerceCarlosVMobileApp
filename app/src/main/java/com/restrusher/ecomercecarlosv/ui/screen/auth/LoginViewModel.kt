@@ -67,6 +67,7 @@ class LoginViewModel @Inject constructor(
                     enrolledUserEmail = user?.email ?: "",
                     enrolledUserRole = user?.role ?: UserRole.USUARIO,
                     enrolledUserInitials = computeInitials(user?.name ?: ""),
+                    enrolledUserPhotoUrl = user?.photoUrl,
                 )
             }
         }

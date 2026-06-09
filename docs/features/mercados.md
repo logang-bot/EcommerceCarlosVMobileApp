@@ -102,20 +102,24 @@ Room schema version: **5** (migrated from 4 via `MIGRATION_4_5` — `ALTER TABLE
 
 ### DAO — `MercadoDao`
 
-| Method | Returns |
-|--------|---------|
-| `getAll()` | `Flow<List<MercadoEntity>>` ordered by `name ASC` |
-| `getById(id)` | `MercadoEntity?` |
-| `insert(entity)` | `Unit` — `OnConflictStrategy.REPLACE` (handles both create and update) |
-| `update(entity)` | `Unit` |
-| `deleteById(id)` | `Unit` |
+| Method | Returns | Notes |
+|--------|---------|-------|
+| `getAll()` | `Flow<List<MercadoEntity>>` ordered by `name ASC` | |
+| `getById(id)` | `MercadoEntity?` (suspend) | One-shot |
+| `getByIdFlow(id)` | `Flow<MercadoEntity?>` | Reactive — used by `DetalleMercadoViewModel` |
+| `insert(entity)` | `Long` — `OnConflictStrategy.IGNORE` | Returns `-1` on PK conflict |
+| `update(entity)` | `Unit` | |
+| `deleteById(id)` | `Unit` | |
+
+> `insert` uses `IGNORE` (not `REPLACE`) — see `docs/db-schema.md → Data integrity`. The repository falls through to `update()` when `-1L` is returned.
 
 ### Repository — `MercadoRepository`
 
 ```kotlin
 fun getAll(): Flow<List<Mercado>>
+fun getByIdFlow(id: String): Flow<Mercado?>   // reactive — for detail screen
 suspend fun getById(id: String): Mercado?
-suspend fun save(mercado: Mercado)   // insert with REPLACE — covers create + update
+suspend fun save(mercado: Mercado)             // IGNORE + update fallthrough
 suspend fun delete(id: String)
 ```
 
@@ -148,12 +152,12 @@ data class MercadoDto(
 | `data/mapper/MercadoMapper.kt` | Entity ↔ Domain mapper |
 | `data/remote/dto/MercadoDto.kt` | Supabase DTO (`@SerialName` for snake_case) |
 | `data/repository/impl/MercadoRepositoryImpl.kt` | Repository implementation |
-| `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `stats: Map<String, MercadoStat>`, `isLoading`, `currentUserInitials`, `selectedMercadoId`; `MercadoStat(activeClientCount, hasWarning, hasCritical)` |
-| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data |
-| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon; `MercadoStatRow` shows count + colored status dot |
+| `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `stats: Map<String, MercadoStat>`, `isLoading`, `currentUserInitials`, `currentUserPhotoUrl`, `selectedMercadoId`; `MercadoStat(activeClientCount, hasWarning, hasCritical)` |
+| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data; threads `currentUserPhotoUrl` from session |
+| `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon; `MercadoStatRow` shows count + colored status dot; top-bar `ProfileAvatar` passes `currentUserPhotoUrl` |
 | `ui/screen/mercado/DetalleMercadoUiState.kt` | `mercado`, `isLoading` |
-| `ui/screen/mercado/DetalleMercadoViewModel.kt` | Loads mercado by id; `onDelete()` removes from Room and pops back |
-| `ui/screen/mercado/DetalleMercadoScreen.kt` | Header, stats, maps link, meta rows, delete button |
+| `ui/screen/mercado/DetalleMercadoViewModel.kt` | Reactive `stateIn` over `MercadoRepository.getByIdFlow(mercadoId)` — screen auto-updates after edits; `onDelete()` removes from Room and pops back |
+| `ui/screen/mercado/DetalleMercadoScreen.kt` | Header, stats, maps link (UBICACIÓN always visible — `MapsLinkField` handles blank values), meta rows, delete button |
 | `ui/screen/mercado/CreateMercadoFormState.kt` | `name`, `address`, `mapsUrl`, `photoUri`, `nameError`, `isLoading`, `isEditing` |
 | `ui/screen/mercado/CreateMercadoViewModel.kt` | Create + edit; loads existing mercado when `mercadoId != null`; extracts coordinates from mapsUrl on save |
 | `ui/screen/mercado/CreateMercadoScreen.kt` | Name + address + Ubicación (MapsLinkField) + photo picker (160dp, camera+gallery) form, sticky save bar |
@@ -169,7 +173,7 @@ Entry point after long-pressing a mercado row. Shows data + allows edit and dele
 - `PedidosTopBar` with back + Edit (pencil) icon action → `CreateMercadoRoute(mercadoId)`
 - **Header**: 60×60 `GridView` icon tile (surface-3 bg, border inset) + mercado name + address
 - **Stats row**: 3 equal `StatCard` cards (surface-2 bg, 14dp corners, border inset) — Clientes / Al día / En riesgo (still hardcoded 0; real values can be wired using `clienteRepository.getByMercado()` + pedidos aggregate)
-- **Ubicación section** (shown only when `mapsUrl` is non-blank): section label + `MapsLinkField` (read-only, "Abrir" chip)
+- **Ubicación section** (always visible): section label + `MapsLinkField` (read-only, "Abrir" chip when filled, placeholder when blank)
 - **Meta rows**: `SettingRow` for "Clientes activos" (chevron, navigates to clientes list in Phase 3) + "Creado" date (`SimpleDateFormat` formatted)
 - **Danger zone**: "Eliminar mercado" (50dp, 13dp corners, `redTint` bg, 22% red border) + disclaimer text — calls `DetalleMercadoViewModel.onDelete()` which deletes and pops back
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,7 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Producto
+import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
@@ -145,11 +147,17 @@ private fun ProductCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .background(ext.surface3),
-            contentAlignment = Alignment.Center,
+                .height(72.dp),
         ) {
-            Icon(Icons.Default.Tag, contentDescription = null, tint = ext.text3, modifier = Modifier.size(28.dp))
+            PhotoThumbnail(
+                photoUrl = producto.photoUrl,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ext.surface3),
+                fallback = {
+                    Icon(Icons.Default.Sell, contentDescription = null, tint = ext.text3, modifier = Modifier.size(28.dp))
+                },
+            )
             if (inCart) {
                 Box(
                     contentAlignment = Alignment.Center,

@@ -54,28 +54,31 @@ class PerfilViewModel @Inject constructor(
 
     private fun loadProfile() {
         viewModelScope.launch {
-            val user = sessionManager.currentUser.value ?: return@launch
+            sessionManager.currentUser.collect { user ->
+                user ?: return@collect
 
-            val biometricStatus = BiometricManager.from(context)
-                .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
-            val isAvailable = biometricStatus == BiometricManager.BIOMETRIC_SUCCESS
+                val biometricStatus = BiometricManager.from(context)
+                    .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK)
+                val isAvailable = biometricStatus == BiometricManager.BIOMETRIC_SUCCESS
 
-            val allUsers = userRepository.getAll().first()
-            val superCount = allUsers.count { it.role == UserRole.SUPERUSUARIO }
-            val totalCount = allUsers.size
+                val allUsers = userRepository.getAll().first()
+                val superCount = allUsers.count { it.role == UserRole.SUPERUSUARIO }
+                val totalCount = allUsers.size
 
-            _state.value = PerfilUiState(
-                name                 = user.name,
-                email                = user.email,
-                phone                = user.phone ?: "",
-                role                 = user.role,
-                initials             = computeInitials(user.name),
-                isBiometricAvailable = isAvailable,
-                isBiometricEnrolled  = user.biometricEnabledAt != null,
-                biometricEnabledDate = user.biometricEnabledAt?.let(::formatDate),
-                teamSummary          = "$totalCount usuarios · $superCount super usuarios",
-                isLoading            = false,
-            )
+                _state.value = PerfilUiState(
+                    name                 = user.name,
+                    email                = user.email,
+                    phone                = user.phone ?: "",
+                    role                 = user.role,
+                    initials             = computeInitials(user.name),
+                    photoUrl             = user.photoUrl,
+                    isBiometricAvailable = isAvailable,
+                    isBiometricEnrolled  = user.biometricEnabledAt != null,
+                    biometricEnabledDate = user.biometricEnabledAt?.let(::formatDate),
+                    teamSummary          = "$totalCount usuarios · $superCount super usuarios",
+                    isLoading            = false,
+                )
+            }
         }
     }
 

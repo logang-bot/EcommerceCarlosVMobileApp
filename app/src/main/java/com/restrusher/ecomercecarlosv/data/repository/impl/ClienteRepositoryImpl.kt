@@ -27,8 +27,10 @@ class ClienteRepositoryImpl @Inject constructor(
     override suspend fun getById(id: String): Cliente? =
         dao.getById(id)?.let(ClienteMapper::toDomain)
 
-    override suspend fun save(cliente: Cliente) =
-        dao.insert(ClienteMapper.toEntity(cliente))
+    override suspend fun save(cliente: Cliente) {
+        val entity = ClienteMapper.toEntity(cliente)
+        if (dao.insert(entity) == -1L) dao.update(entity)
+    }
 
     override suspend fun delete(id: String) =
         dao.deleteById(id)

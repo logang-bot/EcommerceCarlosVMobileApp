@@ -149,6 +149,7 @@ private fun ClientesContent(
                 title = stringResource(R.string.clientes_empty_title),
                 subtitle = stringResource(R.string.clientes_empty_subtitle),
                 hint = stringResource(R.string.clientes_empty_hint),
+                onActionClick = onCreateClick,
             )
         } else {
             LazyColumn(

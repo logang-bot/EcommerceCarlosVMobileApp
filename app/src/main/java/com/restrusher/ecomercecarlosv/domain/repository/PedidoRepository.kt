@@ -13,5 +13,6 @@ interface PedidoRepository {
     suspend fun getDetallesByPedido(pedidoId: String): List<DetallePedido>
     suspend fun create(pedido: Pedido, detalles: List<DetallePedido>)
     suspend fun updateStatus(id: String, status: PedidoStatus, paid: Double, paidAt: Long?)
+    suspend fun updateDate(id: String, createdAt: Long)
     suspend fun delete(id: String)
 }

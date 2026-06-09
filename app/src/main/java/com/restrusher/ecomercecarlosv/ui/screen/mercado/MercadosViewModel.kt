@@ -47,6 +47,7 @@ class MercadosViewModel @Inject constructor(
             stats = buildStats(mercados, clientes, unpaidPedidos),
             isLoading = false,
             currentUserInitials = initials,
+            currentUserPhotoUrl = user?.photoUrl,
             selectedMercadoId = selectedId,
         )
     }.stateIn(

@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -93,7 +94,7 @@ private fun ProductHeader(item: CartItem) {
     val ext = MaterialTheme.extendedColors
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(13.dp)).background(ext.surface3)) {
-            Icon(Icons.Default.Tag, contentDescription = null, tint = ext.text3, modifier = Modifier.size(28.dp))
+            Icon(Icons.Default.Sell, contentDescription = null, tint = ext.text3, modifier = Modifier.size(28.dp))
         }
         Column {
             Text(item.productName, fontSize = 16.5.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)

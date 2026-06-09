@@ -31,8 +31,8 @@ interface ClienteDao {
     @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): ClienteEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(cliente: ClienteEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(cliente: ClienteEntity): Long
 
     @Update
     suspend fun update(cliente: ClienteEntity)

@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.mercado
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.ui.common.MapsLinkField
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
+import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.common.SettingRow
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
@@ -134,17 +136,16 @@ private fun MercadoDataContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(15.dp),
         ) {
-            Surface(
+            PhotoThumbnail(
+                photoUrl = mercado.photoUrl,
                 modifier = Modifier
                     .size(60.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                color = ext.surface3,
-                tonalElevation = 0.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(ext.surface3),
+                fallback = {
                     Icon(Icons.Default.GridView, contentDescription = null, tint = ext.text2, modifier = Modifier.size(26.dp))
-                }
-            }
+                },
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = mercado.name,
@@ -175,21 +176,19 @@ private fun MercadoDataContent(
         }
 
         // ── Ubicación ────────────────────────────────────────────────
-        if (!mercado.mapsUrl.isNullOrBlank()) {
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp)) {
-                Text(
-                    text = stringResource(R.string.detalle_mercado_section_ubicacion).uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ext.text3,
-                    letterSpacing = 0.5.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                MapsLinkField(
-                    value = mercado.mapsUrl,
-                    hint = stringResource(R.string.detalle_mercado_maps_hint),
-                    editable = false,
-                )
-            }
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp)) {
+            Text(
+                text = stringResource(R.string.detalle_mercado_section_ubicacion).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = ext.text3,
+                letterSpacing = 0.5.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            MapsLinkField(
+                value = mercado.mapsUrl ?: "",
+                hint = stringResource(R.string.detalle_mercado_maps_hint),
+                editable = false,
+            )
         }
 
         // ── Meta rows ───────────────────────────────────────────────

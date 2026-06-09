@@ -13,5 +13,6 @@ data class MercadosUiState(
     val stats: Map<String, MercadoStat> = emptyMap(),
     val isLoading: Boolean = false,
     val currentUserInitials: String = "",
+    val currentUserPhotoUrl: String? = null,
     val selectedMercadoId: String? = null,
 )

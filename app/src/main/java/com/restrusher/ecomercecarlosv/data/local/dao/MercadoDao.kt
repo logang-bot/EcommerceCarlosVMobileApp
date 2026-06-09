@@ -16,8 +16,11 @@ interface MercadoDao {
     @Query("SELECT * FROM mercados WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): MercadoEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(mercado: MercadoEntity)
+    @Query("SELECT * FROM mercados WHERE id = :id LIMIT 1")
+    fun getByIdFlow(id: String): Flow<MercadoEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(mercado: MercadoEntity): Long
 
     @Update
     suspend fun update(mercado: MercadoEntity)

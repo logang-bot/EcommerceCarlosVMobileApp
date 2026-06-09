@@ -49,6 +49,63 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 
 ---
 
+## ✅ Resolved post-Phase 7
+
+### 💥 FK cascade data loss on mercado/cliente save — fixed
+
+**Root cause:** Room 2.7+ enables `PRAGMA foreign_keys = ON` by default. All parent-table DAOs (`MercadoDao`, `ClienteDao`) used `@Insert(onConflict = REPLACE)`, which internally DELETEs the old row before inserting the replacement — firing `ON DELETE CASCADE` and wiping all child rows (clientes, pedidos, detalle_pedido).
+
+**Symptom:** Editing a mercado's location field deleted all clientes and pedidos belonging to that mercado.
+
+**Fix:** All parent-table DAOs switched to `@Insert(onConflict = IGNORE)` returning `Long`. Repositories now fall through to `@Update` when `insert()` returns `-1`. `PedidoDao` and `DetallePedidoDao` also switched to `IGNORE` as a precaution. See `docs/db-schema.md → Data integrity` for the canonical pattern.
+
+### 💾 `fallbackToDestructiveMigration` removed
+
+Removed `.fallbackToDestructiveMigration(dropAllTables = true)` from `DatabaseModule`. Room now throws on a missing migration instead of silently dropping all tables.
+
+### 🖼️ Profile photo not rendering — fixed
+
+`ProfileAvatar` composable updated to accept an optional `photoUrl` parameter and delegate to `PhotoThumbnail` (initials as fallback). Wired through `PerfilUiState`, `PerfilViewModel`, `LoginFormState`, and `LoginViewModel` so both the profile screen and the biometric login welcome card show the user's photo when set.
+
+### 📍 DetalleMercadoScreen — UBICACIÓN section always visible
+
+Removed the `if (!mercado.mapsUrl.isNullOrBlank())` guard around the UBICACIÓN section. `MapsLinkField` already handles blank values gracefully (shows placeholder, hides "Abrir" chip).
+
+### 🔄 DetalleMercadoScreen — stale data after editing
+
+`DetalleMercadoViewModel` was a one-shot `init` loader. Replaced with a reactive `stateIn` over `MercadoRepository.getByIdFlow(mercadoId)`. Added `getByIdFlow(id)` to `MercadoDao` (Flow-returning query), `MercadoRepository` interface, and `MercadoRepositoryImpl`. The screen now updates automatically when any edit is saved.
+
+### 👤 Profile state not reflecting edits immediately
+
+`PerfilViewModel.loadProfile()` was reading `sessionManager.currentUser.value` once in an `init` coroutine. Changed to `sessionManager.currentUser.collect { … }` so the UI reacts to session updates without a navigate-back/navigate-in cycle.
+
+### 🏠 Home screen avatar not showing profile photo
+
+`MercadosUiState` and `MercadosViewModel` now thread `currentUserPhotoUrl` from `SessionManager`. `MercadosScreen` passes it to `ProfileAvatar` in the top-bar action slot.
+
+### 🧾 DetallePedidoScreen — overflow menu, button color, payment validation
+
+Three UI fixes applied to `DetallePedidoScreen`:
+
+1. **Three-dot overflow menu** — `PedidoOverflowMenu` composable added (matches `ClientesFilterMenu` design: `DropdownMenu` with `elevated` container, `border2`, `RoundedCornerShape(16.dp)`). Two actions:
+   - *Modificar fecha* → Material3 `DatePickerDialog` pre-filled with the pedido's current `createdAt`.
+   - *Eliminar pedido* → `AlertDialog` confirmation → calls `pedidoRepository.delete()` and pops back.
+   - Supporting: `PedidoDao.updateDate()` query, `PedidoRepository.updateDate()`, `PedidoRepositoryImpl` impl, `showDeleteConfirm` + `showDatePicker` flags in `DetallePedidoUiState`, and corresponding ViewModel handlers.
+
+2. **"Marcar pagado" button color** — changed from `MaterialTheme.extendedColors.greenText` to `MaterialTheme.colorScheme.primary` to match the standard button color pattern.
+
+3. **Partial payment validation** — `PagoParcialSheetContent` now has the same guards as `PagoSheet`: `showError` flag, `LaunchedEffect(amountText)` reset, `isAmountEmpty`/`isAmountTooHigh`/`canConfirm` checks, `isError` on the text field, error text below it, and alpha-dimmed button. Reuses existing `pedidos_pago_parcial_error_vacio` and `pedidos_pago_parcial_error_maximo` strings.
+
+### 📅 Date picker off-by-one when modifying pedido date
+
+`DatePicker` returns UTC midnight for the selected date. `SimpleDateFormat` renders it in the device's local timezone, showing the previous day for UTC-negative zones. Fix: `selectedDateMillis - TimeZone.getDefault().getOffset(selectedDateMillis)` converts UTC midnight to local midnight before saving.
+
+### 💰 Partial payment showing pedido creation date instead of payment date
+
+`onRegistrarPago` only set `paidAt = System.currentTimeMillis()` when the pedido became fully `PAID`; for `PARTIAL` it passed `null`, causing `PagosSection` to fall back to `createdAt`. Fixed: `paidAt` is now always set to `System.currentTimeMillis()` regardless of resulting status.
+
+---
+
 ## ✅ Resolved in Phase 2c
 
 ### 👆 Biometric Authentication — now fully functional

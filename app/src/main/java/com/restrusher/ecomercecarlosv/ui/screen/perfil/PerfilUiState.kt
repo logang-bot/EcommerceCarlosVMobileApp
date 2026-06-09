@@ -8,6 +8,7 @@ data class PerfilUiState(
     val phone: String = "",
     val role: UserRole = UserRole.USUARIO,
     val initials: String = "",
+    val photoUrl: String? = null,
     val isBiometricAvailable: Boolean = false,
     val isBiometricEnrolled: Boolean = false,
     val biometricEnabledDate: String? = null,

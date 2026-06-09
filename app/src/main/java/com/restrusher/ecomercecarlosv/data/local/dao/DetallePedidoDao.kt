@@ -11,7 +11,7 @@ interface DetallePedidoDao {
     @Query("SELECT * FROM detalle_pedido WHERE pedidoId = :pedidoId")
     suspend fun getByPedido(pedidoId: String): List<DetallePedidoEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(detalles: List<DetallePedidoEntity>)
 
     @Query("DELETE FROM detalle_pedido WHERE pedidoId = :pedidoId")

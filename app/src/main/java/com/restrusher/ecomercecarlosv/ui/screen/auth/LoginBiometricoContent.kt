@@ -194,7 +194,7 @@ private fun WelcomeBackCard(state: LoginFormState) {
             color = ext.text3,
         )
         Spacer(modifier = Modifier.height(14.dp))
-        ProfileAvatar(initials = state.enrolledUserInitials, size = 68)
+        ProfileAvatar(initials = state.enrolledUserInitials, photoUrl = state.enrolledUserPhotoUrl, size = 68)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = state.enrolledUserName,

@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -100,6 +102,20 @@ private fun PagoSheetContent(
     onSubmit: (Double) -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
+    var showEmptyError by remember { mutableStateOf(false) }
+    LaunchedEffect(selected) { showEmptyError = false }
+
+    val partialAmount = partialAmountText.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val isPartialEmpty = selected == PaymentOption.PARTIAL && partialAmountText.isBlank()
+    val isPartialTooHigh = selected == PaymentOption.PARTIAL && partialAmountText.isNotBlank() && partialAmount > total
+    val canConfirm = !isPartialEmpty && !isPartialTooHigh
+
+    val initialPayment = when (selected) {
+        PaymentOption.PAID -> total
+        PaymentOption.PARTIAL -> partialAmount
+        PaymentOption.PENDING -> 0.0
+    }
+
     Column(modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 28.dp)) {
         TotalHeader(total = total, clienteName = clienteName, itemCount = itemCount)
         Spacer(Modifier.height(16.dp))
@@ -127,8 +143,13 @@ private fun PagoSheetContent(
             Spacer(Modifier.height(8.dp))
             PartialAmountInput(
                 text = partialAmountText,
-                onValueChange = onPartialAmountChange,
+                onValueChange = {
+                    showEmptyError = false
+                    onPartialAmountChange(it)
+                },
                 total = total,
+                showEmptyError = showEmptyError,
+                isTooHigh = isPartialTooHigh,
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -143,17 +164,18 @@ private fun PagoSheetContent(
         )
         Spacer(Modifier.height(20.dp))
 
-        val partialAmount = partialAmountText.replace(",", ".").toDoubleOrNull() ?: 0.0
-        val initialPayment = when (selected) {
-            PaymentOption.PAID -> total
-            PaymentOption.PARTIAL -> partialAmount.coerceAtMost(total)
-            PaymentOption.PENDING -> 0.0
-        }
-        val canConfirm = selected != PaymentOption.PARTIAL || partialAmount > 0.0
         TextButton(
-            onClick = { onSubmit(initialPayment) },
-            enabled = !isSaving && canConfirm,
-            modifier = Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primary),
+            onClick = {
+                if (canConfirm) onSubmit(initialPayment)
+                else showEmptyError = true
+            },
+            enabled = !isSaving,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .alpha(if (!canConfirm && !isSaving) 0.5f else 1f)
+                .background(MaterialTheme.colorScheme.primary),
         ) {
             if (isSaving) CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
             else Text(stringResource(R.string.pedidos_registrar), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
@@ -230,37 +252,62 @@ private fun PaymentOptionRow(
 }
 
 @Composable
-private fun PartialAmountInput(text: String, onValueChange: (String) -> Unit, total: Double) {
+private fun PartialAmountInput(
+    text: String,
+    onValueChange: (String) -> Unit,
+    total: Double,
+    showEmptyError: Boolean = false,
+    isTooHigh: Boolean = false,
+) {
     val ext = MaterialTheme.extendedColors
     val paid = text.replace(",", ".").toDoubleOrNull() ?: 0.0
     val remaining = (total - paid).coerceAtLeast(0.0)
+    val hasError = showEmptyError || isTooHigh
     val shape = RoundedCornerShape(14.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .clip(shape)
-            .background(ext.surface2)
-            .border(1.5.dp, MaterialTheme.colorScheme.primary, shape)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Bs.", fontSize = 15.sp, color = ext.text2, fontWeight = FontWeight.Medium)
-        BasicTextField(
-            value = text,
-            onValueChange = onValueChange,
-            modifier = Modifier.weight(1f),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-        )
-        Text("Restan Bs. ${"%.2f".format(remaining)}", fontSize = 12.5.sp, color = ext.text3)
+    val borderColor = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .clip(shape)
+                .background(ext.surface2)
+                .border(1.5.dp, borderColor, shape)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Bs.", fontSize = 15.sp, color = ext.text2, fontWeight = FontWeight.Medium)
+            BasicTextField(
+                value = text,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+            )
+            if (!hasError && text.isNotBlank()) {
+                Text("Restan Bs. ${"%.2f".format(remaining)}", fontSize = 12.5.sp, color = ext.text3)
+            }
+        }
+        if (hasError) {
+            val errorText = if (isTooHigh)
+                stringResource(R.string.pedidos_pago_parcial_error_maximo, "%.2f".format(total))
+            else
+                stringResource(R.string.pedidos_pago_parcial_error_vacio)
+            Text(
+                text = errorText,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+            )
+        }
     }
 }
 
