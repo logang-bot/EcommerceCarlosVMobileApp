@@ -91,7 +91,12 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 - `DetalleClienteViewModel` stores `clienteRepository` as a field (needed for `unblacklist()`). Exposes `fun unblacklist()` which launches a coroutine.
 - `DetalleClienteViewModel` uses `clienteRepository.getByIdFlow(clienteId).stateIn(...)` instead of a one-shot `getById`. This means `DetalleClienteScreen` reacts to any DB change for that client — including blacklisting/unblacklisting — without manual refresh.
 - `DetalleClienteScreen.onListaNegraClick` navigates to `AgregarListaNegraRoute(clienteId)`. After confirming blacklist, navigation pops back to `DetalleClienteScreen`, which reactively switches to the blacklisted state.
-- `DetalleClienteScreen.onQuitarListaNegraClick` calls `viewModel.unblacklist()` directly (no confirmation screen — design shows a direct action button).
+- `DetalleClienteScreen.onQuitarListaNegraClick` calls `viewModel.onQuitarListaNegraClick()`:
+  - If `cliente.blacklistIsManualAmount == false`: unblacklists immediately (AUTO amount — no ambiguity).
+  - If `cliente.blacklistIsManualAmount == true`: opens `QuitarListaNegraSheet` with two options:
+    - **Restaurar datos** → clears the blacklist; pedidos are unchanged.
+    - **Marcar pedidos como pagados** → `pedidoRepository.markAllPaidForCliente(clienteId)` bulk-updates all non-PAID pedidos to PAID, then clears the blacklist.
+- When `blacklistIsManualAmount == true`, `DetalleClienteScreen` shows `BlacklistBalanceBlock` below `BalanceBlock`. `BalanceBlock` is rendered at `alpha(0.38f)` to signal it is not the operative amount.
 - `ClientesScreen` and `MercadosScreen` "Lista Negra" buttons navigate to `ListaNegraRoute`.
 
 ---

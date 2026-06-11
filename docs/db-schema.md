@@ -69,9 +69,10 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `blacklistReason` | `String?` | `text` | ✓ | Set when `isBlacklisted = true` |
 | `blacklistedAt` | `Long?` | `bigint` | ✓ | Epoch ms |
 | `blacklistBalance` | `Double` | `float8` | — | Owed balance recorded at time of blacklisting; default `0.0` *(added v8)* |
+| `blacklistIsManualAmount` | `Boolean` | `boolean` | — | `true` when amount was entered manually (MANUAL mode); `false` = AUTO *(added v12)* |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 
-**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at)`
+**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at, isManualAmount)` · `unblacklist(id)` (resets all blacklist fields incl. `blacklistIsManualAmount`)
 
 **Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`.
 

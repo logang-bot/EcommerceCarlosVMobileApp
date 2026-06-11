@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
@@ -26,17 +25,15 @@ class DetallePedidoViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val pedidoId: String = savedStateHandle.toRoute<DetallePedidoRoute>().pedidoId
-    private val _detalles = MutableStateFlow<List<DetallePedido>>(emptyList())
     private val _showPagoSheet = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
     private val _clienteName = MutableStateFlow("")
-    private val _showDeleteConfirm = MutableStateFlow(false)
-    private val _showDatePicker = MutableStateFlow(false)
 
     val uiState = combine(
-        combine(pedidoRepository.getByIdFlow(pedidoId), _detalles) { pedido, detalles ->
-            Pair(pedido, detalles)
-        },
+        combine(
+            pedidoRepository.getByIdFlow(pedidoId),
+            pedidoRepository.getDetallesByPedidoFlow(pedidoId),
+        ) { pedido, detalles -> Pair(pedido, detalles) },
         _showPagoSheet,
         _isSaving,
         _clienteName,
@@ -49,10 +46,6 @@ class DetallePedidoViewModel @Inject constructor(
             isSaving = saving,
             showPagoSheet = showSheet,
         )
-    }.combine(_showDeleteConfirm) { state, showDelete ->
-        state.copy(showDeleteConfirm = showDelete)
-    }.combine(_showDatePicker) { state, showDate ->
-        state.copy(showDatePicker = showDate)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -60,9 +53,6 @@ class DetallePedidoViewModel @Inject constructor(
     )
 
     init {
-        viewModelScope.launch {
-            _detalles.value = pedidoRepository.getDetallesByPedido(pedidoId)
-        }
         viewModelScope.launch {
             pedidoRepository.getByIdFlow(pedidoId).first()?.let { pedido ->
                 _clienteName.value = clienteRepository.getById(pedido.clienteId)?.name ?: ""
@@ -72,26 +62,6 @@ class DetallePedidoViewModel @Inject constructor(
 
     fun onShowPagoSheet() { _showPagoSheet.value = true }
     fun onDismissPagoSheet() { _showPagoSheet.value = false }
-
-    fun onShowDeleteConfirm() { _showDeleteConfirm.value = true }
-    fun onDismissDeleteConfirm() { _showDeleteConfirm.value = false }
-
-    fun onDeletePedido(onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            pedidoRepository.delete(pedidoId)
-            onSuccess()
-        }
-    }
-
-    fun onShowDatePicker() { _showDatePicker.value = true }
-    fun onDismissDatePicker() { _showDatePicker.value = false }
-
-    fun onUpdateDate(createdAt: Long) {
-        viewModelScope.launch {
-            pedidoRepository.updateDate(pedidoId, createdAt)
-            _showDatePicker.value = false
-        }
-    }
 
     fun onMarcarPagado() {
         val pedido = uiState.value.pedido ?: return

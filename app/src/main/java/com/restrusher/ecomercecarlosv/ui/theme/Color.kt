@@ -39,6 +39,9 @@ val DarkAmberTint   = Color(0x24E7B23E) // 14%
 val DarkRed         = Color(0xFFF05A50)
 val DarkRedText     = Color(0xFFFF7268)
 val DarkRedTint     = Color(0x24F05A50) // 14%
+val DarkBlue        = Color(0xFF4C8DF5)
+val DarkBlueText    = Color(0xFF7FB0FF)
+val DarkBlueTint    = Color(0x294C8DF5) // rgba(76,141,245,0.16)
 
 // ── Light theme ────────────────────────────────────────────────────────
 val LightBackground  = Color(0xFFF4F4F6)
@@ -75,6 +78,9 @@ val LightAmberTint   = Color(0x21C98A00) // 13%
 val LightRed         = Color(0xFFDC3B30)
 val LightRedText     = Color(0xFFC42A20)
 val LightRedTint     = Color(0x1ADC3B30) // 10%
+val LightBlue        = Color(0xFF2563EB)
+val LightBlueText    = Color(0xFF1D55C2)
+val LightBlueTint    = Color(0x1C2563EB) // rgba(37,99,235,0.11)
 
 // ── Extended colors (not covered by Material3 slots) ───────────────────
 data class PedidosExtendedColors(
@@ -102,6 +108,9 @@ data class PedidosExtendedColors(
     val amberTint: Color,
     val redText: Color,
     val redTint: Color,
+    val blue: Color,
+    val blueText: Color,
+    val blueTint: Color,
 )
 
 val DarkExtendedColors = PedidosExtendedColors(
@@ -129,6 +138,9 @@ val DarkExtendedColors = PedidosExtendedColors(
     amberTint    = DarkAmberTint,
     redText      = DarkRedText,
     redTint      = DarkRedTint,
+    blue         = DarkBlue,
+    blueText     = DarkBlueText,
+    blueTint     = DarkBlueTint,
 )
 
 val LightExtendedColors = PedidosExtendedColors(
@@ -156,4 +168,7 @@ val LightExtendedColors = PedidosExtendedColors(
     amberTint    = LightAmberTint,
     redText      = LightRedText,
     redTint      = LightRedTint,
+    blue         = LightBlue,
+    blueText     = LightBlueText,
+    blueTint     = LightBlueTint,
 )

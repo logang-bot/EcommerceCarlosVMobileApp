@@ -10,4 +10,5 @@ data class DetalleClienteUiState(
     val balance: Double = 0.0,
     val pedidos: List<Pedido> = emptyList(),
     val isLoading: Boolean = true,
+    val showUnblacklistSheet: Boolean = false,
 )

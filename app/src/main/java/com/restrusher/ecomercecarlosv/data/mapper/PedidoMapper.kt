@@ -15,6 +15,7 @@ object PedidoMapper {
         createdAt = entity.createdAt,
         paidAt = entity.paidAt,
         isSaldoExtra = entity.isSaldoExtra,
+        itemCount = entity.itemCount,
     )
 
     fun toEntity(domain: Pedido) = PedidoEntity(
@@ -27,5 +28,6 @@ object PedidoMapper {
         createdAt = domain.createdAt,
         paidAt = domain.paidAt,
         isSaldoExtra = domain.isSaldoExtra,
+        itemCount = domain.itemCount,
     )
 }

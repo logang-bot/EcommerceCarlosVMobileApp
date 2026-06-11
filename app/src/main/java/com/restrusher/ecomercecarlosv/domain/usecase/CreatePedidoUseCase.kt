@@ -33,6 +33,7 @@ class CreatePedidoUseCase @Inject constructor(
             paid = initialPayment,
             createdAt = now,
             paidAt = if (status == PedidoStatus.PAID) now else null,
+            itemCount = items.size,
         )
 
         val detalles = items.map { item ->

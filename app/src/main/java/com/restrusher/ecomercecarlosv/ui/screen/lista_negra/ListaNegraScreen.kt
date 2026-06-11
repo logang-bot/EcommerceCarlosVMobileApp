@@ -3,6 +3,7 @@ package com.restrusher.ecomercecarlosv.ui.screen.lista_negra
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -66,6 +68,7 @@ fun ListaNegraScreen(
         state = state,
         onBack = { navController.popBackStack() },
         onQueryChange = viewModel::onQueryChange,
+        onClienteClick = { clienteId -> navController.navigate(DetalleClienteRoute(clienteId)) },
     )
 }
 
@@ -74,6 +77,7 @@ private fun ListaNegraContent(
     state: ListaNegraUiState,
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
+    onClienteClick: (String) -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
     var searchActive by remember { mutableStateOf(false) }
@@ -155,7 +159,7 @@ private fun ListaNegraContent(
                     }
                 } else {
                     items(state.filtered, key = { it.clienteId }) { model ->
-                        BlacklistRow(model = model)
+                        BlacklistRow(model = model, onClick = { onClienteClick(model.clienteId) })
                         HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
                     }
                 }
@@ -197,11 +201,12 @@ private fun ListaNegraBanner(count: Int, totalBalance: Double) {
 }
 
 @Composable
-private fun BlacklistRow(model: BlacklistUiModel) {
+private fun BlacklistRow(model: BlacklistUiModel, onClick: () -> Unit) {
     val ext = MaterialTheme.extendedColors
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {

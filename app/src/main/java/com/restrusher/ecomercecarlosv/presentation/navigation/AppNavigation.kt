@@ -5,6 +5,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.EditarPedidoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.BusquedaRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.SaldoExtraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreacionPedidoRoute
@@ -34,6 +35,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.AgregarListaNegraScr
 import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
+import com.restrusher.ecomercecarlosv.ui.screen.pedido.EditarPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.producto.CreateProductoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
@@ -112,6 +114,9 @@ fun AppNavigation() {
         }
         composable<DetallePedidoRoute> {
             DetallePedidoScreen(navController = navController)
+        }
+        composable<EditarPedidoRoute> {
+            EditarPedidoScreen(navController = navController)
         }
     }
 }

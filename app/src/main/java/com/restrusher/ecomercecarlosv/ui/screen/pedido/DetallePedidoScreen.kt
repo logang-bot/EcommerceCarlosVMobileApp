@@ -1,9 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.pedido
 
 import android.content.res.Configuration
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,20 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,18 +22,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +39,7 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import com.restrusher.ecomercecarlosv.presentation.screens.EditarPedidoRoute
 import com.restrusher.ecomercecarlosv.ui.common.PayChip
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -66,7 +47,6 @@ import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,51 +63,12 @@ fun DetallePedidoScreen(
             onDismiss = viewModel::onDismissPagoSheet,
         )
     }
-    if (state.showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = viewModel::onDismissDeleteConfirm,
-            title = { Text(stringResource(R.string.detalle_pedido_menu_eliminar)) },
-            text = { Text(stringResource(R.string.detalle_pedido_eliminar_confirm)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.onDeletePedido { navController.popBackStack() } }) {
-                    Text(stringResource(R.string.common_eliminar), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::onDismissDeleteConfirm) {
-                    Text(stringResource(R.string.common_cancelar))
-                }
-            },
-        )
-    }
-    if (state.showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = state.pedido?.createdAt)
-        DatePickerDialog(
-            onDismissRequest = viewModel::onDismissDatePicker,
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { utcMidnight ->
-                        val localMidnight = utcMidnight - TimeZone.getDefault().getOffset(utcMidnight)
-                        viewModel.onUpdateDate(localMidnight)
-                    } ?: viewModel.onDismissDatePicker()
-                }) { Text(stringResource(R.string.common_confirmar)) }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::onDismissDatePicker) {
-                    Text(stringResource(R.string.common_cancelar))
-                }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
     DetallePedidoContent(
         state = state,
         onBack = { navController.popBackStack() },
         onMarcarPagado = viewModel::onMarcarPagado,
         onPagoParcial = viewModel::onShowPagoSheet,
-        onDelete = viewModel::onShowDeleteConfirm,
-        onModifyDate = viewModel::onShowDatePicker,
+        onEdit = { state.pedido?.id?.let { navController.navigate(EditarPedidoRoute(it)) } },
     )
 }
 
@@ -137,8 +78,7 @@ private fun DetallePedidoContent(
     onBack: () -> Unit,
     onMarcarPagado: () -> Unit,
     onPagoParcial: () -> Unit,
-    onDelete: () -> Unit,
-    onModifyDate: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val pedido = state.pedido
     Scaffold(
@@ -151,7 +91,9 @@ private fun DetallePedidoContent(
                 },
                 onBack = onBack,
                 actions = {
-                    PedidoOverflowMenu(onDelete = onDelete, onModifyDate = onModifyDate)
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                    }
                 },
             )
         },
@@ -236,79 +178,6 @@ internal fun DetalleSectionLabel(text: String) {
     )
 }
 
-@Composable
-private fun PedidoOverflowMenu(
-    onDelete: () -> Unit,
-    onModifyDate: () -> Unit,
-) {
-    val ext = MaterialTheme.extendedColors
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(
-            onClick = { expanded = !expanded },
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (expanded) ext.accentSoft else Color.Transparent),
-        ) {
-            Icon(
-                Icons.Default.MoreVert,
-                contentDescription = null,
-                tint = if (expanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.width(220.dp),
-            containerColor = ext.elevated,
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, ext.border2),
-            shadowElevation = 16.dp,
-        ) {
-            PedidoMenuItem(
-                icon = Icons.Default.CalendarToday,
-                label = stringResource(R.string.detalle_pedido_menu_modificar_fecha),
-            ) { expanded = false; onModifyDate() }
-            PedidoMenuItem(
-                icon = Icons.Default.Delete,
-                label = stringResource(R.string.detalle_pedido_menu_eliminar),
-                isDestructive = true,
-            ) { expanded = false; onDelete() }
-        }
-    }
-}
-
-@Composable
-private fun PedidoMenuItem(
-    icon: ImageVector,
-    label: String,
-    isDestructive: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val ext = MaterialTheme.extendedColors
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(11.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isDestructive) MaterialTheme.colorScheme.error else ext.text2,
-            modifier = Modifier.size(19.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
 // ── Previews ──────────────────────────────────────────────────────────
 
 private val previewPedido = Pedido(
@@ -329,7 +198,7 @@ private val previewState = DetallePedidoUiState(
 @Composable
 private fun DetallePedidoContentPreview() {
     EcomerceCarlosVTheme {
-        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {}, onDelete = {}, onModifyDate = {})
+        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {}, onEdit = {})
     }
 }
 
@@ -337,6 +206,6 @@ private fun DetallePedidoContentPreview() {
 @Composable
 private fun DetallePedidoContentDarkPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
-        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {}, onDelete = {}, onModifyDate = {})
+        DetallePedidoContent(state = previewState, onBack = {}, onMarcarPagado = {}, onPagoParcial = {}, onEdit = {})
     }
 }

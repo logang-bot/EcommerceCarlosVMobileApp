@@ -306,10 +306,18 @@
     <string name="detalle_cliente_saldo_total">Saldo pendiente total</string>
     <string name="detalle_cliente_lista_negra_title">En Lista Negra</string>
     <string name="detalle_cliente_lista_negra_subtitle">Vetado desde el %s · no se pueden crear pedidos nuevos.</string>
+    <string name="detalle_cliente_monto_vetado_label">Monto vetado</string>
+    <string name="detalle_cliente_monto_vetado_subtitle">Importe registrado al vetar</string>
     <string name="detalle_cliente_pedidos_section">Pedidos</string>
     <string name="detalle_cliente_pedidos_empty_title">Sin pedidos todavía</string>
     <string name="detalle_cliente_pedidos_empty_subtitle">Este cliente aún no tiene pedidos registrados.</string>
     <string name="detalle_cliente_pedidos_empty_hint">Nuevo pedido</string>
+    <string name="quitar_lista_negra_sheet_title">Resolver veto</string>
+    <string name="quitar_lista_negra_sheet_subtitle">¿Cómo deseas resolver la situación del cliente?</string>
+    <string name="quitar_lista_negra_restore_title">Restaurar datos</string>
+    <string name="quitar_lista_negra_restore_desc">El monto manual se elimina. Los pedidos no cambian de estado.</string>
+    <string name="quitar_lista_negra_mark_paid_title">Marcar pedidos como pagados</string>
+    <string name="quitar_lista_negra_mark_paid_desc">Los pedidos pendientes y parciales quedan saldados.</string>
 
     <!-- Crear / Editar Cliente -->
     <string name="create_cliente_title_new">Nuevo cliente</string>
@@ -391,6 +399,17 @@
     <string name="detalle_pedido_menu_eliminar">Eliminar pedido</string>
     <string name="detalle_pedido_menu_modificar_fecha">Modificar fecha</string>
     <string name="detalle_pedido_eliminar_confirm">¿Eliminar este pedido? Esta acción no se puede deshacer.</string>
+
+    <!-- Editar Pedido -->
+    <string name="editar_pedido_title">Editar pedido</string>
+    <string name="editar_pedido_fecha_section">Fecha del pedido</string>
+    <string name="editar_pedido_agregar_producto">Agregar producto</string>
+    <string name="editar_pedido_quitar">Quitar</string>
+    <string name="editar_pedido_eliminar">Eliminar pedido</string>
+    <string name="editar_pedido_eliminar_confirm">Se eliminará el pedido y se ajustará el saldo del cliente. Esta acción no se puede deshacer.</string>
+    <string name="editar_pedido_guardar">Guardar cambios</string>
+    <string name="editar_pedido_nuevo_total">Nuevo total</string>
+    <string name="editar_pedido_info_abono">Pedido &lt;b>%1$s&lt;/b> — ya tiene &lt;b>Bs. %2$s&lt;/b> abonados. Editar las cantidades recalculará el saldo restante.</string>
 
     <!-- Agregar a Lista Negra -->
     <string name="agregar_lista_negra_title">Agregar a Lista Negra</string>

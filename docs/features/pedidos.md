@@ -1,6 +1,6 @@
 # Feature: Pedidos
 
-## Status: ✅ Done (Phase 4 + Phase 5)
+## Status: ✅ Done (Phase 4 + Phase 5 + Phase 6)
 
 ---
 
@@ -18,6 +18,7 @@ Two sub-features:
 |--------|-------|------|--------|
 | Creación de Pedido | `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `ui/screen/pedido/CreacionPedidoScreen.kt` | ✅ Done |
 | Detalle de Pedido | `DetallePedidoRoute(pedidoId)` | `ui/screen/pedido/DetallePedidoScreen.kt` | ✅ Done |
+| Editar Pedido | `EditarPedidoRoute(pedidoId)` | `ui/screen/pedido/EditarPedidoScreen.kt` | ✅ Done |
 
 ---
 
@@ -42,8 +43,13 @@ Two sub-features:
 | `domain/usecase/CreateSaldoExtraUseCase.kt` | ✅ |
 | Room migration 8→9 (`MIGRATION_8_9`) — creates `pedidos` + `detalle_pedido` | ✅ |
 | Room migration 9→10 (`MIGRATION_9_10`) — adds `isSaldoExtra` column to `pedidos` | ✅ |
+| Room migration 10→11 (`MIGRATION_10_11`) — adds `itemCount INTEGER NOT NULL DEFAULT 0` to `pedidos` | ✅ |
 | `PedidoDao.updateDate(id, createdAt)` — `UPDATE pedidos SET createdAt = :createdAt` | ✅ |
+| `PedidoDao.updateAfterEdit(id, total, itemCount, status, paid, paidAt)` — single query updating all five fields atomically | ✅ |
+| `DetallePedidoDao.getByPedidoFlow(pedidoId)` — `Flow<List<DetallePedidoEntity>>` for reactive line-item observation | ✅ |
 | `PedidoRepository.updateDate(id, createdAt)` + `PedidoRepositoryImpl` impl | ✅ |
+| `PedidoRepository.updateLines(pedidoId, detalles, newTotal, paid, paidAt)` — atomic line + total update | ✅ |
+| `PedidoRepository.getDetallesByPedidoFlow(pedidoId)` — reactive flow counterpart to `getDetallesByPedido` | ✅ |
 
 ---
 
@@ -137,9 +143,40 @@ Status rules:
 - `DetalleClienteViewModel` now `combine`s `clienteRepository.getByIdFlow` + `pedidoRepository.getByCliente` to compute real balance and status
 - **Balance** = sum of `pending` for pedidos where `status == PARTIAL` OR (`status == PENDING && isSaldoExtra`). Regular PENDING pedidos are NOT counted — they represent unconfirmed orders, not actual debt. Saldo-extra entries always count since they are deliberate debt records.
 - **Status**: `AL_DIA` if balance == 0; `CRITICO` if balance > 200 or any balance-contributing pedido is older than 30 days; `ADVERTENCIA` otherwise
-- `PedidoRow` (in `ui/screen/cliente/`) renders each pedido: icon tile, product count + date, total (mono), `PayChip`
 - Empty state shown when no pedidos exist
 - FAB navigates to `CreacionPedidoRoute(clienteId, clienteName, mercadoName)`
+
+### BalanceBlock staleness fix (Phase 6)
+
+`DetalleClienteViewModel` uses `SharingStarted.Eagerly` (not `WhileSubscribed`) so the upstream `combine` is always active while the ViewModel is alive. This ensures that when `DetallePedidoViewModel` writes a partial payment to the DB, Room notifies the running flow and `BalanceBlock` is updated before the user even navigates back.
+
+### PedidoRow redesign (Phase 6)
+
+`PedidoRow.kt` was refactored into focused sub-composables:
+
+| Composable | Responsibility |
+|---|---|
+| `PedidoRow` | Entry point — routes to `OrderRowContent` or `SaldoExtraRowContent` |
+| `PedidoIconTile` | 42×42 rounded tile: `surface3`/`amberTint` bg, `Receipt`/`Tag` icon |
+| `OrderRowContent` | Regular order layout: date as primary text, "{n} productos" subtitle, amount column |
+| `SaldoExtraRowContent` | Saldo layout (unchanged): "Saldo extra" + Manual badge, date + notes subtitle |
+| `PartialAmountDisplay` | Strikethrough total (`text3`) + remaining in `blueText` (baseline-aligned) |
+| `ManualBadge` | Amber "MANUAL" label pill |
+
+**Row layout — regular order:**
+- Primary text: formatted `createdAt` date (14.5sp, SemiBold)
+- Subtitle: `"{n} productos"` using `pedido.itemCount` (12.5sp, `text3`)
+- Amount — normal: total (14.5sp, SemiBold, mono)
+- Amount — partial: `total` with `TextDecoration.LineThrough` in `text3` (12.5sp) + `pending` in `blueText` (14.5sp, Bold, baseline-aligned)
+- `PayChip` below the amount
+
+**Row layout — saldo extra:** unchanged from prior design.
+
+**Row separators:** `PedidosSection` now renders a `HorizontalDivider` (`border` color, `start = 75.dp` padding to align with content, skipping the icon column) between rows.
+
+**`itemCount` field:** Added `itemCount: Int = 0` to `Pedido` domain model and `PedidoEntity`. `CreatePedidoUseCase` sets it to `items.size`. Saldo-extra pedidos always default to 0. Existing rows migrate to 0 via `MIGRATION_10_11` (accurate counts can only be backfilled from `detalle_pedido`). New pedidos have the correct count from creation.
+
+**`blueText` color:** Added to `PedidosExtendedColors` (`DarkBlueText = #7FB0FF`, `LightBlueText = #1D55C2`) — used exclusively for partial-payment remaining amounts.
 
 ---
 
@@ -149,17 +186,21 @@ Status rules:
 
 | File | Responsibility |
 |------|---------------|
-| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet`, `showDeleteConfirm`, `showDatePicker` |
-| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (5 flows) + two chained `.combine` for modal flags; loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, sheet toggles, `onDeletePedido()`, `onUpdateDate(createdAt)` |
-| `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody`, `PedidoOverflowMenu`, `PedidoMenuItem`, delete `AlertDialog`, `DatePickerDialog` |
+| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet` |
+| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (4 flows); loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, pago sheet toggles |
+| `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody`; `Edit` pencil icon in top-bar `actions` navigates to `EditarPedidoRoute` |
 | `DetallePedidoActions.kt` | `DetallePedidoBottomBar`, `PagoParcialSheet`, `PagoParcialSheetContent` |
 | `DetallePedidoLineItem.kt` | `LineItemsSection`, `LineItemRow`, `PriceModifiedHint` |
 | `DetallePedidoSummary.kt` | `TotalBlock`, `PagosSection`, `DetalleSectionLabel` |
+| `EditarPedidoUiState.kt` | `EditLineState` (mutable line), `EditarPedidoUiState` with `editedDate`, `lines`, `editingLineIndex`, `showPaymentSheet`, computed `newTotal` |
+| `EditarPedidoViewModel.kt` | `@HiltViewModel`; loads pedido + detalles + clienteName once (one-shot, not flow); line mutation in-memory; `onShowPaymentSheet()` → sheet → `onSave(payment)` writes via `updateLines` + `updateDate` if date changed |
+| `EditarPedidoScreen.kt` | Scaffold entry + content, `PagoInfoBanner`, `DateField`, `LinesSection`, `EditOrderLineRow`, `LineQuantityStepper`, `DangerZone`, `EditarPedidoBottomBar`, `EditLineSheet` (price/notes bottom sheet); "Guardar cambios" triggers `PagoSheet` with current status pre-selected |
+| `ui/common/PagoSheet.kt` | Shared payment-type selector (`PagoSheet`): 3 options (PAID/PARTIAL/PENDING) with normalized status colors (green/blue/amber); used by both CreacionPedidoScreen and EditarPedidoScreen; accepts `initialStatus` + `initialPaidAmount` for pre-selection and `ctaLabel` for context-specific CTA text |
 
 ### Screen structure
 
 `DetallePedidoScreen` uses a `Scaffold` with:
-- `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026") + `PedidoOverflowMenu` in the `actions` slot
+- `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026") + `Edit` `IconButton` in `actions` → navigates to `EditarPedidoRoute(pedidoId)`
 - `bottomBar` = `DetallePedidoBottomBar` — hidden when `status == PAID`; "Pago parcial" (outlined, `Add` icon) + "Marcar pagado" (`primary` bg, `Check` icon); both use `heightIn(min = 50.dp)` to avoid text clipping
 - content = scrollable `Column`: `PedidoStatusStrip` → `HorizontalDivider` → body → `HorizontalDivider` → `TotalBlock` → (if `paid > 0`) `HorizontalDivider` + `PagosSection`
 
@@ -183,12 +224,9 @@ Body adapts by pedido type:
 
 Shown when `paid > 0`. Single-row simplified history (no separate `pagos` table exists): 30×30 `greenTint` tile + `Check` icon + date (`paidAt ?: createdAt`, formatted "dd MMM yyyy" in Spanish) + "+ Bs. X.XX" in `greenText` mono. A future `pagos` table would enable full per-payment history.
 
-### PedidoOverflowMenu
+### Edit icon (top-bar action)
 
-`DropdownMenu` composable anchored to a `MoreVert` `IconButton` in the top-bar `actions` slot. Matches `ClientesFilterMenu` design (`elevated` container color, `border2` 1dp stroke, `RoundedCornerShape(16.dp)`, `shadowElevation = 16.dp`, width 220dp). Two `PedidoMenuItem` rows:
-
-- **Modificar fecha** (`CalendarToday` icon) — opens a Material3 `DatePickerDialog` pre-filled with `pedido.createdAt`. On confirm, `selectedDateMillis` is adjusted from UTC midnight to local midnight (`utcMidnight - TimeZone.getDefault().getOffset(utcMidnight)`) before calling `onUpdateDate(Long)`. This prevents the date appearing one day early on UTC-negative devices.
-- **Eliminar pedido** (`Delete` icon, `error` color) — opens an `AlertDialog` confirmation. On confirm, calls `pedidoRepository.delete(pedidoId)` and pops back.
+Simple `IconButton` with `Icons.Default.Edit` in the `PedidosTopBar` `actions` slot. Tapping navigates to `EditarPedidoRoute(pedidoId)` using `state.pedido?.id`.
 
 ### PagoParcialSheet
 
@@ -208,9 +246,75 @@ Validation mirrors `PagoSheet` in Creación de Pedido:
 
 `onRegistrarPago(amount)` — `newPaid = (paid + amount).coerceAtMost(total)`; status becomes `PAID` if `newPaid >= total`, `PARTIAL` otherwise; `paidAt = System.currentTimeMillis()` always set (so `PagosSection` shows the payment date, not the pedido creation date).
 
-`onDeletePedido(onSuccess)` — calls `pedidoRepository.delete(pedidoId)` then invokes the callback.
+---
 
-`onUpdateDate(createdAt)` — calls `pedidoRepository.updateDate(pedidoId, createdAt)`; dismisses the date picker.
+## UI — Phase 6: Editar Pedido
+
+### Navigation
+
+`DetallePedidoScreen` → `Edit` icon (top-bar) → `EditarPedidoRoute(pedidoId)` → `EditarPedidoScreen`. On save, `popBackStack()` returns to `DetallePedidoScreen`, which auto-refreshes because `DetallePedidoViewModel` combines two reactive Room flows — `getByIdFlow` (pedido) and `getDetallesByPedidoFlow` (line items) — so both the payment state and line items reflect writes from `EditarPedidoViewModel.onSave()` without any explicit signaling.
+
+On delete from `EditarPedidoScreen`: two `popBackStack()` calls — first pops `EditarPedidoScreen`, second pops `DetallePedidoScreen` — landing back on the client detail.
+
+### Screen structure
+
+`EditarPedidoScreen` uses a `Scaffold` with:
+- `topBar` = `PedidosTopBar` (title "Editar pedido", subtitle = "date · clienteName")
+- `bottomBar` = `EditarPedidoBottomBar` — "Nuevo total" amount on the left + "Guardar cambios" `Button` with `Check` icon; tapping opens the `PagoSheet` overlay (preselected to current pedido status)
+- content = scrollable `Column`:
+  - `PagoInfoBanner` — blue-tint info banner shown when `pedido.paid > 0`; describes the status and abonado amount
+  - `DateField` — section label + 50dp tappable row (surface2 bg, border2, calendar icon + date text + chevron) → `DatePickerDialog`
+  - `LinesSection` — section label "N productos" + `EditOrderLineRow` per line (divided by start-inset `HorizontalDivider`)
+  - `DangerZone` — `HorizontalDivider` + "Eliminar pedido" red-tint button + helper text → `AlertDialog` confirmation
+
+### EditOrderLineRow
+
+Each line:
+- 40×40 product tile (surface3, border, Sell icon)
+- Name + tappable price row (opens `EditLineSheet`): unit price in mono, amber if modified + strikethrough catalog price, `Edit` icon in accent
+- Subtotal (mono, right-aligned)
+- Below: `LineQuantityStepper` (38dp, surface2 + border2, minus/qty/plus) + "Quitar" button (redTint bg, redText, trash icon) + optional italic notes block
+
+### EditLineSheet
+
+`ModalBottomSheet` (skipPartiallyExpanded):
+- Product header (48dp tile + name + "Precio de catálogo · Bs. X.XX")
+- Unit price `OutlinedTextField` with `Bs.` prefix
+- `PriceModifiedBanner` (amber tint, Tag icon) shown when price ≠ catalogPrice
+- Notes `OutlinedTextField` (optional, 2–4 lines)
+- Subtotal row
+- "Confirmar" CTA → `onSave(price, notes)`
+
+### EditarPedidoViewModel save flow
+
+1. User taps "Guardar cambios" → `onShowPaymentSheet()` → `PagoSheet` overlay appears pre-selected with `pedido.status` and `pedido.paid` prefilled in the partial field
+2. User confirms a payment option → `onSave(payment: Double, onSuccess)`
+3. `onSave`: saves date if changed, calls `updateLines` with the chosen payment, then `onSuccess()` → `popBackStack()`
+
+`updateLines` in `PedidoRepositoryImpl`:
+- Recomputes status: `PAID` if `paid >= newTotal`, `PARTIAL` if `paid > 0`, `PENDING` otherwise
+- `detallePedidoDao.deleteByPedido` + `insertAll`
+- `pedidoDao.updateAfterEdit(id, total, itemCount, status, paid, paidAt)` — writes all five columns in one shot, so `paid` is always persisted regardless of the new status
+
+### PagoSheet — shared payment-type selector
+
+Moved to `ui/common/PagoSheet.kt` (used by both CreacionPedidoScreen and EditarPedidoScreen).
+
+**Status color normalization** (matches `PayChip`):
+| Status | Icon | Active color | Tint bg |
+|--------|------|-------------|---------|
+| PAID | `Check` | `ext.green` | `ext.greenTint` |
+| PARTIAL | `Payments` | `ext.blue` | `ext.blueTint` |
+| PENDING | `Tag` | `ext.amber` | `ext.amberTint` |
+
+`ext.blue` was added to `PedidosExtendedColors` (`DarkBlue = #4C8DF5`, `LightBlue = #2563EB`) — the base blue used for partial-payment state borders and icon tints.
+
+**API parameters:**
+- `initialStatus: PedidoStatus = PENDING` — pre-selects the matching radio
+- `initialPaidAmount: Double = 0.0` — prefills the partial text field (used in edit context)
+- `ctaLabel: String? = null` — null falls back to "Registrar pedido"; EditarPedidoScreen passes "Guardar cambios"
+
+**`PartialAmountInput` border** uses `ext.blue` (focused) instead of `primary` (green) to keep the blue identity for partial-payment state.
 
 ---
 

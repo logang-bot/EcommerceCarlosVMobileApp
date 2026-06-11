@@ -32,4 +32,10 @@ interface PedidoDao {
 
     @Query("DELETE FROM pedidos WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("UPDATE pedidos SET status = 'PAID', paid = total, paidAt = :paidAt WHERE clienteId = :clienteId AND status != 'PAID'")
+    suspend fun markAllPaidForCliente(clienteId: String, paidAt: Long)
+
+    @Query("UPDATE pedidos SET total = :total, itemCount = :itemCount, status = :status, paid = :paid, paidAt = :paidAt WHERE id = :id")
+    suspend fun updateAfterEdit(id: String, total: Double, itemCount: Int, status: String, paid: Double, paidAt: Long?)
 }

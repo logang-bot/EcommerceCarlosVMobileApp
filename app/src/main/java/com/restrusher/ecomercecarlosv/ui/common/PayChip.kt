@@ -24,7 +24,7 @@ fun PayChip(
     val ext = MaterialTheme.extendedColors
     val (bg, textColor, label) = when (status) {
         PedidoStatus.PAID -> Triple(ext.greenTint, ext.greenText, stringResource(R.string.pedidos_estado_pagado))
-        PedidoStatus.PARTIAL -> Triple(ext.accentSoft, MaterialTheme.colorScheme.primary, stringResource(R.string.pedidos_estado_parcial))
+        PedidoStatus.PARTIAL -> Triple(ext.blueTint, ext.blueText, stringResource(R.string.pedidos_estado_parcial))
         PedidoStatus.PENDING -> Triple(ext.amberTint, ext.amberText, stringResource(R.string.pedidos_estado_pendiente))
     }
     Text(

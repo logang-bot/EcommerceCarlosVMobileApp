@@ -16,6 +16,7 @@ object ClienteMapper {
         blacklistReason = entity.blacklistReason,
         blacklistedAt = entity.blacklistedAt,
         blacklistBalance = entity.blacklistBalance,
+        blacklistIsManualAmount = entity.blacklistIsManualAmount,
         createdAt = entity.createdAt,
     )
 
@@ -31,6 +32,7 @@ object ClienteMapper {
         blacklistReason = domain.blacklistReason,
         blacklistedAt = domain.blacklistedAt,
         blacklistBalance = domain.blacklistBalance,
+        blacklistIsManualAmount = domain.blacklistIsManualAmount,
         createdAt = domain.createdAt,
     )
 }

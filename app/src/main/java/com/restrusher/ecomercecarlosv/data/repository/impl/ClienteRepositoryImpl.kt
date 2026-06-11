@@ -35,8 +35,8 @@ class ClienteRepositoryImpl @Inject constructor(
     override suspend fun delete(id: String) =
         dao.deleteById(id)
 
-    override suspend fun blacklist(id: String, reason: String, balance: Double, at: Long) =
-        dao.blacklist(id, reason, balance, at)
+    override suspend fun blacklist(id: String, reason: String, balance: Double, at: Long, isManualAmount: Boolean) =
+        dao.blacklist(id, reason, balance, at, isManualAmount)
 
     override suspend fun unblacklist(id: String) =
         dao.unblacklist(id)

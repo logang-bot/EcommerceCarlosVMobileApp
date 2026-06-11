@@ -99,6 +99,18 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE pedidos ADD COLUMN itemCount INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE clientes ADD COLUMN blacklistIsManualAmount INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -126,7 +138,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         PedidoEntity::class,
         DetallePedidoEntity::class,
     ],
-    version = 10,
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

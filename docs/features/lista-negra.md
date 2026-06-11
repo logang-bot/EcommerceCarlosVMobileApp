@@ -114,23 +114,45 @@ data class AgregarListaNegraUiState(
 
 ## Data layer
 
+`blacklistBalance: Double` and `blacklistIsManualAmount: Boolean` are stored on `ClienteEntity` / `Cliente`.
+
+| Column | Migration | Purpose |
+|--------|-----------|---------|
+| `blacklistBalance` | 7→8 | Amount owed at the time of blacklisting |
+| `blacklistIsManualAmount` | 11→12 | `true` when the user typed the amount manually (MANUAL mode), `false` for AUTO (computed from pedidos) |
+
+`blacklistIsManualAmount` drives:
+- Whether `DetalleClienteScreen` shows the `BlacklistBalanceBlock` (manual amount) and dims `BalanceBlock`
+- Whether "Quitar de Lista Negra" opens the resolution sheet or unblacklists immediately
+
+### DAO operations
+
 `blacklistBalance: Double` was added to `ClienteEntity` and `Cliente` in Room migration **7→8**:
 
 ```sql
 ALTER TABLE clientes ADD COLUMN blacklistBalance REAL NOT NULL DEFAULT 0.0
 ```
 
-New DAO operations added to `ClienteDao`:
+DAO operations on `ClienteDao`:
 
 ```kotlin
 @Query("SELECT * FROM clientes WHERE isBlacklisted = 1 ORDER BY blacklistedAt DESC")
 fun getBlacklisted(): Flow<List<ClienteEntity>>
 
-@Query("UPDATE clientes SET isBlacklisted = 1, blacklistReason = :reason, blacklistBalance = :balance, blacklistedAt = :at WHERE id = :id")
-suspend fun blacklist(id: String, reason: String, balance: Double, at: Long)
+@Query("UPDATE clientes SET isBlacklisted = 1, blacklistReason = :reason, blacklistBalance = :balance, blacklistedAt = :at, blacklistIsManualAmount = :isManualAmount WHERE id = :id")
+suspend fun blacklist(id: String, reason: String, balance: Double, at: Long, isManualAmount: Boolean)
+
+@Query("UPDATE clientes SET isBlacklisted = 0, blacklistReason = NULL, blacklistBalance = 0, blacklistIsManualAmount = 0, blacklistedAt = NULL WHERE id = :id")
+suspend fun unblacklist(id: String)
 ```
 
-Both methods are exposed through `ClienteRepository` / `ClienteRepositoryImpl`.
+DAO operation added to `PedidoDao`:
+```kotlin
+@Query("UPDATE pedidos SET status = 'PAID', paid = total, paidAt = :paidAt WHERE clienteId = :clienteId AND status != 'PAID'")
+suspend fun markAllPaidForCliente(clienteId: String, paidAt: Long)
+```
+
+All methods are exposed through their respective repository interfaces and impls.
 
 ---
 
@@ -140,15 +162,20 @@ Both methods are exposed through `ClienteRepository` / `ClienteRepositoryImpl`.
 |------|-------------|
 | `ui/screen/lista_negra/ListaNegraUiState.kt` | `BlacklistUiModel` + `ListaNegraUiState` |
 | `ui/screen/lista_negra/ListaNegraViewModel.kt` | Reactive list with mercado resolution |
-| `ui/screen/lista_negra/ListaNegraScreen.kt` | Full list UI with search and banner |
+| `ui/screen/lista_negra/ListaNegraScreen.kt` | Full list UI with search and banner; rows are now clickable → `DetalleClienteRoute` |
 | `ui/screen/lista_negra/AgregarListaNegraUiState.kt` | `TotalMode` enum + form state with `autoAmount`/`effectiveAmount`/`canConfirm` |
-| `ui/screen/lista_negra/AgregarListaNegraViewModel.kt` | `combine` flow for client + pending pedidos; default mode logic; calls `blacklist()` |
+| `ui/screen/lista_negra/AgregarListaNegraViewModel.kt` | `combine` flow for client + pending pedidos; default mode logic; calls `blacklist()` with `isManualAmount` |
 | `ui/screen/lista_negra/AgregarListaNegraScreen.kt` | Screen entry + `AgregarListaNegraContent` + `SectionLabel` + full-screen previews |
 | `ui/screen/lista_negra/PendingPedidosSection.kt` | `PendingPedidosList` + `PendingPedidoRow` composables with previews |
 | `ui/screen/lista_negra/TotalModeCard.kt` | `TotalModeCard` composable (AUTO/MANUAL radio-style card) with previews |
+| `ui/screen/cliente/DetalleClienteBalance.kt` | `BalanceBlock` (accepts `modifier` for alpha dimming) + `BlacklistBalanceBlock` (manual amount display) |
+| `ui/screen/cliente/QuitarListaNegraSheet.kt` | `ModalBottomSheet` shown when removing a manually-blacklisted client; two options: Restaurar / Marcar como pagados |
 
 ---
 
 ## Open TODOs
 
-- [ ] Tap row in `ListaNegraScreen` → navigate to `DetalleClienteRoute(clienteId)` (client detail is read-only when blacklisted, but useful for audit)
+- [x] Tap row in `ListaNegraScreen` → navigate to `DetalleClienteRoute(clienteId)`
+- [x] `BlacklistBalanceBlock` in `DetalleClienteScreen` when `blacklistIsManualAmount = true`
+- [x] `BalanceBlock` dimmed when manual amount overrides it
+- [x] `QuitarListaNegraSheet` — resolution sheet for manually-blacklisted clients (Restaurar / Marcar como pagados)

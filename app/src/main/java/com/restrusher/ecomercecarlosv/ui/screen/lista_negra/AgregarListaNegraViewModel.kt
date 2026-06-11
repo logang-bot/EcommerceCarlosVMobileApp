@@ -67,6 +67,7 @@ class AgregarListaNegraViewModel @Inject constructor(
                 reason = s.reason,
                 balance = s.effectiveAmount,
                 at = System.currentTimeMillis(),
+                isManualAmount = s.totalMode == TotalMode.MANUAL,
             )
             onSuccess()
         }

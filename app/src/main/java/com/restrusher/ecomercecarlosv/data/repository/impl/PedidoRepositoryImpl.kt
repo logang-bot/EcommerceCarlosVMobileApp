@@ -32,6 +32,9 @@ class PedidoRepositoryImpl @Inject constructor(
     override suspend fun getDetallesByPedido(pedidoId: String): List<DetallePedido> =
         detallePedidoDao.getByPedido(pedidoId).map(DetallePedidoMapper::toDomain)
 
+    override fun getDetallesByPedidoFlow(pedidoId: String): Flow<List<DetallePedido>> =
+        detallePedidoDao.getByPedidoFlow(pedidoId).map { it.map(DetallePedidoMapper::toDomain) }
+
     override suspend fun create(pedido: Pedido, detalles: List<DetallePedido>) {
         pedidoDao.insert(PedidoMapper.toEntity(pedido))
         detallePedidoDao.insertAll(detalles.map(DetallePedidoMapper::toEntity))
@@ -43,5 +46,19 @@ class PedidoRepositoryImpl @Inject constructor(
 
     override suspend fun updateDate(id: String, createdAt: Long) = pedidoDao.updateDate(id, createdAt)
 
+    override suspend fun updateLines(pedidoId: String, detalles: List<DetallePedido>, newTotal: Double, paid: Double, paidAt: Long?) {
+        val newStatus = when {
+            paid >= newTotal -> PedidoStatus.PAID
+            paid > 0 -> PedidoStatus.PARTIAL
+            else -> PedidoStatus.PENDING
+        }
+        detallePedidoDao.deleteByPedido(pedidoId)
+        detallePedidoDao.insertAll(detalles.map(DetallePedidoMapper::toEntity))
+        pedidoDao.updateAfterEdit(pedidoId, newTotal, detalles.size, newStatus.name, paid, paidAt)
+    }
+
     override suspend fun delete(id: String) = pedidoDao.deleteById(id)
+
+    override suspend fun markAllPaidForCliente(clienteId: String) =
+        pedidoDao.markAllPaidForCliente(clienteId, System.currentTimeMillis())
 }

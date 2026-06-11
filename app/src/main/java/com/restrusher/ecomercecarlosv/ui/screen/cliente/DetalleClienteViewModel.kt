@@ -13,6 +13,7 @@ import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -23,18 +24,21 @@ import javax.inject.Inject
 @HiltViewModel
 class DetalleClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
-    pedidoRepository: PedidoRepository,
+    private val pedidoRepository: PedidoRepository,
     umbralesManager: UmbralesManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val clienteId: String = savedStateHandle.toRoute<DetalleClienteRoute>().clienteId
 
+    private val _showUnblacklistSheet = MutableStateFlow(false)
+
     val uiState: StateFlow<DetalleClienteUiState> = combine(
         clienteRepository.getByIdFlow(clienteId),
         pedidoRepository.getByCliente(clienteId),
         umbralesManager.umbrales,
-    ) { cliente, pedidos, umbrales ->
+        _showUnblacklistSheet,
+    ) { cliente, pedidos, umbrales, showSheet ->
         val balance = pedidos.filter {
             it.status == PedidoStatus.PARTIAL ||
                 (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
@@ -45,15 +49,38 @@ class DetalleClienteViewModel @Inject constructor(
             balance = balance,
             status = computeStatus(balance, pedidos, umbrales),
             isLoading = false,
+            showUnblacklistSheet = showSheet,
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        started = SharingStarted.Eagerly,
         initialValue = DetalleClienteUiState(),
     )
 
-    fun unblacklist() {
+    fun onQuitarListaNegraClick() {
+        val cliente = uiState.value.cliente ?: return
+        if (cliente.blacklistIsManualAmount) {
+            _showUnblacklistSheet.value = true
+        } else {
+            viewModelScope.launch { clienteRepository.unblacklist(clienteId) }
+        }
+    }
+
+    fun dismissUnblacklistSheet() {
+        _showUnblacklistSheet.value = false
+    }
+
+    fun unblacklistRestore() {
+        _showUnblacklistSheet.value = false
         viewModelScope.launch { clienteRepository.unblacklist(clienteId) }
+    }
+
+    fun unblacklistMarkAllPaid() {
+        _showUnblacklistSheet.value = false
+        viewModelScope.launch {
+            pedidoRepository.markAllPaidForCliente(clienteId)
+            clienteRepository.unblacklist(clienteId)
+        }
     }
 
     private fun computeStatus(balance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
