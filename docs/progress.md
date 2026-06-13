@@ -21,7 +21,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 6 | Catálogo de Productos, Crear/Editar Producto | ✅ Done |
 | 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
 | 2h | Splash screen, app icon, app rename, real logo in Login, biometric screen redesign, file splits | ✅ Done |
-| 8 | Reporte Diario (Búsqueda Global UI already done in 2f — wire results in Phase 3) | 🔲 Pending |
+| 8 | Reportes tab (Diario + Por cliente modes, PDF export, Reporte de Pedidos) | ✅ Done |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
 
 ---
@@ -46,6 +46,79 @@ Phase 9 must persist it via `DataStore<Preferences>`. See `docs/features/usuario
 ### 🔗 Create user — saves locally, no Supabase sync
 `CrearUsuarioViewModel` validates a temp password but only creates an `AppUser` in Room.
 Phase 9 must wire this to the Supabase admin create-user API. See `docs/features/usuarios.md → Create User API`.
+
+---
+
+## ✅ Post-Phase 8 improvements
+
+### 📱 Primary phone for clients (DB v13)
+
+Users can now mark one phone number as **primary** in the Create/Edit Cliente form. The primary phone is the one displayed in `DetalleClienteScreen`.
+
+**PhoneListField redesign** (`CreateClienteComponents.kt`):
+- Each `PhoneRow` is a custom card (52dp min height, 14dp corners, `surface2` bg). Left to right: radio circle (24dp, filled `primary`+Check when primary, outlined `text3` when not), phone icon, `BasicTextField` (15.5sp Monospace), "PRINCIPAL" badge (primary text, `accentTint` bg, only on primary row), call button (edit mode + non-empty only), delete button (dimmed when only one phone).
+- Primary row has a 1.5dp `primary` border; non-primary has 1dp `border2`.
+- Info hint below the label: "El teléfono **principal** es el que aparece en el detalle del cliente."
+- "Agregar otro teléfono" is a bordered pill row.
+
+**Tap-to-call:**
+- `DetalleClienteScreen` — primary phone chip launches `Intent(ACTION_DIAL)` (already existed; now uses primary phone instead of `firstOrNull()`).
+- `EditarClienteScreen` — each phone row shows a `Call` icon button that dials that specific number.
+
+**DB:** `MIGRATION_12_13` adds `primaryPhoneIndex INTEGER NOT NULL DEFAULT 0` to `clientes`. Room bumped to **v13**.
+
+**Files changed:** `Cliente.kt`, `ClienteEntity.kt`, `ClienteMapper.kt`, `AppDatabase.kt`, `DatabaseModule.kt`, `CreateClienteFormState.kt`, `CreateClienteViewModel.kt`, `CreateClienteComponents.kt`, `CreateClienteScreen.kt`, `DetalleClienteHeader.kt`, `docs/db-schema.md`, `docs/features/clientes.md`.
+
+---
+
+### 📥 Reports saved to Downloads folder
+
+Report export no longer opens the print dialog. Files are now written directly to the device's **Downloads** folder and a `Toast` confirms the result.
+
+**`ReporteSaver.kt`** (`ui/screen/reporte/`):
+- `saveReportToDownloads(context, html, fileName): SaveResult` — coroutine (Dispatchers.IO).
+  - **API 29+**: `MediaStore.Downloads` — no storage permission required.
+  - **API 24–28**: `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)` + `File.writeText`.
+- `SaveResult`: `Success(fileName)` / `NoSpace` / `Error(cause)`.
+- `showSaveToast(context, result)` — shows `Toast.LENGTH_LONG` in Spanish.
+- Error detection: IOException message checked for `ENOSPC`/`No space left` → `NoSpace`; all others → `Error`.
+
+**Filenames:** `Reporte_Diario_YYYYMMDD_HHmm.html`, `Reporte_PorCliente_YYYYMMDD_HHmm.html`, `Reporte_{ClientName}_YYYYMMDD_HHmm.html`.
+
+**Files changed:** `ReporteScreen.kt`, `ReporteClienteScreen.kt`, `ReporteSaver.kt` (new), `strings.xml` (3 new toast strings).
+
+---
+
+### 🎨 Reportes UI polish (same session as Phase 8)
+
+- **Mode toggle**: selected tab now uses `primary` bg + `onPrimary` text (was `surface`/`onSurface`); unselected uses `text2` (was `text3`).
+- **Chip rows**: `DiarioDateChips`, `ClienteDateChips`, `PresetChipsRow` changed from `Row + horizontalScroll` → `FlowRow` so chips wrap instead of being cut off.
+- **Resolved date bar** (`ReporteResolvedDateBar`): shown below chip rows for non-Personalizado presets. 42dp pill, `surface2`+`border`, calendar icon + formatted date text. `formatDiarioBarText` / `formatClienteBarText` helpers in `ReporteDateChips.kt`.
+- **`ReporteStatCard` redesign**: added 34×34dp icon container (10dp corners, tinted bg + matching icon) above the value; value bumped to 22sp SemiBold Monospace; removed `bgColor` param, added `icon` + `iconBgColor`.
+
+---
+
+## ✅ Phase 8 — Reportes tab
+
+Full **Reportes** screen (tab 3 of bottom nav) with two modes and PDF export:
+
+**Diario mode:** segmented toggle → date chip bar (Hoy/Ayer/Semana/Personalizado) → "Cobrado hoy" hero card (green gradient, 38sp mono amount) → two stat cards (Pedidos creados / Pendiente del día) → Movimientos list (8dp dot, name, type·mercado·time, amount).
+
+**Por cliente mode:** date chip bar (Este mes/Trimestre/Año/Personalizado) → client selector card with "Cambiar" → `ClienteSelectorSheet` (ModalBottomSheet, alphabetical client list) → three stat cards (Facturado/Pagado/Saldo) → Historial list (36dp icon tile, title, status subtext, amount).
+
+**"Personalizado":** both modes show two `DateField` composables (Desde/Hasta) that open Material3 `DatePickerDialog`.
+
+**Report export:** top-bar `Description` icon (Reportes tab) and "Generar PDF" button (`ReporteClienteScreen`) → saves `.html` file to **Downloads** via `ReporteSaver.kt` (MediaStore on API 29+, File API on 24–28). Toast on success/error. *(Originally WebView+PrintManager; replaced post-Phase 8 — see "Post-Phase 8 improvements" above.)*
+
+**Data layer:** `PedidoRepository.getAll(): Flow<List<Pedido>>` added (no DB migration — reads existing `pedidos` table).
+
+**Home logo + Búsqueda Global (also Phase 8):**
+- `LogoMark()` composable added as `leading` in `MercadosScreen` top bar (34dp circle, white bg, border2, `img_logo.png`).
+- `BusquedaScreen` now has three sections: Clientes / Lista Negra / Mercados. `BlacklistResultRow` shows a 18dp red ban badge overlay on the avatar + "En Lista Negra" red pill chip.
+
+**Reporte de Pedidos (also Phase 8):** full PDF-preview screen accessible from the "Generar reporte" menu in `DetalleClienteScreen`. Shows client info, resume summary cards, and full pedidos list. Exports via the same `WebView + PrintManager` pattern.
+
+See `docs/features/reporte.md`, `docs/features/busqueda.md`, `docs/features/clientes.md`.
 
 ---
 
@@ -252,10 +325,9 @@ Full "Reporte de pedidos" screen accessible from the "Generar reporte" menu item
 - Four scrollable sections: **Encabezado** (accentSoft card, company name + date), **Cliente** (2×2 info grid), **Resumen** (3 stat cards — "Sin pagar" blue, "Saldo pendiente" amber, "Total pedidos" green), **Pedidos** (list of `ReportePedidoRow` composables with date, product names summary, amounts, `PayChip`).
 - Bottom export bar: full-width "Exportar PDF" `Button`.
 
-**PDF generation** (zero new dependencies):
-1. `buildReporteHtml(state, date)` generates a self-contained HTML string with inline CSS (tables, color chips, status badges, print-optimized layout).
-2. On button tap: instantiate `WebView`, load HTML via `loadDataWithBaseURL`, handle `onPageFinished` → `PrintManager.print(jobName, webView.createPrintDocumentAdapter(jobName), PrintAttributes.Builder().build())`.
-3. System print dialog handles save-to-PDF / share.
+**HTML generation** (zero new dependencies):
+1. `buildReporteHtml(state, date)` / `buildReporteClienteHtml(state, period, date)` generate self-contained HTML strings with inline CSS (tables, color chips, status badges).
+2. On button tap: `saveReportToDownloads(context, html, fileName)` writes to the **Downloads** folder + `showSaveToast` confirms. *(See "Post-Phase 8 improvements" for the full saver implementation.)*
 
 **Menu item redesign**: `ReporteMenuItem` now has `accentSoft` bg, `Description` icon in `accentTint` tile, full-contrast label, and primary-tinted chevron. Previously non-interactive.
 

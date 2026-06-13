@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **12**. Supabase integration: Phase 9.
+Room version: **13**. Supabase integration: Phase 9.
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v12)
+## Current tables (Room v13)
 
 ### `users`
 
@@ -52,7 +52,7 @@ Shared resource. All users can read and write.
 
 ---
 
-### `clientes` *(Room v8 → v10 — Phase 3 + 7)*
+### `clientes` *(Room v8 → v13 — Phase 3 + 7)*
 
 Belongs to a `mercados` row. Represents an individual customer at a market stall.
 
@@ -64,6 +64,7 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `description` | `String` | `text` | — | Stall description e.g. "Puesto 14 · verduras" |
 | `photoUrl` | `String?` | `text` | ✓ | Supabase Storage URL |
 | `phones` | `String` | `text` | — | Pipe-separated list: `"0414-123\|0424-456"`. Empty string if none. |
+| `primaryPhoneIndex` | `Int` | `int4` | — | 0-based index into `phones` list identifying the primary contact number; default `0` *(added v13)* |
 | `mapsUrl` | `String?` | `text` | ✓ | URL that opens the device map app — no lat/lng stored |
 | `isBlacklisted` | `Boolean` | `boolean` | — | Default `false` |
 | `blacklistReason` | `String?` | `text` | ✓ | Set when `isBlacklisted = true` |

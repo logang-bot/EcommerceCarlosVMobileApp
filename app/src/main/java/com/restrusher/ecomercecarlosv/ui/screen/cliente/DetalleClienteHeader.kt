@@ -140,7 +140,7 @@ internal fun ClienteHeader(cliente: Cliente) {
             horizontalArrangement = Arrangement.spacedBy(9.dp),
             modifier = Modifier.padding(top = 14.dp),
         ) {
-            cliente.phones.firstOrNull()?.let { phone ->
+            cliente.phones.getOrElse(cliente.primaryPhoneIndex) { cliente.phones.firstOrNull() ?: "" }.ifBlank { null }?.let { phone ->
                 ContactChip(
                     icon = {
                         Icon(

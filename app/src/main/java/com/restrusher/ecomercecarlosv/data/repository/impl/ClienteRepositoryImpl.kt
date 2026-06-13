@@ -15,6 +15,9 @@ class ClienteRepositoryImpl @Inject constructor(
     override fun getAll(): Flow<List<Cliente>> =
         dao.getAll().map { it.map(ClienteMapper::toDomain) }
 
+    override fun getAllIncludingBlacklisted(): Flow<List<Cliente>> =
+        dao.getAllIncludingBlacklisted().map { it.map(ClienteMapper::toDomain) }
+
     override fun getByMercado(mercadoId: String): Flow<List<Cliente>> =
         dao.getByMercado(mercadoId).map { it.map(ClienteMapper::toDomain) }
 

@@ -22,7 +22,7 @@ class BusquedaViewModel @Inject constructor(
 
     val uiState = combine(
         _query,
-        clienteRepository.getAll(),
+        clienteRepository.getAllIncludingBlacklisted(),
         mercadoRepository.getAll(),
     ) { query, clientes, mercados ->
         if (query.isBlank()) return@combine BusquedaUiState(query = query)

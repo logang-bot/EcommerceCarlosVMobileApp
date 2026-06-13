@@ -26,6 +26,7 @@ data class ClienteEntity(
     val description: String,
     val photoUrl: String?,
     val phones: String,
+    val primaryPhoneIndex: Int = 0,
     val mapsUrl: String?,
     val isBlacklisted: Boolean,
     val blacklistReason: String?,

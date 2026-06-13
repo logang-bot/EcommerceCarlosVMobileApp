@@ -55,7 +55,7 @@ import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
-import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
@@ -77,7 +77,7 @@ fun BusquedaScreen(
         onClearQuery = viewModel::clearQuery,
         onClienteClick = { navController.navigate(DetalleClienteRoute(it)) },
         onBlacklistClienteClick = { navController.navigate(DetalleClienteRoute(it)) },
-        onMercadoClick = { navController.navigate(DetalleMercadoRoute(it)) },
+        onMercadoClick = { navController.navigate(ClientesRoute(it)) },
     )
 }
 

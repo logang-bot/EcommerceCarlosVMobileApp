@@ -8,6 +8,7 @@ data class CreateClienteFormState(
     val description: String = "",
     val descriptionError: Boolean = false,
     val phones: List<String> = listOf(""),
+    val primaryPhoneIndex: Int = 0,
     val mapsUrl: String = "",
     val photoUri: Uri? = null,
     val isEditing: Boolean = false,

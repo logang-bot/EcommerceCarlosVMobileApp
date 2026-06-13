@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface ClienteRepository {
     fun getAll(): Flow<List<Cliente>>
+    fun getAllIncludingBlacklisted(): Flow<List<Cliente>>
     fun getByMercado(mercadoId: String): Flow<List<Cliente>>
     fun getBlacklisted(): Flow<List<Cliente>>
     fun getByIdFlow(id: String): Flow<Cliente?>

@@ -16,6 +16,9 @@ interface ClienteDao {
     @Query("SELECT * FROM clientes WHERE isBlacklisted = 0 ORDER BY name ASC")
     fun getAll(): Flow<List<ClienteEntity>>
 
+    @Query("SELECT * FROM clientes ORDER BY name ASC")
+    fun getAllIncludingBlacklisted(): Flow<List<ClienteEntity>>
+
     @Query("SELECT * FROM clientes WHERE isBlacklisted = 1 ORDER BY blacklistedAt DESC")
     fun getBlacklisted(): Flow<List<ClienteEntity>>
 

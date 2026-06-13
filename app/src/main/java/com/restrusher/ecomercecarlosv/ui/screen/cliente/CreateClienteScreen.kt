@@ -77,6 +77,7 @@ fun CreateClienteScreen(
         onPhoneChange = viewModel::onPhoneChange,
         onAddPhone = viewModel::onAddPhone,
         onRemovePhone = viewModel::onRemovePhone,
+        onSetPrimaryPhone = viewModel::onSetPrimaryPhone,
         onSave = { viewModel.onSave { navController.popBackStack() } },
     )
 }
@@ -92,6 +93,7 @@ private fun CreateClienteContent(
     onPhoneChange: (Int, String) -> Unit,
     onAddPhone: () -> Unit,
     onRemovePhone: (Int) -> Unit,
+    onSetPrimaryPhone: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -181,7 +183,15 @@ private fun CreateClienteContent(
             CirclePhotoPicker(photoUri = state.photoUri, name = state.name, isEditing = state.isEditing, onClick = { showPhotoSheet = true })
             ClienteNameField(state = state, onNameChange = onNameChange)
             ClienteDescriptionField(state = state, onDescriptionChange = onDescriptionChange)
-            PhoneListField(phones = state.phones, onPhoneChange = onPhoneChange, onAddPhone = onAddPhone, onRemovePhone = onRemovePhone)
+            PhoneListField(
+                phones = state.phones,
+                primaryPhoneIndex = state.primaryPhoneIndex,
+                isEditing = state.isEditing,
+                onPhoneChange = onPhoneChange,
+                onAddPhone = onAddPhone,
+                onRemovePhone = onRemovePhone,
+                onSetPrimaryPhone = onSetPrimaryPhone,
+            )
             MapsLinkField(value = state.mapsUrl, onValueChange = onMapsUrlChange, label = stringResource(R.string.create_cliente_maps_label), required = false)
         }
     }

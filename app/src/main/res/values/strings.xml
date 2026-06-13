@@ -130,6 +130,27 @@
     <string name="reporte_movimientos">Movimientos de hoy</string>
     <string name="reporte_pedidos_creados">Pedidos creados</string>
     <string name="reporte_pendiente_dia">Pendiente del día</string>
+    <!-- Reporte tab -->
+    <string name="reporte_mode_diario">Diario</string>
+    <string name="reporte_mode_por_cliente">Por cliente</string>
+    <string name="reporte_preset_hoy">Hoy</string>
+    <string name="reporte_preset_ayer">Ayer</string>
+    <string name="reporte_preset_semana">Semana</string>
+    <string name="reporte_preset_mes">Este mes</string>
+    <string name="reporte_preset_trimestre">Trimestre</string>
+    <string name="reporte_preset_anio">Año</string>
+    <string name="reporte_preset_personalizado">Personalizado</string>
+    <string name="reporte_cobros_count">%1$d cobros</string>
+    <string name="reporte_facturado">Facturado</string>
+    <string name="reporte_pagado">Pagado</string>
+    <string name="reporte_saldo">Saldo</string>
+    <string name="reporte_historial">Historial</string>
+    <string name="reporte_sin_movimientos">Sin movimientos en este período</string>
+    <string name="reporte_sin_historial">Sin transacciones en este período</string>
+    <string name="reporte_selector_cliente">Seleccionar cliente</string>
+    <string name="reporte_cambiar_cliente">Cambiar</string>
+    <string name="reporte_desde">Desde</string>
+    <string name="reporte_hasta">Hasta</string>
 
     <!-- Búsqueda Global -->
     <string name="busqueda_placeholder">Buscar clientes y mercados…</string>
@@ -473,4 +494,22 @@
     <string name="reporte_resumen_total">Total pedidos</string>
     <string name="reporte_pedidos_vacio">Sin pedidos registrados</string>
     <string name="reporte_exportar_pdf">Exportar PDF</string>
+
+    <!-- Generar reporte de pedidos por cliente -->
+    <string name="reporte_generar_title">Generar reporte</string>
+    <string name="reporte_pedidos_intro">Elige un rango de fechas para reunir los pedidos del cliente y exportarlos en PDF.</string>
+    <string name="reporte_rango_rapido">Rango rápido</string>
+    <string name="reporte_preset_esta_semana">Esta semana</string>
+    <string name="reporte_pedidos_en_rango">Pedidos en el rango</string>
+    <string name="reporte_monto_total">Monto total</string>
+    <string name="reporte_rango_amplio">Rango amplio</string>
+    <string name="reporte_rango_amplio_desc">Este rango contiene muchos pedidos. El PDF los incluirá todos.</string>
+    <string name="reporte_pedidos_de_hoy">Pedidos de hoy</string>
+    <string name="reporte_pedidos_en_reporte">Pedidos en el reporte</string>
+    <string name="reporte_y_mas_pdf">y %1$d pedidos más en el PDF</string>
+    <string name="reporte_generar_pdf">Generar PDF</string>
+    <string name="reporte_de_n">%1$d de %2$d</string>
+    <string name="reporte_guardado_ok">Reporte guardado en Descargas</string>
+    <string name="reporte_guardado_error">Error al guardar el reporte</string>
+    <string name="reporte_guardado_sin_espacio">Sin espacio suficiente en el dispositivo</string>
 </resources>

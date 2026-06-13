@@ -37,6 +37,7 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 | Room migration 5→6 (`MIGRATION_5_6`) | ✅ |
 | Room migration 7→8 (`MIGRATION_7_8`) — adds `blacklistBalance` column | ✅ |
 | Room migration 11→12 (`MIGRATION_11_12`) — adds `blacklistIsManualAmount` column | ✅ |
+| Room migration 12→13 (`MIGRATION_12_13`) — adds `primaryPhoneIndex` column | ✅ |
 | `domain/model/PedidoLineItem.kt` | ✅ |
 | `data/local/entity/PedidoWithLines.kt` — Room `@Embedded` + `@Relation` POJO | ✅ |
 | `ui/screen/reporte/ReporteClienteUiState.kt` | ✅ |
@@ -57,7 +58,7 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 **Detalle de Cliente header**:
 - 76dp circular avatar, name, description
 - TopBar action: edit (pencil) icon → navigates to `CreateClienteRoute(mercadoId, clienteId)` for editing
-- Tappable phone chip → `Intent(ACTION_DIAL)`
+- Tappable phone chip shows the **primary phone** (`phones.getOrElse(primaryPhoneIndex) { phones.firstOrNull() }`). Tap → `Intent(ACTION_DIAL, "tel:$phone")` — opens the device dialer.
 - Location chip → `Intent(ACTION_VIEW, Uri.parse(mapsUrl))` — no lat/lng stored
 - `BalanceBlock`: unified card that adapts to three states:
   - **Normal / AUTO blacklisted**: status-based `Brush.linearGradient`, label "Saldo pendiente total", 32sp monospace, `ClienteStatusBadge` on right
@@ -112,10 +113,20 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 ## Implementation notes
 
 - `phones` stored as pipe-separated string in Room (`"0414-123|0424-456"`); mapped to `List<String>` in domain.
+- `primaryPhoneIndex` (Int, default 0) identifies which phone in the list is the primary contact. Stored in Room as `INTEGER NOT NULL DEFAULT 0`. On save, clamped to `min(index, phones.size - 1)` to handle blank-phone filtering. Removing a phone before the primary index shifts the index down; removing the primary resets to 0.
 - Location is **only** a URL (`mapsUrl`) — no lat/lng. User pastes the link; tapping opens the device map app.
 - Row color uses the **Fuerte** variant from the design: `bgAlpha = if (isDark) 0.30f else 0.22f`, bar 6dp, balance colored by status.
 - Balance and status are now computed live in `DetalleClienteViewModel` by `combine`-ing `clienteFlow + pedidosFlow`. Balance = sum of pending amounts across non-PAID pedidos. See **Client Status Thresholds** section below.
 - `ClienteAvatar` accepts an optional `photoUrl`; when set it renders the photo (via `PhotoThumbnail`) while preserving the status ring. Falls back to initials with deterministic `hsl(nameHash % 360, 32%, 26%)` bg.
+- `PhoneListField` (in `CreateClienteComponents.kt`): redesigned phone editor. Each `PhoneRow` is a custom 52dp-min-height card (`surface2` bg, 14dp corners) with:
+  - **Radio circle** (24dp, filled primary + Check icon when primary; outlined `text3` when not) — tap to set this phone as primary.
+  - **Phone icon** + **`BasicTextField`** (15.5sp Monospace Medium).
+  - **"PRINCIPAL" badge** (10.5sp, uppercase, primary text, `accentTint` bg, 6dp radius) — shown only on the primary row.
+  - **Call button** (34dp, `Call` icon) — shown only in **edit mode** when the field has a value; launches `Intent(ACTION_DIAL)`.
+  - **Delete button** (34dp, `Close` icon) — alpha 0.35 and disabled when only one phone exists.
+  - Border: 1.5dp `primary` when primary row, 1dp `border2` otherwise.
+  - Info hint below the label: "El teléfono **principal** es el que aparece en el detalle del cliente."
+  - "Agregar otro teléfono" is a bordered pill row (not a `TextButton`).
 - `CirclePhotoPicker` (in `CreateClienteComponents.kt`): 96dp circle picker used in create/edit forms. Create mode shows a `Person` icon placeholder; edit mode shows the existing `ClienteAvatar` when no new photo is picked; both modes use `BitmapFactory`/`LaunchedEffect` to render the actual photo once selected. Camera button (32dp) always present at bottom-right.
 - `CreateClienteViewModel`: `init` block restores `photoUri` from `c.photoUrl` when editing; `onSave` includes `photoUrl = s.photoUri?.toString()` when saving the `Cliente`.
 - Gallery picks are copied to `cacheDir/images/` via `copyImageToCache()` on selection (same as other photo flows).
@@ -228,3 +239,4 @@ Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combin
 - [x] Phase 4: real balance/status computed from pedidos in `DetalleClienteViewModel`
 - [x] Phase 7: Lista Negra state in `DetalleClienteScreen` — banner, avatar badge, button swap, FAB hidden, "Quitar de Lista Negra" action
 - [x] Reporte de Pedidos — full screen with PDF export via `WebView` + `PrintManager`
+- [x] Primary phone: mark one phone as primary in create/edit forms; shown in detalle header; call button per row in edit mode (DB v13)

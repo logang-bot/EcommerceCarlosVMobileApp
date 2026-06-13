@@ -7,6 +7,7 @@ data class Cliente(
     val description: String,
     val photoUrl: String? = null,
     val phones: List<String> = emptyList(),
+    val primaryPhoneIndex: Int = 0,
     val mapsUrl: String? = null,
     val isBlacklisted: Boolean = false,
     val blacklistReason: String? = null,

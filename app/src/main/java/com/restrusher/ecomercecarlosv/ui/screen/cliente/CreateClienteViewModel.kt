@@ -38,6 +38,7 @@ class CreateClienteViewModel @Inject constructor(
                     name = c.name,
                     description = c.description,
                     phones = c.phones.ifEmpty { listOf("") },
+                    primaryPhoneIndex = c.primaryPhoneIndex,
                     mapsUrl = c.mapsUrl.orEmpty(),
                     photoUri = c.photoUrl?.let { Uri.parse(it) },
                     isEditing = true,
@@ -60,9 +61,22 @@ class CreateClienteViewModel @Inject constructor(
         _state.value = _state.value.copy(phones = _state.value.phones + "")
     }
 
+    fun onSetPrimaryPhone(index: Int) {
+        _state.value = _state.value.copy(primaryPhoneIndex = index)
+    }
+
     fun onRemovePhone(index: Int) {
         if (_state.value.phones.size <= 1) return
-        _state.value = _state.value.copy(phones = _state.value.phones.filterIndexed { i, _ -> i != index })
+        val currentPrimary = _state.value.primaryPhoneIndex
+        val newPrimary = when {
+            index == currentPrimary -> 0
+            index < currentPrimary -> currentPrimary - 1
+            else -> currentPrimary
+        }
+        _state.value = _state.value.copy(
+            phones = _state.value.phones.filterIndexed { i, _ -> i != index },
+            primaryPhoneIndex = newPrimary,
+        )
     }
 
     fun onSave(onSuccess: () -> Unit) {
@@ -75,6 +89,7 @@ class CreateClienteViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
             val phones = s.phones.map { it.trim() }.filter { it.isNotBlank() }
+            val primaryPhoneIndex = minOf(s.primaryPhoneIndex, maxOf(phones.size - 1, 0))
             clienteRepository.save(
                 Cliente(
                     id = clienteId ?: UUID.randomUUID().toString(),
@@ -82,6 +97,7 @@ class CreateClienteViewModel @Inject constructor(
                     name = s.name.trim(),
                     description = s.description.trim(),
                     phones = phones,
+                    primaryPhoneIndex = primaryPhoneIndex,
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
                     photoUrl = s.photoUri?.toString(),
                     createdAt = System.currentTimeMillis(),
