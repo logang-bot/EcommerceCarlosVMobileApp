@@ -11,6 +11,14 @@ data class ClienteSearchResult(
     val balance: Double,
 )
 
+data class BlacklistSearchResult(
+    val clienteId: String,
+    val name: String,
+    val photoUrl: String?,
+    val mercadoName: String,
+    val balance: Double,
+)
+
 data class MercadoSearchResult(
     val mercadoId: String,
     val name: String,
@@ -21,8 +29,9 @@ data class MercadoSearchResult(
 data class BusquedaUiState(
     val query: String = "",
     val clienteResults: List<ClienteSearchResult> = emptyList(),
+    val blacklistResults: List<BlacklistSearchResult> = emptyList(),
     val mercadoResults: List<MercadoSearchResult> = emptyList(),
     val isSearching: Boolean = false,
 ) {
-    val hasResults get() = clienteResults.isNotEmpty() || mercadoResults.isNotEmpty()
+    val hasResults get() = clienteResults.isNotEmpty() || blacklistResults.isNotEmpty() || mercadoResults.isNotEmpty()
 }

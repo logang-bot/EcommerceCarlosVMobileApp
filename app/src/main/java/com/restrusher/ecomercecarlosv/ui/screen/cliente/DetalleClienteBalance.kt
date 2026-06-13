@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -49,6 +50,7 @@ internal fun BalanceBlock(
     status: ClientStatus,
     balance: Double,
     isManualBlacklisted: Boolean = false,
+    hasExtraBalance: Boolean = false,
 ) {
     val ext = MaterialTheme.extendedColors
     val (gradStart, gradEnd, borderColor) = if (isManualBlacklisted) {
@@ -60,7 +62,7 @@ internal fun BalanceBlock(
             ClientStatus.AL_DIA      -> Triple(Color(0x2436C880), Color(0x0836C880), Color(0x3336C880))
         }
     }
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
@@ -68,34 +70,64 @@ internal fun BalanceBlock(
             .background(Brush.linearGradient(colors = listOf(gradStart, gradEnd)))
             .border(1.dp, borderColor, RoundedCornerShape(18.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
-            Text(
-                text = if (isManualBlacklisted) {
-                    stringResource(R.string.detalle_cliente_saldo_ln)
-                } else {
-                    stringResource(R.string.detalle_cliente_saldo_total)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = ext.text2,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = formatBalance(balance),
-                fontSize = if (isManualBlacklisted) 29.sp else 32.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = (-1).sp,
-                color = if (isManualBlacklisted) ext.redText else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = if (isManualBlacklisted) {
+                        stringResource(R.string.detalle_cliente_saldo_ln)
+                    } else {
+                        stringResource(R.string.detalle_cliente_saldo_total)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ext.text2,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = formatBalance(balance),
+                    fontSize = if (isManualBlacklisted) 29.sp else 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = (-1).sp,
+                    color = if (isManualBlacklisted) ext.redText else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (isManualBlacklisted) {
+                ManualBadge(ext.redText)
+            } else {
+                ClienteStatusBadge(status = status, size = BadgeSize.MD)
+            }
         }
-        if (isManualBlacklisted) {
-            ManualBadge(ext.redText)
-        } else {
-            ClienteStatusBadge(status = status, size = BadgeSize.MD)
+        if (!isManualBlacklisted && hasExtraBalance) {
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 13.dp),
+                color = borderColor,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = ext.text4,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = stringResource(R.string.detalle_cliente_balance_extra_caption),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = ext.text3,
+                )
+            }
         }
     }
 }
@@ -124,7 +156,7 @@ private fun ManualBadge(redText: Color) {
 // ── Manual caption ────────────────────────────────────────────────────────────
 
 @Composable
-internal fun BalanceCaption(modifier: Modifier = Modifier) {
+internal fun BalanceCaption(text: String, modifier: Modifier = Modifier) {
     val ext = MaterialTheme.extendedColors
     Row(
         modifier = modifier
@@ -135,7 +167,7 @@ internal fun BalanceCaption(modifier: Modifier = Modifier) {
     ) {
         Icon(Icons.Default.Info, contentDescription = null, tint = ext.text3, modifier = Modifier.size(14.dp))
         Text(
-            text = stringResource(R.string.detalle_cliente_balance_manual_caption),
+            text = text,
             fontSize = 12.sp,
             color = ext.text3,
             lineHeight = 17.sp,

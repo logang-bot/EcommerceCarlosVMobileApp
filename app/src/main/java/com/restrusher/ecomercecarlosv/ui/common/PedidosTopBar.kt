@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
@@ -34,29 +35,34 @@ fun PedidosTopBar(
     title: String,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
+    leading: @Composable (() -> Unit)? = null,
     large: Boolean = false,
     actions: @Composable () -> Unit = {},
 ) {
+    val hasLeading = onBack != null || leading != null
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.background) {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 52.dp)
-                    .padding(horizontal = if (onBack != null) 6.dp else 8.dp),
+                    .padding(horizontal = if (hasLeading) 6.dp else 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (onBack != null) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
+                } else if (leading != null) {
+                    Spacer(Modifier.width(6.dp))
+                    leading()
                 }
                 if (!large) {
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .padding(
-                                start = if (onBack != null) 2.dp else 12.dp,
+                                start = if (hasLeading) 2.dp else 12.dp,
                                 top = if (subtitle != null) 9.dp else 0.dp,
                                 bottom = if (subtitle != null) 9.dp else 0.dp,
                             ),

@@ -39,6 +39,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.AgregarListaNegraRout
 import com.restrusher.ecomercecarlosv.presentation.screens.CreacionPedidoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.SaldoExtraRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -73,6 +74,7 @@ fun DetalleClienteScreen(
             }
         },
         onPedidoClick = { pedidoId -> navController.navigate(DetallePedidoRoute(pedidoId)) },
+        onGenerarReporte = { state.cliente?.let { navController.navigate(ReporteClienteRoute(it.id)) } },
         onTogglePedidoFilter = { viewModel.onTogglePedidoFilter(it) },
         onClearPedidoFilters = { viewModel.onClearPedidoFilters() },
     )
@@ -91,6 +93,7 @@ private fun DetalleClienteContent(
     onSaldoExtraClick: () -> Unit,
     onNuevoPedidoClick: () -> Unit = {},
     onPedidoClick: (pedidoId: String) -> Unit = {},
+    onGenerarReporte: () -> Unit = {},
     onTogglePedidoFilter: (PedidoStatus) -> Unit = {},
     onClearPedidoFilters: () -> Unit = {},
 ) {
@@ -106,6 +109,7 @@ private fun DetalleClienteContent(
                             activeFilters = state.pedidoFilters,
                             onToggleFilter = onTogglePedidoFilter,
                             onClearFilters = onClearPedidoFilters,
+                            onGenerarReporte = onGenerarReporte,
                         )
                         IconButton(onClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) }) {
                             Icon(Icons.Default.Edit, contentDescription = null)
@@ -185,9 +189,10 @@ private fun ClienteData(
             status = state.status,
             balance = if (isManual) cliente.blacklistBalance else state.balance,
             isManualBlacklisted = isManual,
+            hasExtraBalance = state.extraBalance > 0,
         )
         if (isManual) {
-            BalanceCaption()
+            BalanceCaption(text = stringResource(R.string.detalle_cliente_balance_manual_caption))
         }
         BalanceBreakdown(
             pedidosBalance = state.pedidosBalance,

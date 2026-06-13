@@ -1,6 +1,13 @@
 package com.restrusher.ecomercecarlosv.ui.screen.cliente
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,19 +20,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -37,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.model.PedidoLineItem
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.ui.common.PayChip
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -51,38 +65,88 @@ fun PedidoRow(
     pedido: Pedido,
     onClick: () -> Unit,
 ) {
-    val ext = MaterialTheme.extendedColors
     val dateStr = remember(pedido.createdAt) {
         SimpleDateFormat("dd MMM yyyy", Locale("es")).format(Date(pedido.createdAt))
     }
+    val canExpand = !pedido.isSaldoExtra && pedido.lines.isNotEmpty()
+    var expanded by remember { mutableStateOf(false) }
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (pedido.isSaldoExtra) Color(0x0BE7B23E) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
+            .background(if (pedido.isSaldoExtra) Color(0x0BE7B23E) else Color.Transparent),
     ) {
-        PedidoIconTile(isSaldoExtra = pedido.isSaldoExtra)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            if (canExpand) {
+                CaretButton(expanded = expanded, onClick = { expanded = !expanded })
+            } else {
+                PedidoIconTile(isSaldoExtra = pedido.isSaldoExtra)
+            }
 
-        if (pedido.isSaldoExtra) {
-            SaldoExtraRowContent(
-                dateStr = dateStr,
-                notes = pedido.notes,
-                total = pedido.total,
-                status = pedido.status,
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            OrderRowContent(
-                dateStr = dateStr,
-                itemCount = pedido.itemCount,
-                pedido = pedido,
-                modifier = Modifier.weight(1f),
-            )
+            if (pedido.isSaldoExtra) {
+                SaldoExtraRowContent(
+                    dateStr = dateStr,
+                    notes = pedido.notes,
+                    total = pedido.total,
+                    status = pedido.status,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                OrderRowContent(
+                    dateStr = dateStr,
+                    itemCount = pedido.itemCount,
+                    pedido = pedido,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
+
+        AnimatedVisibility(
+            visible = canExpand && expanded,
+            enter = expandVertically() + fadeIn(animationSpec = tween(180)),
+            exit = shrinkVertically() + fadeOut(animationSpec = tween(180)),
+        ) {
+            PedidoLinesPanel(lines = pedido.lines)
+        }
+    }
+}
+
+@Composable
+private fun CaretButton(expanded: Boolean, onClick: () -> Unit) {
+    val ext = MaterialTheme.extendedColors
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(180),
+        label = "caret",
+    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (expanded) ext.accentSoft else ext.surface3)
+            .border(
+                width = 1.dp,
+                color = if (expanded) MaterialTheme.colorScheme.primary else ext.border,
+                shape = RoundedCornerShape(12.dp),
+            )
+            .clickable(onClick = onClick),
+    ) {
+        Icon(
+            imageVector = Icons.Default.KeyboardArrowDown,
+            contentDescription = null,
+            tint = if (expanded) MaterialTheme.colorScheme.primary else ext.text2,
+            modifier = Modifier
+                .size(20.dp)
+                .rotate(rotation),
+        )
     }
 }
 
@@ -101,11 +165,55 @@ private fun PedidoIconTile(isSaldoExtra: Boolean) {
             ),
     ) {
         Icon(
-            imageVector = if (isSaldoExtra) Icons.Default.Tag else Icons.Default.Receipt,
+            imageVector = Icons.Default.Tag,
             contentDescription = null,
-            tint = if (isSaldoExtra) ext.amberText else ext.text2,
+            tint = ext.amberText,
             modifier = Modifier.size(20.dp),
         )
+    }
+}
+
+@Composable
+private fun PedidoLinesPanel(lines: List<PedidoLineItem>) {
+    val ext = MaterialTheme.extendedColors
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 0.dp)
+            .padding(bottom = 14.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, ext.border, RoundedCornerShape(12.dp)),
+    ) {
+        Column {
+            lines.forEachIndexed { index, line ->
+                if (index > 0) HorizontalDivider(color = ext.border)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = line.productName,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "×${line.quantity}",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = ext.text2,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -260,11 +368,23 @@ private fun ManualBadge() {
 
 // ── Previews ─────────────────────────────────────────────────────────────────
 
-private fun makeOrderPedido(status: PedidoStatus, paid: Double = 0.0, total: Double = 112.00) = Pedido(
+private val sampleLines = listOf(
+    PedidoLineItem("Harina PAN 1kg", 8),
+    PedidoLineItem("Azúcar Montalbán 1kg", 5),
+    PedidoLineItem("Pasta Capri 500g", 6),
+)
+
+private fun makeOrderPedido(
+    status: PedidoStatus,
+    paid: Double = 0.0,
+    total: Double = 112.00,
+    lines: List<PedidoLineItem> = sampleLines,
+) = Pedido(
     id = "p1", clienteId = "c1", status = status,
     total = total, paid = paid,
     createdAt = 1748476800000L,
-    itemCount = 5,
+    itemCount = lines.size,
+    lines = lines,
 )
 
 private val saldoPedido = Pedido(
@@ -276,7 +396,7 @@ private val saldoPedido = Pedido(
     itemCount = 0,
 )
 
-@Preview(name = "Pending — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "Pending collapsed — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun PedidoRowPendingPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
@@ -284,7 +404,7 @@ private fun PedidoRowPendingPreview() {
     }
 }
 
-@Preview(name = "Partial — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "Partial collapsed — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun PedidoRowPartialPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
@@ -292,7 +412,7 @@ private fun PedidoRowPartialPreview() {
     }
 }
 
-@Preview(name = "Paid — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "Paid collapsed — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun PedidoRowPaidPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
@@ -308,10 +428,18 @@ private fun PedidoRowSaldoPreview() {
     }
 }
 
-@Preview(name = "Partial — light", uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
+@Preview(name = "Partial collapsed — light", uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
 @Composable
 private fun PedidoRowPartialLightPreview() {
     EcomerceCarlosVTheme(darkTheme = false) {
         Surface { PedidoRow(pedido = makeOrderPedido(PedidoStatus.PARTIAL, paid = 50.0), onClick = {}) }
+    }
+}
+
+@Preview(name = "Lines panel — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun PedidoLinesPanelPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        Surface { PedidoLinesPanel(lines = sampleLines) }
     }
 }

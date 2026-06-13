@@ -71,3 +71,6 @@ data class SaldoExtraRoute(val clienteId: String)
 
 @Serializable
 data class EditarPedidoRoute(val pedidoId: String)
+
+@Serializable
+data class ReporteClienteRoute(val clienteId: String)

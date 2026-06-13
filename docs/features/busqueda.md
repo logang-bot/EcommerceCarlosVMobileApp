@@ -1,12 +1,12 @@
 # Feature: Búsqueda Global
 
-## Status: ✅ Done
+## Status: ✅ Done — Lista Negra section added
 
 ---
 
 ## Spec summary
 
-Global search across all clientes and mercados by name or phone number. Accessible from the search icon in the Mercados top bar. Results are split into two sections: Clientes and Mercados. Tapping a cliente navigates to `DetalleClienteRoute`; tapping a mercado navigates to `DetalleMercadoRoute`.
+Global search across all clientes (active and blacklisted) and mercados by name or phone number. Accessible from the search icon in the Mercados top bar. Results are split into three sections: **Clientes**, **Lista Negra**, **Mercados**. Tapping any client (active or blacklisted) navigates to `DetalleClienteRoute`; tapping a mercado navigates to `DetalleMercadoRoute`.
 
 ---
 
@@ -26,10 +26,12 @@ Global search across all clientes and mercados by name or phone number. Accessib
 - Keyboard focus is requested automatically on `LaunchedEffect(Unit)`
 - **Empty state — no query**: Search icon + "Busca clientes y mercados" + instructional subtitle
 - **Empty state — query with no results**: Search icon + "Sin resultados" subtitle (mentions both clientes and mercados)
-- **Results**: `LazyColumn` with two sections, each preceded by a `SearchGroupLabel` (icon + uppercase label + count):
-  - **Clientes** (`Person` icon): `ClienteResultRow` — 42dp `ClienteAvatar` + name + mercado name + status badge chip + balance. Divider at `start = 75.dp`.
-  - **Mercados** (`GridView` icon): `MercadoResultRow` — 42dp rounded tile (`PhotoThumbnail`, `GridView` fallback) + name + "N clientes activos" + chevron. Divider at `start = 75.dp`.
+- **Results**: `LazyColumn` with three sections, each preceded by a `SearchGroupLabel` (icon + uppercase label + count):
+  - **Clientes** (`Person` icon, `text3` color): `ClienteResultRow` — 42dp `ClienteAvatar` + name + mercado name + status badge chip + balance. Divider at `start = 75.dp`. Only non-blacklisted clients.
+  - **Lista Negra** (`Block` icon, `redText` color): `BlacklistResultRow` — 42dp `ClienteAvatar` + red ban badge overlay (18dp circle, `redText` bg, white ban icon, 2dp background-color border ring at bottom-right) + name + mercado name + "En Lista Negra" red pill (redTint bg, redText color) + balance. Divider at `start = 75.dp`.
+  - **Mercados** (`GridView` icon, `text3` color): `MercadoResultRow` — 42dp rounded tile (`PhotoThumbnail`, `GridView` fallback) + name + "N clientes activos" + chevron. Divider at `start = 75.dp`.
 - Sections only rendered when they have at least one result.
+- `SearchGroupLabel` accepts an optional `labelColor: Color?` parameter (defaults to `ext.text3`) used by the Lista Negra section to render in red.
 
 ---
 
@@ -39,10 +41,11 @@ Global search across all clientes and mercados by name or phone number. Accessib
 data class BusquedaUiState(
     val query: String = "",
     val clienteResults: List<ClienteSearchResult> = emptyList(),
+    val blacklistResults: List<BlacklistSearchResult> = emptyList(),
     val mercadoResults: List<MercadoSearchResult> = emptyList(),
     val isSearching: Boolean = false,
 ) {
-    val hasResults get() = clienteResults.isNotEmpty() || mercadoResults.isNotEmpty()
+    val hasResults get() = clienteResults.isNotEmpty() || blacklistResults.isNotEmpty() || mercadoResults.isNotEmpty()
 }
 
 data class ClienteSearchResult(
@@ -52,6 +55,14 @@ data class ClienteSearchResult(
     val mercadoName: String,
     val status: ClientStatus,
     val balance: Double,
+)
+
+data class BlacklistSearchResult(
+    val clienteId: String,
+    val name: String,
+    val photoUrl: String?,
+    val mercadoName: String,
+    val balance: Double,  // from cliente.blacklistBalance
 )
 
 data class MercadoSearchResult(
@@ -66,9 +77,9 @@ data class MercadoSearchResult(
 
 ## ViewModel
 
-`BusquedaViewModel` injects `ClienteRepository` and `MercadoRepository`. Uses `combine(_query, clienteRepository.getAll(), mercadoRepository.getAll())` to reactively filter both lists by query. Clientes are matched on name or phone; mercados on name. `clientesCount` per mercado is derived from the client list in-memory (no extra DB call).
+`BusquedaViewModel` injects `ClienteRepository` and `MercadoRepository`. Uses `combine(_query, clienteRepository.getAll(), mercadoRepository.getAll())` to reactively filter all lists by query. `getAll()` returns both active and blacklisted clients; the ViewModel splits them: non-blacklisted → `clienteResults`, blacklisted → `blacklistResults`. Mercados matched by name. `clientesCount` per mercado is derived from the client list in-memory (no extra DB call). `BlacklistSearchResult.balance` comes from `cliente.blacklistBalance`.
 
-> Client status and balance default to `AL_DIA / 0.0` until Phase 4 wires real pedidos.
+> Client status and balance in `clienteResults` default to `AL_DIA / 0.0` until Phase 4 wires real pedidos.
 
 `ClienteRepository` needed a new `getAll(): Flow<List<Cliente>>` method (added to DAO, interface, and impl).
 
@@ -78,9 +89,9 @@ data class MercadoSearchResult(
 
 | File | Description |
 |------|-------------|
-| `ui/screen/busqueda/BusquedaUiState.kt` | `BusquedaUiState` + `ClienteSearchResult` + `MercadoSearchResult` |
-| `ui/screen/busqueda/BusquedaViewModel.kt` | `combine` on both repos; real search wired |
-| `ui/screen/busqueda/BusquedaScreen.kt` | Sectioned results with `SearchGroupLabel`, `ClienteResultRow`, `MercadoResultRow` |
+| `ui/screen/busqueda/BusquedaUiState.kt` | `BusquedaUiState` + `ClienteSearchResult` + `BlacklistSearchResult` + `MercadoSearchResult` |
+| `ui/screen/busqueda/BusquedaViewModel.kt` | Splits `getAll()` into active/blacklisted; populates all three result lists |
+| `ui/screen/busqueda/BusquedaScreen.kt` | Three-section results: `ClienteResultRow`, `BlacklistResultRow`, `MercadoResultRow` |
 
 ---
 

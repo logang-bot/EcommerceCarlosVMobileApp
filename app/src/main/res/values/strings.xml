@@ -311,6 +311,7 @@
     <string name="detalle_cliente_saldo_ln">Saldo en Lista Negra</string>
     <string name="detalle_cliente_balance_manual_badge">Manual</string>
     <string name="detalle_cliente_balance_manual_caption">Monto ingresado al vetar — reemplaza el desglose de abajo.</string>
+    <string name="detalle_cliente_balance_extra_caption">El estado se calcula solo con los pedidos, no con el saldo extra</string>
     <string name="detalle_cliente_balance_pedidos_label">Pedidos</string>
     <string name="detalle_cliente_balance_extra_label">Saldo extra</string>
     <string name="detalle_cliente_balance_ln_label">Lista Negra</string>
@@ -455,4 +456,21 @@
         <item quantity="one">%1$d producto · %2$s</item>
         <item quantity="other">%1$d productos · %2$s</item>
     </plurals>
+
+    <!-- Reporte de Pedidos -->
+    <string name="reporte_title">Reporte de pedidos</string>
+    <string name="reporte_encabezado_empresa">Comercializadora Carlos V</string>
+    <string name="reporte_encabezado_fecha">Generado el %1$s</string>
+    <string name="reporte_seccion_cliente">Cliente</string>
+    <string name="reporte_seccion_resumen">Resumen</string>
+    <string name="reporte_seccion_pedidos">Pedidos</string>
+    <string name="reporte_cliente_nombre">Nombre</string>
+    <string name="reporte_cliente_mercado">Mercado</string>
+    <string name="reporte_cliente_descripcion">Descripción</string>
+    <string name="reporte_cliente_telefono">Teléfono</string>
+    <string name="reporte_resumen_sin_pagar">Sin pagar</string>
+    <string name="reporte_resumen_saldo">Saldo pendiente</string>
+    <string name="reporte_resumen_total">Total pedidos</string>
+    <string name="reporte_pedidos_vacio">Sin pedidos registrados</string>
+    <string name="reporte_exportar_pdf">Exportar PDF</string>
 </resources>

@@ -25,7 +25,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
@@ -100,6 +103,26 @@ fun MercadosScreen(
 }
 
 @Composable
+private fun LogoMark() {
+    val ext = MaterialTheme.extendedColors
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .border(1.dp, ext.border2, CircleShape),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.img_logo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
 private fun MercadosContent(
     state: MercadosUiState,
     selectedTab: Int = 0,
@@ -130,6 +153,7 @@ private fun MercadosContent(
                     title = stringResource(R.string.mercados_title),
                     subtitle = if (count > 0) stringResource(R.string.mercados_subtitle, count) else null,
                     large = true,
+                    leading = { LogoMark() },
                     actions = {
                         IconButton(onClick = onSearchClick) {
                             Icon(Icons.Default.Search, contentDescription = null)

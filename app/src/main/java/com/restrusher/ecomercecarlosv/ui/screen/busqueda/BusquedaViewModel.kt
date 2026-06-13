@@ -33,8 +33,10 @@ class BusquedaViewModel @Inject constructor(
 
         val clienteResults = clientes
             .filter { c ->
-                c.name.lowercase().contains(q) ||
-                    c.phones.any { it.contains(q) }
+                !c.isBlacklisted && (
+                    c.name.lowercase().contains(q) ||
+                        c.phones.any { it.contains(q) }
+                )
             }
             .map { c ->
                 ClienteSearchResult(
@@ -44,6 +46,23 @@ class BusquedaViewModel @Inject constructor(
                     mercadoName = mercadoIndex[c.mercadoId]?.name.orEmpty(),
                     status = ClientStatus.AL_DIA,
                     balance = 0.0,
+                )
+            }
+
+        val blacklistResults = clientes
+            .filter { c ->
+                c.isBlacklisted && (
+                    c.name.lowercase().contains(q) ||
+                        c.phones.any { it.contains(q) }
+                )
+            }
+            .map { c ->
+                BlacklistSearchResult(
+                    clienteId = c.id,
+                    name = c.name,
+                    photoUrl = c.photoUrl,
+                    mercadoName = mercadoIndex[c.mercadoId]?.name.orEmpty(),
+                    balance = c.blacklistBalance,
                 )
             }
 
@@ -61,6 +80,7 @@ class BusquedaViewModel @Inject constructor(
         BusquedaUiState(
             query = query,
             clienteResults = clienteResults,
+            blacklistResults = blacklistResults,
             mercadoResults = mercadoResults,
         )
     }.stateIn(

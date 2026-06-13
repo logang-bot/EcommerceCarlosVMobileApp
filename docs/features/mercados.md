@@ -29,6 +29,7 @@ Long-pressing a mercado row enters **selection mode**: the normal top bar is rep
 ### MercadosScreen — normal state
 
 - Large `PedidosTopBar` with title "Mercados" and subtitle "%d mercados"
+- **Logo mark** (leading): 34dp `CircleShape`, white background, 1dp `border2` inset, `img_logo.png` `ContentScale.Crop` — rendered via the `leading` parameter of `PedidosTopBar`. Defined as private `LogoMark()` composable in `MercadosScreen.kt`.
 - Top-bar actions: Search icon (→ `BusquedaRoute`), Notifications icon (stub), Profile avatar (→ `PerfilRoute`)
 - `MercadoRow`: 44dp grid-icon tile (`surface3` bg, `border` inset, `GridView` icon) + name + live "N clientes activos" subtitle (with a 6dp colored dot before the text when any client is ADVERTENCIA/CRITICO) + chevron
 - Dividers start at `start = 78.dp` to clear the tile

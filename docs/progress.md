@@ -62,6 +62,22 @@ Applied identically in both `DetalleClienteViewModel` and `ClientesViewModel`. S
 
 ---
 
+### 📦 Expandable `PedidoRow` with product lines
+
+Regular pedido rows now display a **chevron button** (42×42dp, 12dp radius) in place of the left icon tile. Tapping the chevron expands an inline product-list panel below the row with a 180° animated caret rotation. Saldo-extra rows are unchanged (amber Tag tile, amber bg tint).
+
+**Domain:** `PedidoLineItem(productName, quantity)` added. `Pedido.lines: List<PedidoLineItem>` field added (default empty).
+
+**Data layer:** `PedidoWithLines` Room POJO (`@Embedded PedidoEntity` + `@Relation List<DetallePedidoEntity>`). `PedidoDao.getByClienteWithLines()` (`@Transaction` query). `PedidoMapper.toDomain(PedidoWithLines)` overload maps `product_name` + `quantity` into `PedidoLineItem` list. `PedidoRepository.getByClienteWithLines()` added; `PedidoRepositoryImpl` implements it.
+
+**ViewModel:** `DetalleClienteViewModel` now uses `getByClienteWithLines` instead of `getByCliente`, so every emission carries line items.
+
+**No DB migration required** — `product_name` was already present in `detalle_pedido` since Room v9 (Phase 4). `CreatePedidoUseCase` was already saving it from `CartItem.productName`.
+
+**`PedidoRow.kt` redesign:** `CaretButton` composable (accentSoft bg + primary border when expanded, surface3 + border when collapsed; `animateFloatAsState` 180° rotation). `PedidoLinesPanel` composable (surface bg card, border inset, 10.5sp uppercase "N PRODUCTOS" header, `HorizontalDivider`-separated rows with product name + mono `×qty`). `AnimatedVisibility` with `expandVertically + fadeIn/Out(tween 180ms)` controls panel visibility. Panel left-padding aligns under row content (75dp = 20dp horizontal + 42dp tile + 13dp gap).
+
+---
+
 ### 🚫 Lista Negra — row navigation, balance redesign, unblacklist resolution sheet, filter chips
 
 Four improvements applied to the lista negra / detalle cliente flow:
@@ -205,6 +221,43 @@ Three UI fixes applied to `DetallePedidoScreen`:
 - **LoginScreen split** — `LoginScreen.kt` (thin router) · `LoginContent.kt` (regular state) · `LoginBiometricoContent.kt` (enrolled-user state) · `LoginComponents.kt` (shared: `BrandMark`, `LoginTextField`, `PrimaryLoginButton`, `DividerOr`)
 - **PerfilScreen split** — `BiometricCard` + `BiometricToggle` extracted to `BiometricCard.kt`
 - **UmbralesScreen** — `UmbralesScreen.kt` wired to `UmbralesRoute` in `AppNavigation`; `PerfilScreen` Ajustes section navigates to it
+
+---
+
+### 🏠 Home logo + Búsqueda Global — Lista Negra section
+
+**Home screen (MercadosScreen):**
+- `PedidosTopBar` gained a `leading: @Composable (() -> Unit)?` parameter (placed in the actions row left of the `Spacer`, only when `onBack == null`).
+- `LogoMark()` composable added to `MercadosScreen.kt`: 34dp circle, white bg, 1dp `border2` inset, `img_logo.png` `ContentScale.Crop`.
+- `MercadosScreen` passes `leading = { LogoMark() }` to show the Carlos V logo at the top-left of the home screen.
+
+**Búsqueda Global — new "Lista Negra" section:**
+- `BlacklistSearchResult(clienteId, name, photoUrl, mercadoName, balance)` added to `BusquedaUiState.kt`.
+- `BusquedaUiState.blacklistResults` field added; `hasResults` updated to include it.
+- `BusquedaViewModel` splits `clienteRepository.getAll()` into active (`!isBlacklisted`) → `clienteResults` and blacklisted (`isBlacklisted`) → `blacklistResults`. Balance comes from `cliente.blacklistBalance`.
+- `BlacklistResultRow` composable: avatar with 18dp red ban badge (redText bg, white icon, 2dp bg-color ring) + name + mercado + "En Lista Negra" red pill chip + balance.
+- Section inserted between Clientes and Mercados in the `LazyColumn`, with `Block` icon and `redText` label color.
+- `SearchGroupLabel` accepts optional `labelColor: Color?` for the red variant.
+
+---
+
+### 📄 Reporte de Pedidos — PDF export from Detalle Cliente
+
+Full "Reporte de pedidos" screen accessible from the "Generar reporte" menu item in `PedidosMenuButton`.
+
+**Navigation**: `ReporteClienteRoute(clienteId)` added to `AppRoutes.kt` and wired in `AppNavigation.kt`. `PedidosMenuButton` gains `onGenerarReporte: () -> Unit` parameter. `DetalleClienteScreen` passes `onGenerarReporte = { state.cliente?.let { navController.navigate(ReporteClienteRoute(it.id)) } }`.
+
+**Screen** (`ReporteClienteScreen.kt`, `ReporteClienteViewModel.kt`, `ReporteClienteUiState.kt`):
+- Top bar: "Reporte de pedidos" + client name subtitle + back arrow.
+- Four scrollable sections: **Encabezado** (accentSoft card, company name + date), **Cliente** (2×2 info grid), **Resumen** (3 stat cards — "Sin pagar" blue, "Saldo pendiente" amber, "Total pedidos" green), **Pedidos** (list of `ReportePedidoRow` composables with date, product names summary, amounts, `PayChip`).
+- Bottom export bar: full-width "Exportar PDF" `Button`.
+
+**PDF generation** (zero new dependencies):
+1. `buildReporteHtml(state, date)` generates a self-contained HTML string with inline CSS (tables, color chips, status badges, print-optimized layout).
+2. On button tap: instantiate `WebView`, load HTML via `loadDataWithBaseURL`, handle `onPageFinished` → `PrintManager.print(jobName, webView.createPrintDocumentAdapter(jobName), PrintAttributes.Builder().build())`.
+3. System print dialog handles save-to-PDF / share.
+
+**Menu item redesign**: `ReporteMenuItem` now has `accentSoft` bg, `Description` icon in `accentTint` tile, full-contrast label, and primary-tinted chevron. Previously non-interactive.
 
 ---
 

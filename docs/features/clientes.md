@@ -1,6 +1,6 @@
 # Feature: Clientes
 
-## Status: ✅ Done — CRUD, Saldo Extra, Lista Negra, Detalle UI complete
+## Status: ✅ Done — CRUD, Saldo Extra, Lista Negra, Detalle UI, Reporte de Pedidos complete
 
 ---
 
@@ -18,6 +18,7 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 | Detalle de Cliente | `DetalleClienteRoute(clienteId)` | `ui/screen/cliente/DetalleClienteScreen.kt` | ✅ Done |
 | Crear / Editar Cliente | `CreateClienteRoute(mercadoId, clienteId?)` | `ui/screen/cliente/CreateClienteScreen.kt` | ✅ Done |
 | Saldo Extra | `SaldoExtraRoute(clienteId)` | `ui/screen/cliente/SaldoExtraScreen.kt` | ✅ Done |
+| Reporte de Pedidos | `ReporteClienteRoute(clienteId)` | `ui/screen/reporte/ReporteClienteScreen.kt` | ✅ Done |
 
 ---
 
@@ -36,6 +37,11 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 | Room migration 5→6 (`MIGRATION_5_6`) | ✅ |
 | Room migration 7→8 (`MIGRATION_7_8`) — adds `blacklistBalance` column | ✅ |
 | Room migration 11→12 (`MIGRATION_11_12`) — adds `blacklistIsManualAmount` column | ✅ |
+| `domain/model/PedidoLineItem.kt` | ✅ |
+| `data/local/entity/PedidoWithLines.kt` — Room `@Embedded` + `@Relation` POJO | ✅ |
+| `ui/screen/reporte/ReporteClienteUiState.kt` | ✅ |
+| `ui/screen/reporte/ReporteClienteViewModel.kt` | ✅ |
+| `ui/screen/reporte/ReporteClienteScreen.kt` | ✅ |
 
 ---
 
@@ -80,13 +86,20 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 **"Cuenta" section** (formerly "Pedidos"):
 - Section label renamed to "Cuenta"
 - Three-dot overflow menu (`PedidosMenuButton`) at the right of the section header:
-  - "Generar reporte" item (stub, non-interactive for now)
+  - "Generar reporte" item — accent-tinted icon tile (`Description` icon), clickable, navigates to `ReporteClienteRoute(clienteId)`
   - "Filtrar por estado" sub-section with Pendiente / Parcial / Pagado toggle items
   - "Restablecer (todos)" item (enabled only when filters are active)
 - When filters are active: colored status chips displayed below the section header (`FilterChipsRow`), each showing a 7dp status-color dot + label, plus a "✕ Limpiar" clear chip; section header also shows "N de M" count
 - Filter state (`pedidoFilters: Set<PedidoStatus>`) lives in the ViewModel; `allPedidosCount` is the total unfiltered count
 
-**Pedidos list** (Phase 4 — ✅ done): `PedidoRow` composable per pedido. Shows icon tile, product count, date, total (mono), `PayChip`. Empty state shown when no pedidos exist (when filters active, empty state hides the "Nuevo pedido" hint).
+**Pedidos list** (Phase 4 — ✅ done): `PedidoRow` composable per pedido. Shows date, product count, total (mono), `PayChip`. Empty state shown when no pedidos exist (when filters active, empty state hides the "Nuevo pedido" hint).
+
+**Expandable product panel** (post-Phase 7 — ✅ done):
+- Regular pedido rows show a `CaretButton` (42×42dp, 12dp radius) instead of the receipt icon tile. Tapping it expands/collapses a `PedidoLinesPanel` below the row with a 180° animated caret rotation (`animateFloatAsState`, 180ms tween).
+- Expanded button style: `accentSoft` bg + `primary` border + `primary` tint; collapsed: `surface3` bg + `border` + `text2` tint.
+- `PedidoLinesPanel`: surface-color card with border inset, 10.5sp uppercase "N PRODUCTOS" header, then `HorizontalDivider`-separated rows showing `productName` (ellipsized) + mono `×quantity`. Left-padded 75dp to align under row text content.
+- Saldo-extra rows are unchanged (amber Tag tile, amber bg tint, no expandable behavior).
+- `DetalleClienteViewModel` uses `pedidoRepository.getByClienteWithLines()` so every pedido carries its `PedidoLineItem` list reactively.
 
 **Search**: `OutlinedTextField` bar revealed via `AnimatedVisibility` when the search icon is tapped. `searchQuery` lives in `ClientesViewModel`; filtering is applied inside the `combine` block before the list reaches the UI.
 
@@ -181,9 +194,37 @@ Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combin
 
 ---
 
+## Reporte de Pedidos
+
+**Route**: `ReporteClienteRoute(clienteId: String)` → `ui/screen/reporte/ReporteClienteScreen.kt`
+
+**Entry point**: "Generar reporte" item in `PedidosMenuButton` dropdown.
+
+**Screen layout**:
+- `TopAppBar`: "Reporte de pedidos" title + client name subtitle + back arrow.
+- Scrollable body with four sections: Encabezado, Cliente info, Resumen, Pedidos list.
+- Bottom export bar (above `navigationBarsPadding`) with full-width "Exportar PDF" button.
+
+**Encabezado card**: `accentSoft` bg, `Description` icon in `accentTint` tile, company name + generated date.
+
+**Cliente info section**: 2×2 grid of `ReporteInfoItem` (label in `text4` uppercase, value in 13.5sp SemiBold): Nombre, Mercado, Descripción, Teléfono.
+
+**Resumen section**: 3 side-by-side `ReporteResumenCard` composables — "Sin pagar" (blue), "Saldo pendiente" (amber), "Total pedidos" (green). Balance uses same computation as `DetalleClienteViewModel`.
+
+**Pedidos list**: Card container per pedido (`ReportePedidoRow`) showing date, product count, product names summary (inline), total/pending amounts, and `PayChip`. Saldo-extra rows use amber tint background.
+
+**PDF export**: On "Exportar PDF" button tap, `buildReporteHtml(state, date)` generates a self-contained HTML string with inline CSS. A `WebView` loads it via `loadDataWithBaseURL`, then `WebViewClient.onPageFinished` triggers `PrintManager.print()` using `webView.createPrintDocumentAdapter()`. The system print dialog handles save-to-PDF / share.
+
+**ViewModel** (`ReporteClienteViewModel`):
+- 3-flow `combine`: `clienteFlow + pedidosWithLinesFlow + _mercadoName`.
+- `_mercadoName` is a `MutableStateFlow<String>` seeded in `init` via a one-shot `getByIdFlow(...).first { it != null }` + `mercadoRepository.getById(...)`.
+- `balance` = sum of `pending` for PARTIAL pedidos + PENDING saldo-extras.
+- `unpaidCount` = count of non-saldo-extra pedidos that are not PAID.
+
 ## Open TODOs
 
 - [x] Implement `SaldoExtraScreen` (pre-filled category "Saldo", description, amount, date)
 - [x] Add `SaldoExtraRoute` to `AppRoutes.kt` and `AppNavigation.kt`
 - [x] Phase 4: real balance/status computed from pedidos in `DetalleClienteViewModel`
 - [x] Phase 7: Lista Negra state in `DetalleClienteScreen` — banner, avatar badge, button swap, FAB hidden, "Quitar de Lista Negra" action
+- [x] Reporte de Pedidos — full screen with PDF export via `WebView` + `PrintManager`

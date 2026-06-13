@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **10**. Supabase integration: Phase 9.
+Room version: **12**. Supabase integration: Phase 9.
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v10)
+## Current tables (Room v12)
 
 ### `users`
 
@@ -128,7 +128,7 @@ A delivery order. Belongs to a `clientes` row.
 | `paid_at` | `bigint` | ✓ | Epoch ms; set on every payment (partial or full) — always reflects the most recent payment date |
 | `is_saldo_extra` | `boolean` | — | `true` for manual balance entries (Saldo Extra) — no line items; default `false` *(added v10)* |
 
-**DAO operations:** `getByCliente(clienteId)` flow · `getByIdFlow(id)` flow · `getById(id)` · `getAllUnpaid()` flow · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `deleteById(id)`
+**DAO operations:** `getByCliente(clienteId)` flow · `getByClienteWithLines(clienteId)` flow (`@Transaction`, returns `PedidoWithLines`) · `getByIdFlow(id)` flow · `getById(id)` · `getAllUnpaid()` flow · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `deleteById(id)`
 
 **Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`.
 
@@ -143,6 +143,7 @@ Line items inside a `pedidos` row.
 | `id` | `uuid` PK | — | |
 | `pedido_id` | `uuid` FK → `pedidos.id` | — | `ON DELETE CASCADE` |
 | `producto_id` | `uuid` FK → `productos.id` | — | `ON DELETE RESTRICT` |
+| `product_name` | `text` | — | **Denormalized snapshot** of `productos.name` at time of order — see note below |
 | `quantity` | `int4` | — | |
 | `unit_price` | `float8` | — | Snapshot of price at time of order |
 | `catalog_price` | `float8` | — | Catalogue price at time of order — used to show amber "price modified" indicator |
@@ -150,7 +151,7 @@ Line items inside a `pedidos` row.
 
 **Suggested index:** `detalle_pedido(pedido_id)`.
 
-> `unit_price` is a snapshot — it must not reference the live `productos.price` so historical orders remain accurate after a price change.
+> **Denormalized `product_name`:** `unit_price` and `product_name` are both snapshots — they must not reference live `productos` data so historical orders remain accurate after a price or name change. `product_name` also enables the expandable product list in `PedidoRow` without joining the catalogue, and it simplifies Supabase cloud sync (no cross-table join needed to render order history).
 
 ---
 

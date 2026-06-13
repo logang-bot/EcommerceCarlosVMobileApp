@@ -118,33 +118,36 @@ internal fun SaldoExtraAmountHero(value: String, isError: Boolean, onValueChange
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("Bs.", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = ext.text2)
-            Box {
-                if (value.isEmpty()) {
-                    Text(
-                        text = "0,00",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 46.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-1.5).sp,
-                        color = ext.text3,
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 46.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-1.5).sp,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    ),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    cursorBrush = SolidColor(accent),
-                    modifier = Modifier.width(IntrinsicSize.Min),
-                )
-            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                textStyle = TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 46.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-1.5).sp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(accent),
+                modifier = Modifier.width(IntrinsicSize.Min).defaultMinSize(minWidth = 80.dp),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = "0,00",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 46.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-1.5).sp,
+                                color = ext.text3,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+            )
         }
         Spacer(Modifier.height(6.dp))
         Box(

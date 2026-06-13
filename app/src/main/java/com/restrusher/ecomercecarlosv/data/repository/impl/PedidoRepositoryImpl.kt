@@ -20,6 +20,12 @@ class PedidoRepositoryImpl @Inject constructor(
     override fun getByCliente(clienteId: String): Flow<List<Pedido>> =
         pedidoDao.getByCliente(clienteId).map { it.map(PedidoMapper::toDomain) }
 
+    override fun getByClienteWithLines(clienteId: String): Flow<List<Pedido>> =
+        pedidoDao.getByClienteWithLines(clienteId).map { it.map(PedidoMapper::toDomain) }
+
+    override fun getAll(): Flow<List<Pedido>> =
+        pedidoDao.getAll().map { it.map(PedidoMapper::toDomain) }
+
     override fun getAllUnpaid(): Flow<List<Pedido>> =
         pedidoDao.getAllUnpaid().map { it.map(PedidoMapper::toDomain) }
 

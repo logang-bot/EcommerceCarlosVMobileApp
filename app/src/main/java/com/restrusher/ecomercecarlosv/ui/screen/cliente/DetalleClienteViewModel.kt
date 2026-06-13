@@ -38,7 +38,7 @@ class DetalleClienteViewModel @Inject constructor(
 
     val uiState: StateFlow<DetalleClienteUiState> = combine(
         clienteRepository.getByIdFlow(clienteId),
-        pedidoRepository.getByCliente(clienteId),
+        pedidoRepository.getByClienteWithLines(clienteId),
         umbralesManager.umbrales,
         _showUnblacklistSheet,
         _pedidoFilters,

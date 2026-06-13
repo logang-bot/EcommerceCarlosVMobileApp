@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -178,6 +178,7 @@ internal fun PedidosMenuButton(
     activeFilters: Set<PedidoStatus>,
     onToggleFilter: (PedidoStatus) -> Unit,
     onClearFilters: () -> Unit,
+    onGenerarReporte: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     var expanded by remember { mutableStateOf(false) }
@@ -206,7 +207,7 @@ internal fun PedidosMenuButton(
             border = BorderStroke(1.dp, ext.border2),
             shadowElevation = 16.dp,
         ) {
-            ReporteMenuItem()
+            ReporteMenuItem(onClick = { onGenerarReporte(); expanded = false })
             MenuSectionHeader(stringResource(R.string.detalle_cliente_menu_filtrar_header))
             PedidoStatusMenuItems(activeFilters = activeFilters, onToggleFilter = onToggleFilter)
             HorizontalDivider(color = ext.border, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
@@ -216,21 +217,31 @@ internal fun PedidosMenuButton(
 }
 
 @Composable
-private fun ReporteMenuItem() {
+private fun ReporteMenuItem(onClick: () -> Unit) {
     val ext = MaterialTheme.extendedColors
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(11.dp))
+            .background(ext.accentSoft)
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.BarChart, contentDescription = null, tint = ext.text3, modifier = Modifier.size(19.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(ext.accentTint),
+        ) {
+            Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = stringResource(R.string.detalle_cliente_menu_generar_label), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ext.text3)
-            Text(text = stringResource(R.string.detalle_cliente_menu_generar_sub), fontSize = 11.5.sp, color = ext.text4, modifier = Modifier.padding(top = 1.dp))
+            Text(text = stringResource(R.string.detalle_cliente_menu_generar_label), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = stringResource(R.string.detalle_cliente_menu_generar_sub), fontSize = 11.5.sp, color = ext.text3, modifier = Modifier.padding(top = 1.dp))
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp))
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(17.dp))
     }
 }
 

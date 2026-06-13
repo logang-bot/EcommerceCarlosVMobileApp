@@ -11,6 +11,7 @@ data class Pedido(
     val paidAt: Long? = null,
     val isSaldoExtra: Boolean = false,
     val itemCount: Int = 0,
+    val lines: List<PedidoLineItem> = emptyList(),
 ) {
     val pending: Double get() = (total - paid).coerceAtLeast(0.0)
 }

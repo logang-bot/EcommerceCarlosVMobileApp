@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 
 interface PedidoRepository {
     fun getByCliente(clienteId: String): Flow<List<Pedido>>
+    fun getByClienteWithLines(clienteId: String): Flow<List<Pedido>>
+    fun getAll(): Flow<List<Pedido>>
     fun getAllUnpaid(): Flow<List<Pedido>>
     fun getByIdFlow(id: String): Flow<Pedido?>
     suspend fun getById(id: String): Pedido?
