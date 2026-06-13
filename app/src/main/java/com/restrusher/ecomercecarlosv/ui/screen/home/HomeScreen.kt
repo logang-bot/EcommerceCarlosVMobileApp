@@ -26,6 +26,7 @@ fun HomeScreen(navController: NavController) {
             onTabSelected = { selectedTab = it },
         )
         2 -> ReporteScreen(
+            navController = navController,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
         )

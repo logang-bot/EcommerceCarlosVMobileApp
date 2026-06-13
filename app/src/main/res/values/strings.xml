@@ -512,4 +512,32 @@
     <string name="reporte_guardado_ok">Reporte guardado en Descargas</string>
     <string name="reporte_guardado_error">Error al guardar el reporte</string>
     <string name="reporte_guardado_sin_espacio">Sin espacio suficiente en el dispositivo</string>
+
+    <!-- Reporte status screen -->
+    <string name="reporte_status_generando_title">Generando reporte</string>
+    <string name="reporte_status_listo_title">Reporte listo</string>
+    <string name="reporte_status_error_title">No se pudo generar</string>
+    <string name="reporte_status_creando">Creando tu reporte…</string>
+    <string name="reporte_status_reuniendo_pedidos">Reuniendo %1$d pedidos. Esto puede tardar unos segundos.</string>
+    <string name="reporte_status_reuniendo_movimientos">Reuniendo %1$d movimientos. Esto puede tardar unos segundos.</string>
+    <string name="reporte_status_preparando">Preparando el reporte…</string>
+    <string name="reporte_status_progreso">Progreso</string>
+    <string name="reporte_status_paso_pedidos">Pedidos reunidos</string>
+    <string name="reporte_status_paso_movimientos">Movimientos reunidos</string>
+    <string name="reporte_status_paso_generando">Generando el documento</string>
+    <string name="reporte_status_paso_listo">Listo para descargar</string>
+    <string name="reporte_status_listo_heading">Tu reporte está listo</string>
+    <string name="reporte_status_listo_subtitulo">Descárgalo en el teléfono o compártelo directamente.</string>
+    <string name="reporte_status_meta_html">HTML · %1$d KB</string>
+    <string name="reporte_status_descargado">Descargado</string>
+    <string name="reporte_status_accion_compartir">Compartir</string>
+    <string name="reporte_status_accion_descargar">Descargar</string>
+    <string name="reporte_status_accion_reintentar">Reintentar</string>
+    <string name="reporte_status_error_heading">No se pudo generar el reporte</string>
+    <string name="reporte_status_error_sin_espacio_subtitulo">El dispositivo no tiene espacio suficiente. Libera almacenamiento e inténtalo de nuevo.</string>
+    <string name="reporte_status_error_generico_subtitulo">Ocurrió un error al crear el archivo del reporte. Inténtalo de nuevo.</string>
+    <string name="reporte_status_error_sin_espacio_label">Sin espacio en el dispositivo</string>
+    <string name="reporte_status_error_escritura_label">Error al escribir el archivo</string>
+    <string name="reporte_status_error_codigo">Código de error</string>
+    <string name="reporte_status_error_reassurance">No se perdió nada. Puedes reintentar en cualquier momento.</string>
 </resources>

@@ -89,6 +89,33 @@ Report export no longer opens the print dialog. Files are now written directly t
 
 ---
 
+### 🔄 Report generation status screen (`ReporteStatusScreen`)
+
+Tapping the export action now navigates to a dedicated status screen instead of saving directly.
+
+**Generating state:**
+- Shimmer skeleton document thumbnail (150×197dp, infinite `Brush.linearGradient` animation).
+- "Creando tu reporte…" title + item-count description (e.g. "Reuniendo 23 pedidos").
+- `LinearProgressIndicator` animated in three steps (0→12%→62%→95% over ~950ms total).
+- Three `GenStep` rows: step 0 "Pedidos/Movimientos reunidos" → step 1 "Generando el documento" → step 2 "Listo para descargar". Each step has a circle badge (active: spinning sync icon on `accentTint`; done: check on `greenTint`; todo: dot on `surface3`).
+- AppBar: "Generando reporte" + "Cancelar" text button.
+
+**Ready state:**
+- Green check badge (56dp, 18dp corners).
+- File meta card: red-tint doc icon + filename + "HTML · N KB".
+- AppBar: "Reporte listo".
+- Bottom bar:
+  - **Compartir** → `Intent.ACTION_SEND` with cached file via `FileProvider` (Android native share sheet).
+  - **Descargar** → `saveReportToDownloads` → toast. Turns green ("Descargado" + Check) after first tap.
+
+**`ReporteExportHolder`** (singleton): calling screen sets `pending = PendingExport(html, fileName, itemCount, isMovimientosVariant)` before navigating to `ReporteStatusRoute`.
+
+**`file_paths.xml`**: added `<cache-path name="reports" path="reports/" />` for `FileProvider`.
+
+**Files changed:** `ReporteStatusScreen.kt` (new), `ReporteExportHolder.kt` (new), `AppRoutes.kt` (+ `ReporteStatusRoute`), `AppNavigation.kt` (+ composable), `HomeScreen.kt` (pass navController to ReporteScreen), `ReporteScreen.kt` (navigate instead of direct save), `ReporteClienteScreen.kt` (navigate instead of direct save), `file_paths.xml`.
+
+---
+
 ### 🎨 Reportes UI polish (same session as Phase 8)
 
 - **Mode toggle**: selected tab now uses `primary` bg + `onPrimary` text (was `surface`/`onSurface`); unselected uses `text2` (was `text3`).

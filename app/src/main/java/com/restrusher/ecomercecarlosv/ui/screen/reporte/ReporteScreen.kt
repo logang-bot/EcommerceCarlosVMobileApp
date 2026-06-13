@@ -28,11 +28,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.navigation.NavController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -60,8 +59,8 @@ import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.HistorialSect
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.MovimientoRow
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.MovimientosSectionHeader
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ReporteModeToggle
+import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.buildReporteHtml
-import kotlinx.coroutines.launch
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
@@ -72,22 +71,21 @@ import java.util.Locale
 fun ReporteScreen(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
+    navController: NavController? = null,
     viewModel: ReporteViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     val onExportarPdf: () -> Unit = {
-        val label = SimpleDateFormat("d 'de' MMMM 'de' yyyy", Locale("es")).format(Date())
         val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+        val isMovimientos = state.mode == ReporteMode.POR_CLIENTE
         val modeTag = if (state.mode == ReporteMode.DIARIO) "Diario" else "PorCliente"
         val fileName = "Reporte_${modeTag}_$stamp.html"
+        val label = SimpleDateFormat("d 'de' MMMM 'de' yyyy", Locale("es")).format(Date())
         val html = buildReporteHtml(state, label)
-        scope.launch {
-            val result = saveReportToDownloads(context, html, fileName)
-            showSaveToast(context, result)
-        }
+        val itemCount = if (state.mode == ReporteMode.DIARIO) state.movimientos.size else state.historial.size
+        ReporteExportHolder.pending = PendingExport(html, fileName, itemCount, isMovimientos)
+        navController?.navigate(ReporteStatusRoute)
     }
 
     ReporteContent(

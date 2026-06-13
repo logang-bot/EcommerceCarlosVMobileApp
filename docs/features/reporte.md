@@ -21,6 +21,7 @@ Report export via the top-bar `Description` icon (Reportes tab) and the "Generar
 |--------|-------|------|
 | Reportes tab | Tab 2 of `HomeRoute` | `ui/screen/reporte/ReporteScreen.kt` |
 | Reporte de Pedidos (per client, from DetalleCliente) | `ReporteClienteRoute(clienteId)` | `ui/screen/reporte/ReporteClienteScreen.kt` |
+| Generando / Listo reporte | `ReporteStatusRoute` | `ui/screen/reporte/ReporteStatusScreen.kt` |
 
 ---
 
@@ -66,19 +67,64 @@ Shown below the chip bar when `PERSONALIZADO` is active. Two `DateField` composa
 - **`ClienteStatCards`**: three equal cards — Facturado (`accentSoft`/`primary`) + Pagado (`greenTint`/`greenText`) + Saldo (`amberTint`/`amberText`).
 - **`HistorialSectionHeader`** + **`HistorialRow`**: 36dp rounded tile (green Check for PAID, accent Receipt for PENDING/PARTIAL, amber Assessment for saldoExtra) + title (formatted date or "Saldo extra") + status subtext (pending amount in amber or "Pagado" in green) + total amount (right) + "Total"/"Extra" label below.
 
-### Report export — save to Downloads
+### Report export — status screen + save/share
 
-Both modes share a single save-to-file flow (replaces the previous `WebView + PrintManager` print dialog):
+Tapping the export icon (Reportes tab) or "Generar PDF" (ReporteClienteScreen) no longer directly downloads the file. Instead:
 
-1. HTML is generated via the same `buildDiarioHtml` / `buildPorClienteHtml` / `buildReporteClienteHtml` builders.
-2. `saveReportToDownloads(context, html, fileName)` (`ui/screen/reporte/ReporteSaver.kt`) writes the file:
-   - **API 29+**: `MediaStore.Downloads` API — no storage permission needed.
-   - **API 24–28**: `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)` + `File.writeText`.
-3. Returns a `SaveResult` sealed interface: `Success(fileName)`, `NoSpace`, or `Error(cause)`.
-4. `showSaveToast(context, result)` shows a `Toast.LENGTH_LONG`:
-   - Success → `"Reporte guardado en Descargas"`
-   - No space → `"Sin espacio suficiente en el dispositivo"`
-   - Other error → `"Error al guardar el reporte"`
+1. HTML is built via `buildReporteHtml` / `buildReporteClienteHtml`.
+2. A `PendingExport(html, fileName, itemCount, isMovimientosVariant)` is stored in `ReporteExportHolder` (singleton).
+3. Navigation goes to `ReporteStatusRoute` → `ReporteStatusScreen`.
+
+#### `ReporteStatusScreen` — generating state
+
+Shown while the HTML is saved to the app cache (`context.cacheDir/reports/<fileName>`):
+- Shimmer skeleton thumbnail (150×197dp, 9dp corners, `Brush.linearGradient` shimmer + border).
+- "Creando tu reporte…" title + item-count description.
+- Animated `LinearProgressIndicator` tied to step progress (0→12%→62%→95% over ~950ms).
+- Three `GenStep` rows (circle badge + label):
+  - Step 0 active: `accentTint` bg + spinning `Sync` icon; label "Pedidos/Movimientos reunidos".
+  - Step 1 active: saving to cache.
+  - Step 2 active: transitioning to ready.
+  - Done steps: `greenTint` bg + `Check` icon. Todo steps: `surface3` bg + small dot.
+- AppBar: "Generando reporte" title + "Cancelar" text button.
+
+#### `ReporteStatusScreen` — ready state
+
+Shown after cache write completes:
+- Green check badge (56dp, 18dp corners, `greenTint` bg).
+- "Tu reporte está listo" title + subtitle.
+- `ReportDocPreview` (150×197dp): Compose-drawn stylized document thumbnail — green header bar with logo circle + name line, three mini stat boxes (green/accent/amber tints), section label + divider, and six alternating table rows with a coloured dot + value line.
+- File meta card (`surface2` bg, `border` inset, 15dp corners): red-tint doc icon + filename + "HTML · N KB".
+- AppBar: "Reporte listo" title (no Cancelar).
+- Bottom bar (two buttons, 52dp height, 15dp corners):
+  - **Compartir** (`OutlinedButton`): fires `Intent.ACTION_SEND` with the cached file via `FileProvider` (authority `${packageId}.fileprovider`, path `reports/`). Android native share sheet.
+  - **Descargar** (`Button`, primary): calls `saveReportToDownloads` → `showSaveToast`. After first tap, button turns green ("Descargado" + Check icon, disabled to prevent duplicate).
+
+#### `ReporteStatusScreen` — error state
+
+Shown if the cache write fails (IOException or any unexpected exception):
+- Red warning badge (64dp, 20dp corners, `errorContainer` bg).
+- Two distinct error messages:
+  - **No space** (`ENOSPC` / "No space left" in exception message): "Sin espacio suficiente" + "Libera espacio e intenta de nuevo."
+  - **Other error**: "No se pudo generar" + "Ocurrió un error inesperado."
+- AppBar: "Error al generar".
+- Bottom bar: **Volver** (`OutlinedButton`, pops back) + **Reintentar** (`Button`, increments `retryKey` → re-runs `LaunchedEffect(retryKey)`).
+- The `pending` data is held in `remember { }` (not cleared from holder on error), so retries work without re-navigating.
+
+#### `ReporteSaver.kt` (unchanged)
+
+`saveReportToDownloads(context, html, fileName)` writes to the device Downloads folder:
+- **API 29+**: `MediaStore.Downloads` API — no storage permission needed.
+- **API 24–28**: `Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)` + `File.writeText`.
+Returns `SaveResult`: `Success(fileName)`, `NoSpace`, or `Error(cause)`.
+`showSaveToast` shows a `Toast.LENGTH_LONG` with the result in Spanish.
+
+#### `ReporteExportHolder.kt`
+
+```kotlin
+data class PendingExport(val html: String, val fileName: String, val itemCount: Int, val isMovimientosVariant: Boolean)
+object ReporteExportHolder { var pending: PendingExport? = null }
+```
 
 **Filenames:**
 - Reportes tab (Diario mode): `Reporte_Diario_20260613_1432.html`
@@ -197,6 +243,8 @@ Added to `PedidoRepository` interface and `PedidoRepositoryImpl`. **No DB migrat
 | `ui/screen/reporte/html/ReporteHtml.kt` | `buildReporteHtml`, `buildDiarioHtml`, `buildPorClienteHtml` |
 | `ui/screen/reporte/html/ReporteClienteHtml.kt` | `buildReporteClienteHtml`, `formatPeriodLabel` |
 | `ui/screen/reporte/ReporteSaver.kt` | `saveReportToDownloads` (MediaStore API 29+ / File API 24–28) + `SaveResult` sealed interface + `showSaveToast` |
+| `ui/screen/reporte/ReporteExportHolder.kt` | `PendingExport` data class + `ReporteExportHolder` singleton (passes HTML between calling screen and status screen) |
+| `ui/screen/reporte/ReporteStatusScreen.kt` | Generating state (shimmer + steps + progress bar) and ready state (file meta + Download + Share actions) |
 
 ### Data layer
 

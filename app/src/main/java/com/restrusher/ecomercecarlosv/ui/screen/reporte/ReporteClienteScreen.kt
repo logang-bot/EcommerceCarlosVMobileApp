@@ -29,11 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,9 +51,9 @@ import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.RangeSectionL
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ResolvedDateBar
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.SummaryCard
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.WarningBanner
+import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.buildReporteClienteHtml
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.formatPeriodLabel
-import kotlinx.coroutines.launch
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
@@ -67,9 +65,6 @@ import java.util.Locale
 fun ReporteClienteScreen(navController: NavController) {
     val viewModel = hiltViewModel<ReporteClienteViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     ReporteClienteContent(
         state = state,
         onBack = { navController.popBackStack() },
@@ -82,10 +77,13 @@ fun ReporteClienteScreen(navController: NavController) {
             val safeName = state.clienteName.replace(" ", "_").filter { it.isLetterOrDigit() || it == '_' }
             val fileName = "Reporte_${safeName}_$stamp.html"
             val html = buildReporteClienteHtml(state, formatPeriodLabel(state), label)
-            scope.launch {
-                val result = saveReportToDownloads(context, html, fileName)
-                showSaveToast(context, result)
-            }
+            ReporteExportHolder.pending = PendingExport(
+                html = html,
+                fileName = fileName,
+                itemCount = state.pedidosCount,
+                isMovimientosVariant = true,
+            )
+            navController.navigate(ReporteStatusRoute)
         },
     )
 }

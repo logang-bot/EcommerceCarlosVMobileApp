@@ -36,8 +36,10 @@ import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.EditarPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteClienteScreen
+import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteStatusScreen
 import com.restrusher.ecomercecarlosv.ui.screen.producto.CreateProductoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
@@ -122,6 +124,9 @@ fun AppNavigation() {
         }
         composable<ReporteClienteRoute> {
             ReporteClienteScreen(navController = navController)
+        }
+        composable<ReporteStatusRoute> {
+            ReporteStatusScreen(navController = navController)
         }
     }
 }
