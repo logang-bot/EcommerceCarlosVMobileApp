@@ -36,7 +36,7 @@ Global view of all blacklisted clients across all mercados. Accessible from the 
 - AppBar: "Lista Negra", subtitle "Todos los mercados · solo lectura", back + search icon
 - Search bar (`AnimatedVisibility`) — filters by client name
 - **Red summary banner** (when list is non-empty): `Block` icon + "N clientes vetados" + "Saldo total irrecuperable · Bs. XX,XX"
-- `BlacklistRow`: 46dp `ClienteAvatar` (supports `photoUrl`) + name + balance (red monospace, right-aligned) + mercado name + reason (with `Block` icon, `text3` color) + "Agregado el {date}" (`text4`)
+- `BlacklistRow`: 46dp `ClienteAvatar` (supports `photoUrl`) + name + balance (red monospace, right-aligned) + mercado name + reason (with `Block` icon, `text3` color) + "Agregado el {date}" (`text4`). Tapping a row navigates to `DetalleClienteRoute(clienteId)`.
 - Divider at `start = 79.dp`
 - **Empty state** (no blacklisted clients): `Block` icon, "Lista negra vacía", no hint
 - **Search empty state** (query yields no rows): `Search` icon, "Sin resultados", compact, 280dp height
@@ -108,7 +108,7 @@ data class AgregarListaNegraUiState(
 
 **`ListaNegraViewModel`** — injects `ClienteRepository` + `MercadoRepository`. Uses `combine(getBlacklisted(), mercadoAll, query)` for reactive search and mercado name resolution.
 
-**`AgregarListaNegraViewModel`** — injects `ClienteRepository` + `PedidoRepository`. Uses `combine(clienteRepository.getByIdFlow, pedidoRepository.getByCliente)` to reactively load the client name and filter non-PAID pedidos. Default `TotalMode` is set on first load (AUTO when pending list is non-empty, MANUAL otherwise) and preserved after. `onConfirm()` calls `clienteRepository.blacklist(id, reason, effectiveAmount, at)` then invokes the success callback.
+**`AgregarListaNegraViewModel`** — injects `ClienteRepository` + `PedidoRepository`. Uses `combine(clienteRepository.getByIdFlow, pedidoRepository.getByCliente)` to reactively load the client name and filter non-PAID pedidos. Default `TotalMode` is set on first load (AUTO when pending list is non-empty, MANUAL otherwise) and preserved after. `onConfirm()` calls `clienteRepository.blacklist(id, reason, effectiveAmount, at, isManualAmount = totalMode == MANUAL)` then invokes the success callback.
 
 ---
 
@@ -168,14 +168,15 @@ All methods are exposed through their respective repository interfaces and impls
 | `ui/screen/lista_negra/AgregarListaNegraScreen.kt` | Screen entry + `AgregarListaNegraContent` + `SectionLabel` + full-screen previews |
 | `ui/screen/lista_negra/PendingPedidosSection.kt` | `PendingPedidosList` + `PendingPedidoRow` composables with previews |
 | `ui/screen/lista_negra/TotalModeCard.kt` | `TotalModeCard` composable (AUTO/MANUAL radio-style card) with previews |
-| `ui/screen/cliente/DetalleClienteBalance.kt` | `BalanceBlock` (accepts `modifier` for alpha dimming) + `BlacklistBalanceBlock` (manual amount display) |
-| `ui/screen/cliente/QuitarListaNegraSheet.kt` | `ModalBottomSheet` shown when removing a manually-blacklisted client; two options: Restaurar / Marcar como pagados |
+| `ui/screen/cliente/DetalleClienteBalance.kt` | `BalanceBlock` (unified — handles normal, AUTO-LN, MANUAL-LN states) + `BalanceCaption` + `BalanceCard` + `BalanceBreakdown` |
+| `ui/screen/cliente/QuitarListaNegraSheet.kt` | `ModalBottomSheet` with radio-style option cards matching the mockup: header icon + title + subtitle (bold client name); "Restaurar pedidos y saldos" (blue, pre-selected) + "Marcar todo como pagado" (green, disabled when AUTO); amber info banner when manual; confirm + cancel buttons |
 
 ---
 
 ## Open TODOs
 
 - [x] Tap row in `ListaNegraScreen` → navigate to `DetalleClienteRoute(clienteId)`
-- [x] `BlacklistBalanceBlock` in `DetalleClienteScreen` when `blacklistIsManualAmount = true`
-- [x] `BalanceBlock` dimmed when manual amount overrides it
-- [x] `QuitarListaNegraSheet` — resolution sheet for manually-blacklisted clients (Restaurar / Marcar como pagados)
+- [x] Unified `BalanceBlock` with AUTO/MANUAL/normal states replacing `BlacklistBalanceBlock`
+- [x] `BalanceBreakdown` cards (Pedidos/Extra/LN) with inactive state for MANUAL
+- [x] `QuitarListaNegraSheet` — resolution sheet with mockup-faithful radio option cards (Restaurar / Marcar como pagados)
+- [x] Excess saldo extra on "Marcar todo como pagado": if `blacklistBalance > pendingSum`, a saldo extra is created for the difference via `CreateSaldoExtraUseCase` before marking all pedidos as paid

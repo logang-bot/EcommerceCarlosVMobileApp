@@ -49,7 +49,10 @@ class ClientesViewModel @Inject constructor(
                     it.status == PedidoStatus.PARTIAL ||
                         (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
                 }.sumOf { it.pending }
-                ClienteUiModel(cliente, computeStatus(balance, pedidos, umbrales), balance)
+                val statusBalance = pedidos.filter {
+                    it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra
+                }.sumOf { it.pending }
+                ClienteUiModel(cliente, computeStatus(statusBalance, pedidos, umbrales), balance)
             }
         },
         _sortMode,
@@ -89,13 +92,13 @@ class ClientesViewModel @Inject constructor(
     fun onSortChange(mode: ClienteSortMode) { _sortMode.value = mode }
     fun onSearchChange(query: String) { _searchQuery.value = query }
 
-    private fun computeStatus(balance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
-        if (balance <= 0.0) return ClientStatus.AL_DIA
+    private fun computeStatus(statusBalance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
+        if (statusBalance <= 0.0) return ClientStatus.AL_DIA
         val hasOldUnpaid = pedidos.any {
-            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
+            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra &&
                 isOlderThan(it.createdAt, umbrales.diasMaximos)
         }
-        return if (hasOldUnpaid || balance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
+        return if (hasOldUnpaid || statusBalance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
     }
 
     private fun isOlderThan(createdAt: Long, days: Int): Boolean =

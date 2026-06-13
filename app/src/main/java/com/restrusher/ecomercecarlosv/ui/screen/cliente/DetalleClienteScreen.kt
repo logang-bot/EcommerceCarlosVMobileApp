@@ -23,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -74,6 +73,8 @@ fun DetalleClienteScreen(
             }
         },
         onPedidoClick = { pedidoId -> navController.navigate(DetallePedidoRoute(pedidoId)) },
+        onTogglePedidoFilter = { viewModel.onTogglePedidoFilter(it) },
+        onClearPedidoFilters = { viewModel.onClearPedidoFilters() },
     )
 }
 
@@ -90,6 +91,8 @@ private fun DetalleClienteContent(
     onSaldoExtraClick: () -> Unit,
     onNuevoPedidoClick: () -> Unit = {},
     onPedidoClick: (pedidoId: String) -> Unit = {},
+    onTogglePedidoFilter: (PedidoStatus) -> Unit = {},
+    onClearPedidoFilters: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -99,6 +102,11 @@ private fun DetalleClienteContent(
                 onBack = onBack,
                 actions = {
                     if (state.cliente != null) {
+                        PedidosMenuButton(
+                            activeFilters = state.pedidoFilters,
+                            onToggleFilter = onTogglePedidoFilter,
+                            onClearFilters = onClearPedidoFilters,
+                        )
                         IconButton(onClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) }) {
                             Icon(Icons.Default.Edit, contentDescription = null)
                         }
@@ -125,21 +133,22 @@ private fun DetalleClienteContent(
             ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
 
             state.cliente != null -> ClienteData(
-                cliente = state.cliente,
-                status = state.status,
-                balance = state.balance,
-                pedidos = state.pedidos,
+                state = state,
                 innerPadding = innerPadding,
                 onListaNegraClick = onListaNegraClick,
                 onQuitarListaNegraClick = onQuitarListaNegraClick,
                 onSaldoExtraClick = onSaldoExtraClick,
                 onPedidoClick = onPedidoClick,
                 onNuevoPedidoClick = onNuevoPedidoClick,
+                onClearPedidoFilters = onClearPedidoFilters,
             )
         }
 
-        if (state.showUnblacklistSheet) {
+        if (state.showUnblacklistSheet && state.cliente != null) {
             QuitarListaNegraSheet(
+                clienteName = state.cliente.name,
+                blacklistBalance = state.cliente.blacklistBalance,
+                isManualAmount = state.cliente.blacklistIsManualAmount,
                 onDismiss = onDismissUnblacklistSheet,
                 onRestore = onUnblacklistRestore,
                 onMarkAllPaid = onUnblacklistMarkAllPaid,
@@ -150,17 +159,18 @@ private fun DetalleClienteContent(
 
 @Composable
 private fun ClienteData(
-    cliente: Cliente,
-    status: ClientStatus,
-    balance: Double,
-    pedidos: List<Pedido>,
+    state: DetalleClienteUiState,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
     onListaNegraClick: () -> Unit,
     onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
     onPedidoClick: (String) -> Unit,
     onNuevoPedidoClick: () -> Unit = {},
+    onClearPedidoFilters: () -> Unit = {},
 ) {
+    val cliente = state.cliente ?: return
+    val isManual = cliente.isBlacklisted && cliente.blacklistIsManualAmount
+
     Column(
         modifier = Modifier
             .padding(innerPadding)
@@ -171,13 +181,22 @@ private fun ClienteData(
             BlacklistBanner(blacklistedAt = cliente.blacklistedAt)
         }
         ClienteHeader(cliente = cliente)
-        if (cliente.isBlacklisted && cliente.blacklistIsManualAmount) {
-            BalanceBlock(status = status, balance = balance, modifier = Modifier.alpha(0.38f))
-            Spacer(Modifier.height(10.dp))
-            BlacklistBalanceBlock(balance = cliente.blacklistBalance)
-        } else {
-            BalanceBlock(status = status, balance = balance)
+        BalanceBlock(
+            status = state.status,
+            balance = if (isManual) cliente.blacklistBalance else state.balance,
+            isManualBlacklisted = isManual,
+        )
+        if (isManual) {
+            BalanceCaption()
         }
+        BalanceBreakdown(
+            pedidosBalance = state.pedidosBalance,
+            unpaidPedidosCount = state.unpaidPedidosCount,
+            extraBalance = state.extraBalance,
+            unpaidExtraCount = state.unpaidExtraCount,
+            isBlacklisted = cliente.isBlacklisted,
+            isManualAmount = isManual,
+        )
         Spacer(Modifier.height(12.dp))
         ActionButtons(
             isBlacklisted = cliente.isBlacklisted,
@@ -187,7 +206,10 @@ private fun ClienteData(
         )
         Spacer(Modifier.height(24.dp))
         PedidosSection(
-            pedidos = pedidos,
+            pedidos = state.pedidos,
+            allPedidosCount = state.allPedidosCount,
+            activeFilters = state.pedidoFilters,
+            onClearFilters = onClearPedidoFilters,
             onPedidoClick = onPedidoClick,
             onNuevoPedidoClick = if (!cliente.isBlacklisted) onNuevoPedidoClick else null,
         )
@@ -204,7 +226,7 @@ private val previewPedidos = listOf(
     Pedido(id = "o4", clienteId = "c1", status = PedidoStatus.PENDING, total = 60.00, paid = 0.0, createdAt = 1747353600000L, isSaldoExtra = true, notes = "Envases retornables"),
 )
 
-@Preview(name = "DetalleCliente — dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "DetalleCliente — normal dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun DetalleClienteScreenPreview() {
     val cliente = Cliente(
@@ -214,25 +236,65 @@ private fun DetalleClienteScreenPreview() {
     )
     EcomerceCarlosVTheme(darkTheme = true) {
         DetalleClienteContent(
-            state = DetalleClienteUiState(cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0, pedidos = previewPedidos, isLoading = false),
-            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
+            state = DetalleClienteUiState(
+                cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0,
+                pedidosBalance = 280.0, unpaidPedidosCount = 2,
+                extraBalance = 60.0, unpaidExtraCount = 1,
+                pedidos = previewPedidos, allPedidosCount = previewPedidos.size,
+                isLoading = false,
+            ),
+            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {},
+            onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
         )
     }
 }
 
-@Preview(name = "DetalleCliente — blacklisted dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(name = "DetalleCliente — AUTO blacklisted dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
-private fun DetalleClienteListaNegraPreview() {
+private fun DetalleClienteListaNegraAutoPreview() {
     val cliente = Cliente(
         id = "c1", mercadoId = "m1", name = "Ana Rodríguez",
         description = "Puesto 14 · verduras", phones = listOf("0414-2230198"),
         mapsUrl = null, createdAt = 0L,
         isBlacklisted = true, blacklistedAt = 1747526400000L,
+        blacklistBalance = 340.0, blacklistIsManualAmount = false,
     )
     EcomerceCarlosVTheme(darkTheme = true) {
         DetalleClienteContent(
-            state = DetalleClienteUiState(cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0, isLoading = false),
-            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
+            state = DetalleClienteUiState(
+                cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0,
+                pedidosBalance = 280.0, unpaidPedidosCount = 2,
+                extraBalance = 60.0, unpaidExtraCount = 1,
+                pedidos = previewPedidos, allPedidosCount = previewPedidos.size,
+                isLoading = false,
+            ),
+            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {},
+            onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
+        )
+    }
+}
+
+@Preview(name = "DetalleCliente — MANUAL blacklisted dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Composable
+private fun DetalleClienteListaNegraManualPreview() {
+    val cliente = Cliente(
+        id = "c1", mercadoId = "m1", name = "Ana Rodríguez",
+        description = "Puesto 14 · verduras", phones = listOf("0414-2230198"),
+        mapsUrl = null, createdAt = 0L,
+        isBlacklisted = true, blacklistedAt = 1747526400000L,
+        blacklistBalance = 500.0, blacklistIsManualAmount = true,
+    )
+    EcomerceCarlosVTheme(darkTheme = true) {
+        DetalleClienteContent(
+            state = DetalleClienteUiState(
+                cliente = cliente, status = ClientStatus.CRITICO, balance = 340.0,
+                pedidosBalance = 280.0, unpaidPedidosCount = 2,
+                extraBalance = 60.0, unpaidExtraCount = 1,
+                pedidos = previewPedidos, allPedidosCount = previewPedidos.size,
+                isLoading = false,
+            ),
+            onBack = {}, onEditClick = { _, _ -> }, onListaNegraClick = {},
+            onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
         )
     }
 }

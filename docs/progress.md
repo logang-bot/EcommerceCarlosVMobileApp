@@ -51,6 +51,38 @@ Phase 9 must wire this to the Supabase admin create-user API. See `docs/features
 
 ## ✅ Resolved post-Phase 7
 
+### ⚖️ Client status decoupled from saldo-extra balance
+
+`computeStatus()` now uses a separate `statusBalance` (only `PARTIAL && !isSaldoExtra` pedidos) instead of the full display balance. The displayed "Saldo pendiente total" still includes saldo-extra entries, but the red/amber/green badge and row gradient are driven exclusively by real unpaid orders.
+
+**Before:** a client with only saldo-extra debt would show as ADVERTENCIA/CRITICO.  
+**After:** that client shows as AL_DIA in color/badge; the extra amount is still visible in the balance block.
+
+Applied identically in both `DetalleClienteViewModel` and `ClientesViewModel`. See **`docs/features/clientes.md → Client Status Thresholds`** for the full rule.
+
+---
+
+### 🚫 Lista Negra — row navigation, balance redesign, unblacklist resolution sheet, filter chips
+
+Four improvements applied to the lista negra / detalle cliente flow:
+
+1. **Row navigation in `ListaNegraScreen`** — `BlacklistRow` is now clickable and navigates to `DetalleClienteRoute(clienteId)`, allowing users to view the client detail and remove them from the blacklist.
+
+2. **`DetalleClienteScreen` balance redesign** — `BalanceBlock` is now a unified component with three states:
+   - *Normal*: status-based gradient, "Saldo pendiente total", 32sp, `ClienteStatusBadge`
+   - *AUTO blacklisted*: same as normal + full-width "Lista Negra" `BalanceCard` in the breakdown
+   - *MANUAL blacklisted*: red gradient, "Saldo en Lista Negra", 29sp `redText`, circular "⊘ Manual" badge + `BalanceCaption` info line + breakdown cards shown as frozen/inactive
+   - `BalanceBreakdown` always rendered: side-by-side "Pedidos" (blue) + "Saldo extra" (amber) `BalanceCard`s; plus full-width LN card when AUTO blacklisted
+
+3. **Unblacklist resolution sheet (`QuitarListaNegraSheet`)** — When `blacklistIsManualAmount == true`, tapping "Quitar de Lista Negra" opens a `ModalBottomSheet` (mockup-faithful design: centered green header icon, radio-style option cards with icon tile + radio circle, amber info banner). Two options:
+   - *Restaurar pedidos y saldos* — clears the blacklist; pedidos are unchanged. Pre-selected by default.
+   - *Marcar todo como pagado* — marks all non-PAID pedidos as PAID. If `blacklistBalance > (pedidosBalance + extraBalance)`, a saldo extra for the difference is created via `CreateSaldoExtraUseCase` before the client is unblacklisted. Option is disabled when `blacklistIsManualAmount == false`.
+   When `blacklistIsManualAmount == false` (AUTO), the client is unblacklisted immediately with no sheet.
+
+4. **"Cuenta" section with filter chips** — The pedidos section is renamed "Cuenta". A three-dot `PedidosMenuButton` in the section header lets the user filter by Pendiente / Parcial / Pagado (toggle, multi-select). Active filters appear as colored status chips. Section header shows "N de M" count. ViewModel computes `pedidosBalance`, `extraBalance`, `unpaidPedidosCount`, `unpaidExtraCount` from the unfiltered list.
+
+**DB:** Room migration 11→12 adds `blacklistIsManualAmount INTEGER NOT NULL DEFAULT 0` to `clientes`. Existing blacklisted rows default to `false` (treated as AUTO). DB version bumped to 12.
+
 ### 💥 FK cascade data loss on mercado/cliente save — fixed
 
 **Root cause:** Room 2.7+ enables `PRAGMA foreign_keys = ON` by default. All parent-table DAOs (`MercadoDao`, `ClienteDao`) used `@Insert(onConflict = REPLACE)`, which internally DELETEs the old row before inserting the replacement — firing `ON DELETE CASCADE` and wiping all child rows (clientes, pedidos, detalle_pedido).

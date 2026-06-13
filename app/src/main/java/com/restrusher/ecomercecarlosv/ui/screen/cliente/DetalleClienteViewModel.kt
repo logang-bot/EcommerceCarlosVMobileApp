@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
+import com.restrusher.ecomercecarlosv.domain.usecase.CreateSaldoExtraUseCase
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class DetalleClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val pedidoRepository: PedidoRepository,
+    private val createSaldoExtraUseCase: CreateSaldoExtraUseCase,
     umbralesManager: UmbralesManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -32,24 +34,39 @@ class DetalleClienteViewModel @Inject constructor(
     private val clienteId: String = savedStateHandle.toRoute<DetalleClienteRoute>().clienteId
 
     private val _showUnblacklistSheet = MutableStateFlow(false)
+    private val _pedidoFilters = MutableStateFlow<Set<PedidoStatus>>(emptySet())
 
     val uiState: StateFlow<DetalleClienteUiState> = combine(
         clienteRepository.getByIdFlow(clienteId),
         pedidoRepository.getByCliente(clienteId),
         umbralesManager.umbrales,
         _showUnblacklistSheet,
-    ) { cliente, pedidos, umbrales, showSheet ->
+        _pedidoFilters,
+    ) { cliente, pedidos, umbrales, showSheet, filters ->
+        val unpaidRegular = pedidos.filter { !it.isSaldoExtra && it.status != PedidoStatus.PAID }
+        val unpaidExtra = pedidos.filter { it.isSaldoExtra && it.status != PedidoStatus.PAID }
         val balance = pedidos.filter {
             it.status == PedidoStatus.PARTIAL ||
                 (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
         }.sumOf { it.pending }
+        val statusBalance = pedidos.filter {
+            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra
+        }.sumOf { it.pending }
+        val filteredPedidos = if (filters.isEmpty()) pedidos else pedidos.filter { it.status in filters }
+
         DetalleClienteUiState(
             cliente = cliente,
-            pedidos = pedidos,
+            pedidos = filteredPedidos,
+            allPedidosCount = pedidos.size,
             balance = balance,
-            status = computeStatus(balance, pedidos, umbrales),
+            pedidosBalance = unpaidRegular.sumOf { it.pending },
+            unpaidPedidosCount = unpaidRegular.size,
+            extraBalance = unpaidExtra.sumOf { it.pending },
+            unpaidExtraCount = unpaidExtra.size,
+            status = computeStatus(statusBalance, pedidos, umbrales),
             isLoading = false,
             showUnblacklistSheet = showSheet,
+            pedidoFilters = filters,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -78,18 +95,47 @@ class DetalleClienteViewModel @Inject constructor(
     fun unblacklistMarkAllPaid() {
         _showUnblacklistSheet.value = false
         viewModelScope.launch {
+            val state = uiState.value
+            val blacklistBalance = state.cliente?.blacklistBalance ?: 0.0
+            val pendingSum = state.pedidosBalance + state.extraBalance
+
             pedidoRepository.markAllPaidForCliente(clienteId)
+
+            val excess = blacklistBalance - pendingSum
+            if (excess > 0.01) {
+                createSaldoExtraUseCase(
+                    clienteId = clienteId,
+                    description = SALDO_EXTRA_DESC,
+                    amount = excess,
+                    date = System.currentTimeMillis(),
+                )
+            }
+
             clienteRepository.unblacklist(clienteId)
         }
     }
 
-    private fun computeStatus(balance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
-        if (balance <= 0.0) return ClientStatus.AL_DIA
+    fun onTogglePedidoFilter(status: PedidoStatus) {
+        _pedidoFilters.value = _pedidoFilters.value.toMutableSet().apply {
+            if (contains(status)) remove(status) else add(status)
+        }
+    }
+
+    fun onClearPedidoFilters() {
+        _pedidoFilters.value = emptySet()
+    }
+
+    companion object {
+        private const val SALDO_EXTRA_DESC = "Saldo de liquidación al reactivar"
+    }
+
+    private fun computeStatus(statusBalance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
+        if (statusBalance <= 0.0) return ClientStatus.AL_DIA
         val hasOldUnpaid = pedidos.any {
-            (it.status == PedidoStatus.PARTIAL || (it.status == PedidoStatus.PENDING && it.isSaldoExtra)) &&
+            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra &&
                 isOlderThan(it.createdAt, umbrales.diasMaximos)
         }
-        return if (hasOldUnpaid || balance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
+        return if (hasOldUnpaid || statusBalance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
     }
 
     private fun isOlderThan(createdAt: Long, days: Int): Boolean =
