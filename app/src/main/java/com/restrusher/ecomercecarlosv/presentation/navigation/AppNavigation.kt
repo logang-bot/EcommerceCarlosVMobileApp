@@ -1,8 +1,10 @@
 package com.restrusher.ecomercecarlosv.presentation.navigation
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -61,6 +63,7 @@ fun AppNavigation() {
     val isLoaded by appViewModel.isLoaded.collectAsStateWithLifecycle()
     val currentUser by appViewModel.currentUser.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+    val context = LocalContext.current
 
     // Auto-login: when startup session check completes with a restored session,
     // skip the Login screen and go straight to Home.
@@ -69,6 +72,13 @@ fun AppNavigation() {
             navController.navigate(HomeRoute) {
                 popUpTo(LoginRoute) { inclusive = true }
             }
+        }
+    }
+
+    // Global error toasts — shown for errors not handled by individual screens.
+    LaunchedEffect(Unit) {
+        appViewModel.errorHandler.errors.collect { error ->
+            Toast.makeText(context, error.message, Toast.LENGTH_LONG).show()
         }
     }
 

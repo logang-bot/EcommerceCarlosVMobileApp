@@ -3,6 +3,7 @@ package com.restrusher.ecomercecarlosv.data.mapper
 import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.PedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.PedidoWithLines
+import com.restrusher.ecomercecarlosv.data.remote.dto.PedidoDto
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoLineItem
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
@@ -35,5 +36,30 @@ object PedidoMapper {
         paidAt = domain.paidAt,
         isSaldoExtra = domain.isSaldoExtra,
         itemCount = domain.itemCount,
+    )
+
+    fun fromDto(dto: PedidoDto) = PedidoEntity(
+        id = dto.id,
+        clienteId = dto.clienteId,
+        status = dto.status,
+        total = dto.total,
+        paid = dto.paid,
+        notes = dto.notes,
+        createdAt = dto.createdAt,
+        paidAt = dto.paidAt,
+        isSaldoExtra = dto.isSaldoExtra,
+        itemCount = 0,
+    )
+
+    fun toDto(entity: PedidoEntity) = PedidoDto(
+        id = entity.id,
+        clienteId = entity.clienteId,
+        status = entity.status,
+        total = entity.total,
+        paid = entity.paid,
+        notes = entity.notes,
+        createdAt = entity.createdAt,
+        paidAt = entity.paidAt,
+        isSaldoExtra = entity.isSaldoExtra,
     )
 }

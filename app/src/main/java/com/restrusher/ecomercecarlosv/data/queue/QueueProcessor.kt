@@ -1,0 +1,181 @@
+package com.restrusher.ecomercecarlosv.data.queue
+
+import android.util.Log
+import com.restrusher.ecomercecarlosv.data.error.GlobalErrorHandler
+import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
+import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
+import com.restrusher.ecomercecarlosv.data.local.entity.EntityType
+import com.restrusher.ecomercecarlosv.data.local.entity.SyncOp
+import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
+import com.restrusher.ecomercecarlosv.data.mapper.ClienteMapper
+import com.restrusher.ecomercecarlosv.data.mapper.DetallePedidoMapper
+import com.restrusher.ecomercecarlosv.data.mapper.MercadoMapper
+import com.restrusher.ecomercecarlosv.data.mapper.PedidoMapper
+import com.restrusher.ecomercecarlosv.data.mapper.ProductoMapper
+import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
+import com.restrusher.ecomercecarlosv.di.ApplicationScope
+import com.restrusher.ecomercecarlosv.domain.error.AppError
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
+
+private const val RETRY_DELAY_MS = 2_000L
+
+@Singleton
+class QueueProcessor @Inject constructor(
+    private val syncOperationDao: SyncOperationDao,
+    private val mercadoDao: MercadoDao,
+    private val clienteDao: ClienteDao,
+    private val productoDao: ProductoDao,
+    private val pedidoDao: PedidoDao,
+    private val detalleDao: DetallePedidoDao,
+    private val networkMonitor: NetworkMonitor,
+    private val supabase: SupabaseClient,
+    private val errorHandler: GlobalErrorHandler,
+    @ApplicationScope private val appScope: CoroutineScope,
+) {
+
+    fun start() {
+        // Flush when connectivity is restored after being offline.
+        appScope.launch {
+            networkMonitor.isOnlineFlow
+                .distinctUntilChanged()
+                .collect { isOnline ->
+                    if (isOnline) {
+                        Log.d(TAG, "online — flushing queue")
+                        flush()
+                    }
+                }
+        }
+        // Flush immediately when a new entry is enqueued and we are already online.
+        // MAX(id) is used instead of COUNT(*): autoGenerate ids only ever increase, so a new
+        // insert always produces a higher max regardless of concurrent deletions. COUNT(*) could
+        // return the same value after a delete+insert pair and fool distinctUntilChanged.
+        appScope.launch {
+            syncOperationDao.observeLatestEnqueuedId()
+                .distinctUntilChanged()
+                .filter { it > 0 }
+                .collect {
+                    if (networkMonitor.isOnline) {
+                        Log.d(TAG, "new queue entry detected — flushing immediately")
+                        flush()
+                    }
+                }
+        }
+    }
+
+    suspend fun flush() {
+        val pending = syncOperationDao.getPending()
+        if (pending.isEmpty()) return
+
+        // Deduplicate: group by entityType+entityId, DELETE wins over UPSERT
+        val deduplicated = deduplicate(pending)
+        Log.d(TAG, "flush: ${pending.size} raw ops → ${deduplicated.size} after dedup")
+
+        for (op in deduplicated) {
+            val success = processOperation(op)
+            if (success) {
+                // Delete all raw entries for this entity (including duplicates)
+                pending
+                    .filter { it.entityType == op.entityType && it.entityId == op.entityId }
+                    .forEach { syncOperationDao.delete(it.id) }
+            } else {
+                pending
+                    .filter { it.entityType == op.entityType && it.entityId == op.entityId }
+                    .forEach { syncOperationDao.incrementRetry(it.id) }
+                delay(RETRY_DELAY_MS)
+            }
+        }
+    }
+
+    private fun deduplicate(ops: List<SyncOperationEntity>): List<SyncOperationEntity> {
+        return ops
+            .groupBy { it.entityType to it.entityId }
+            .map { (_, group) ->
+                // DELETE takes priority; within same op type, use latest
+                group.firstOrNull { it.operation == SyncOp.DELETE }
+                    ?: group.maxByOrNull { it.createdAt }!!
+            }
+    }
+
+    private suspend fun processOperation(op: SyncOperationEntity): Boolean {
+        return runCatching {
+            when (op.operation) {
+                SyncOp.UPSERT -> upsert(op)
+                SyncOp.DELETE -> delete(op)
+                else -> {
+                    Log.w(TAG, "unknown operation '${op.operation}' — skipping")
+                    true
+                }
+            }
+        }.onFailure { e ->
+            val error = AppError.Queue(
+                "Failed to push ${op.entityType}(${op.entityId}) to Supabase",
+                e,
+            )
+            errorHandler.emit(error)
+        }.getOrDefault(false)
+    }
+
+    private suspend fun upsert(op: SyncOperationEntity): Boolean {
+        when (op.entityType) {
+            EntityType.MERCADO -> {
+                val entity = mercadoDao.getById(op.entityId) ?: return true // deleted locally
+                supabase.from("mercados").upsert(MercadoMapper.toDto(entity))
+            }
+            EntityType.CLIENTE -> {
+                val entity = clienteDao.getById(op.entityId) ?: return true
+                supabase.from("clientes").upsert(ClienteMapper.toDto(entity))
+            }
+            EntityType.PRODUCTO -> {
+                val entity = productoDao.getById(op.entityId) ?: return true
+                supabase.from("productos").upsert(ProductoMapper.toDto(entity))
+            }
+            EntityType.PEDIDO -> {
+                val entity = pedidoDao.getById(op.entityId) ?: return true
+                supabase.from("pedidos").upsert(PedidoMapper.toDto(entity))
+                // Also push current line items (replace remote ones)
+                val detalles = detalleDao.getByPedido(op.entityId)
+                if (detalles.isNotEmpty()) {
+                    supabase.from("detalle_pedido")
+                        .delete { filter { eq("pedido_id", op.entityId) } }
+                    supabase.from("detalle_pedido")
+                        .upsert(detalles.map(DetallePedidoMapper::toDto))
+                }
+            }
+            else -> Log.w(TAG, "upsert: unknown entityType '${op.entityType}'")
+        }
+        Log.d(TAG, "upsert: pushed ${op.entityType}(${op.entityId})")
+        return true
+    }
+
+    private suspend fun delete(op: SyncOperationEntity): Boolean {
+        val table = when (op.entityType) {
+            EntityType.MERCADO  -> "mercados"
+            EntityType.CLIENTE  -> "clientes"
+            EntityType.PRODUCTO -> "productos"
+            EntityType.PEDIDO   -> "pedidos"
+            else -> {
+                Log.w(TAG, "delete: unknown entityType '${op.entityType}'")
+                return true
+            }
+        }
+        supabase.from(table).delete { filter { eq("id", op.entityId) } }
+        Log.d(TAG, "delete: removed ${op.entityType}(${op.entityId}) from $table")
+        return true
+    }
+
+    companion object {
+        private const val TAG = "QueueProcessor"
+    }
+}

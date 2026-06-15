@@ -23,6 +23,142 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 2h | Splash screen, app icon, app rename, real logo in Login, biometric screen redesign, file splits | ✅ Done |
 | 8 | Reportes tab (Diario + Por cliente modes, PDF export, Reporte de Pedidos) | ✅ Done |
 | 9 | Supabase auth + sync layer, DataStore session persistence | 🔄 In Progress |
+| 9b | NetworkMonitor, centralized error manager, data synchronizer, network request queue | ✅ Done |
+| 9c | WorkManager background queue, immediate flush on enqueue, reliable trigger via MAX(id) | ✅ Done |
+| 9d | Always require login on app start — session wiped on startup, Room cache preserved | ✅ Done |
+| 9e | Lazy per-screen data sync with staleness thresholds (2h master / 30 min business) | ✅ Done |
+
+---
+
+## ✅ Phase 9b — Infrastructure (NetworkMonitor, Error Manager, Data Sync, Queue)
+
+Three inter-related infrastructure features added. All details in `docs/features/infrastructure.md`.
+
+### 🌐 NetworkMonitor
+`NetworkMonitorImpl` uses `ConnectivityManager.NetworkCallback` to emit `Flow<Boolean>` as connectivity changes. Checks `NET_CAPABILITY_VALIDATED` (captive portals without internet → offline). Provided via `di/NetworkModule.kt`.
+
+### ⚠️ Centralized Error Manager
+- `AppError` (sealed class): `Network`, `Database`, `Sync`, `Queue`, `Unknown`.
+- `AppErrorLogger`: routes to `Log.e`/`Log.w` with structured tags.
+- `GlobalErrorHandler`: `@Singleton` `SharedFlow<AppError>` event bus. Injected into syncers and `QueueProcessor`.
+- `AppNavigation` collects errors → `Toast.LENGTH_LONG`. Screens with own error UI (e.g. Login's inline banner) do not re-emit through this handler.
+
+### 🔄 Data Synchronizer (read path)
+`DataSynchronizer` runs on app start and on connectivity restore. Fetches all records from Supabase with a 10s timeout; on timeout/failure, Room data continues to serve the UI. Syncers: `MercadoSyncer`, `ClienteSyncer` (merges local-only fields), `ProductoSyncer`, `PedidoSyncer` (+ detalles). Room v14 schema unchanged (no new tables for syncers).
+
+### 📋 Network Request Queue (write path)
+New Room table `sync_operations` (Room v14, migration 13→14). Every repository write enqueues a `SyncOperationEntity` (`UPSERT` or `DELETE`) after the local Room write. `QueueProcessor` flushes the queue when the device is online:
+- Deduplicates entries per entity (`DELETE` wins over `UPSERT`)
+- For `UPSERT`: reads entity from Room → pushes DTO to Supabase
+- For `DELETE`: calls `supabase.from(table).delete().eq("id", ...)`
+- Retries up to 3 times; abandoned entries remain for debugging
+
+**Files changed (Phase 9b):**
+`data/network/NetworkMonitor.kt`, `data/network/NetworkMonitorImpl.kt`, `di/NetworkModule.kt`,
+`domain/error/AppError.kt`, `data/error/AppErrorLogger.kt`, `data/error/GlobalErrorHandler.kt`,
+`data/local/entity/SyncOperationEntity.kt`, `data/local/dao/SyncOperationDao.kt`,
+`data/local/AppDatabase.kt` (v13→v14 + migration), `di/DatabaseModule.kt`,
+`data/mapper/MercadoMapper.kt`, `data/mapper/ClienteMapper.kt`, `data/mapper/ProductoMapper.kt`,
+`data/mapper/PedidoMapper.kt`, `data/mapper/DetallePedidoMapper.kt`,
+`data/sync/EntitySyncer.kt`, `data/sync/DataSynchronizer.kt`,
+`data/sync/impl/MercadoSyncer.kt`, `data/sync/impl/ClienteSyncer.kt`,
+`data/sync/impl/ProductoSyncer.kt`, `data/sync/impl/PedidoSyncer.kt`,
+`data/queue/QueueProcessor.kt`,
+`data/repository/impl/MercadoRepositoryImpl.kt`, `data/repository/impl/ClienteRepositoryImpl.kt`,
+`data/repository/impl/ProductoRepositoryImpl.kt`, `data/repository/impl/PedidoRepositoryImpl.kt`,
+`PedidosApp.kt`, `presentation/navigation/AppViewModel.kt`, `presentation/navigation/AppNavigation.kt`,
+`ui/screen/cliente/DetalleClienteActions.kt` (fixed pre-existing preview bug),
+`docs/features/infrastructure.md`, `docs/progress.md`
+
+---
+
+## ✅ Phase 9e — Lazy per-screen data sync with staleness thresholds
+
+Data is no longer fetched eagerly on app start. Each repository now triggers `DataSynchronizer.triggerSyncIfStale(entityType, thresholdMs)` from its primary read Flow methods. Full details in `docs/features/infrastructure.md → Data Synchronizer`.
+
+### How it works
+
+`DataSynchronizer` keeps an in-memory `ConcurrentHashMap<String, Long>` (`lastSyncedAt`) that records when each entity type was last successfully synced. On every `triggerSyncIfStale` call:
+1. If offline → no-op
+2. If `now - lastSyncedAt[entityType] < threshold` → no-op (data is fresh)
+3. Otherwise → stamp the entity as "syncing now" (prevents duplicate concurrent syncs), launch the corresponding `EntitySyncer`, update Room. On failure/timeout → remove stamp so next navigation retries.
+
+The map is **in-memory only** — resets on every app start, so the first navigation after login always fetches fresh data. On connectivity restore, the map is cleared entirely.
+
+### Thresholds
+
+| Entity | Threshold | Rationale |
+|---|---|---|
+| `MERCADO` | 2 hours | Master data, rarely changes mid-day |
+| `PRODUCTO` | 2 hours | Catalog data, rarely changes mid-day |
+| `CLIENTE` | 30 minutes | Active business data |
+| `PEDIDO` | 30 minutes | High-frequency transaction data |
+
+### Where sync is triggered (repositories)
+
+| Repository method | Entity synced |
+|---|---|
+| `MercadoRepositoryImpl.getAll()` | MERCADO |
+| `ClienteRepositoryImpl.getAll/getAllIncludingBlacklisted/getByMercado/getBlacklisted()` | CLIENTE |
+| `ProductoRepositoryImpl.getAll()` | PRODUCTO |
+| `PedidoRepositoryImpl.getByCliente/getByClienteWithLines/getAll/getAllUnpaid()` | PEDIDO |
+
+`getByIdFlow()` methods do not trigger sync — by the time a detail screen opens, the list screen has already triggered it.
+
+**Files changed (Phase 9e):**
+`data/sync/DataSynchronizer.kt` (full rewrite — lazy threshold model, `triggerSyncIfStale`, connectivity-restore clears map),
+`data/repository/impl/MercadoRepositoryImpl.kt`,
+`data/repository/impl/ClienteRepositoryImpl.kt`,
+`data/repository/impl/ProductoRepositoryImpl.kt`,
+`data/repository/impl/PedidoRepositoryImpl.kt`,
+`docs/features/infrastructure.md`, `docs/progress.md`
+
+---
+
+## ✅ Phase 9d — Always require login on app start
+
+The user is always required to log in every time the app starts. A persisted JWT from a previous session no longer auto-restores the user. Full details in `docs/features/auth.md → Session behaviour on app restart`.
+
+### How it works
+
+`DataStoreGoTrueSessionManager.loadSession()` uses a `@Volatile firstLoad` flag. On the first call (always startup), it deletes the stored JWT and returns `null`. supabase-kt immediately emits `NotAuthenticated` — the `AppNavigation` auto-navigate `LaunchedEffect` never fires, and the user sees Login.
+
+After login, `saveSession()` stores the new JWT. Subsequent `loadSession()` calls (`firstLoad = false`) return the JWT normally so token refresh works during the active session.
+
+`SessionManagerImpl` uses a `startupDone` flag to distinguish the startup clear from an explicit logout. `wipeLocalDataIfNeeded()` (which calls `database.clearAllTables()`) is skipped during the startup clear so Room cache (mercados, clientes, pedidos, sync queue) survives restarts. It still runs on explicit logout.
+
+**Files changed (Phase 9d):**
+`data/session/DataStoreGoTrueSessionManager.kt` (+ `firstLoad` flag, wipe-on-first-load in `loadSession()`),
+`data/session/SessionManagerImpl.kt` (+ `startupDone` flag, skip wipe on startup `NotAuthenticated`),
+`docs/features/auth.md`, `docs/progress.md`
+
+---
+
+## ✅ Phase 9c — Queue improvements (WorkManager + immediate flush)
+
+Three improvements to the network request queue introduced in Phase 9b. Full details in `docs/features/infrastructure.md`.
+
+### Background processing survives app kills (WorkManager)
+`SyncWorker` (`@HiltWorker`, `CoroutineWorker`) runs every 15 minutes whenever `NetworkType.CONNECTED`. On each run it calls `syncOperationDao.resetAllRetryCount()` then `queueProcessor.flush()`. This means pending queue entries are never permanently abandoned — they get a fresh set of retry attempts on every worker run, even after the app was killed.
+
+`PedidosApp` now implements `Configuration.Provider` and supplies a `HiltWorkerFactory` so Hilt can inject dependencies into the worker. WorkManager auto-init is disabled in the manifest so Hilt's factory takes over.
+
+### Immediate flush when a new entry is enqueued while already online
+Previously `QueueProcessor` only flushed on connectivity-restore events. A write made while already online would sit in the queue for up to 15 minutes. Now a second coroutine observes `observeLatestEnqueuedId(): Flow<Long>` (returns `MAX(id)` from `sync_operations`). When a new row is inserted, the max ID increases, triggering an immediate `flush()` if online.
+
+### Reliable trigger: MAX(id) instead of COUNT(*)
+`COUNT(*)` is fragile as a change trigger: if a deletion and an insertion happen at the same time, Room may coalesce both into one notification and the count may appear unchanged, causing `distinctUntilChanged` to suppress the emission. `MAX(id)` always increases on a new insert (auto-increment), so no new row can ever be missed.
+
+**Files changed (Phase 9c):**
+`gradle/libs.versions.toml` (+ `workManager`, `hiltWork` versions + library entries),
+`app/build.gradle.kts` (+ `work-runtime`, `hilt-work`, `ksp(hilt-work-compiler)`),
+`AndroidManifest.xml` (+ `RECEIVE_BOOT_COMPLETED` permission, disable WorkManager auto-init provider),
+`data/queue/SyncWorker.kt` (new),
+`di/WorkerModule.kt` (new),
+`data/local/dao/SyncOperationDao.kt` (+ `observeLatestEnqueuedId()`, + `resetAllRetryCount()`),
+`data/queue/QueueProcessor.kt` (+ second flush-trigger coroutine),
+`PedidosApp.kt` (implements `Configuration.Provider`, injects `HiltWorkerFactory`, schedules `SyncWorker`),
+`docs/features/infrastructure.md`, `docs/progress.md`
 
 ---
 
@@ -437,4 +573,6 @@ Full "Reporte de pedidos" screen accessible from the "Generar reporte" menu item
 | AppCompat | 1.7.0 |
 | Biometric | 1.1.0 |
 | Room | 2.8.4 |
+| WorkManager | 2.9.0 |
+| Hilt Work | 1.2.0 |
 | SplashScreen | 1.0.1 |

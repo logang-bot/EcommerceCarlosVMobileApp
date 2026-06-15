@@ -111,6 +111,7 @@ private fun ActionButtonsPreview() {
         Surface {
             ActionButtons(
                 isBlacklisted = false,
+                canWrite = true,
                 onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
             )
         }
@@ -124,6 +125,7 @@ private fun ActionButtonsBlacklistedPreview() {
         Surface {
             ActionButtons(
                 isBlacklisted = true,
+                canWrite = true,
                 onListaNegraClick = {}, onQuitarListaNegraClick = {}, onSaldoExtraClick = {},
             )
         }

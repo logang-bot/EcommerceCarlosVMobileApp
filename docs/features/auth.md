@@ -186,11 +186,11 @@ The prompt is constructed in `LoginScreen` (requires `FragmentActivity` context 
 - [x] `RestException` caught and mapped: "banned" → `isAccountDisabled = true`; invalid credentials → Spanish `errorMessage`; other → generic auth error
 - [x] After auth succeeds, `syncFromRemote(userId)` is always called to get the freshest `is_active` value; if `isActive == false` → `signOut()` + `isAccountDisabled = true`
 - [x] `LoadingOverlay` (scrim + centered spinner) shown at `LoginScreen` level during `state.isLoading`, blocking both login paths
-- [x] `SessionManagerImpl` subscribes to `auth.sessionStatus` — auto-login on restart
+- [x] `SessionManagerImpl` subscribes to `auth.sessionStatus`
 - [x] JWT persisted via `DataStoreGoTrueSessionManager`; userId in DataStore
 - [x] `MainActivity` keeps splash screen visible until `SessionManager.isLoaded = true`
-- [x] `AppNavigation` auto-navigates to `HomeRoute` if session is restored on startup
-- [x] On `NotAuthenticated` (logout or cold start with no session): all Room tables wiped via `database.clearAllTables()` unless a biometric-enrolled user exists; splash is held until wipe completes
+- [x] `AppNavigation` auto-navigates to `HomeRoute` if a session is active at startup — **now disabled; session is always wiped on startup (see below)**
+- [x] On `NotAuthenticated` (explicit logout): all Room tables wiped via `database.clearAllTables()` unless a biometric-enrolled user exists; splash is held until wipe completes
 
 ### supabase-kt 3.1.4 API changes
 
@@ -228,6 +228,56 @@ Two extra visual states in `LoginContent.kt` (toggled by `LoginUiState`):
 
 `isAccountDisabled` is set when `RestException.message` contains "banned".
 `switchToOtherAccount()` resets both `errorMessage` and `isAccountDisabled = false`.
+
+---
+
+## Session behaviour on app restart
+
+**The user is always required to log in on every app start.** No session is restored from storage after a process kill.
+
+### How it works
+
+`DataStoreGoTrueSessionManager` implements supabase-kt's `SessionManager` interface. It stores the JWT in DataStore so the auth plugin can refresh tokens during the active session. On the first call to `loadSession()` (always the startup call), a `firstLoad` flag is checked:
+
+```kotlin
+@Volatile private var firstLoad = true
+
+override suspend fun loadSession(): UserSession? {
+    if (firstLoad) {
+        firstLoad = false
+        deleteSession()   // wipe any persisted JWT before supabase-kt sees it
+        return null
+    }
+    // subsequent calls (token refresh mid-session) load normally
+    ...
+}
+```
+
+Returning `null` on the first load means supabase-kt immediately emits `SessionStatus.NotAuthenticated` — no `Authenticated` state is ever reached at startup, so `AppNavigation`'s auto-navigate `LaunchedEffect` never fires. The user sees Login.
+
+After the user logs in, `saveSession()` stores the new JWT. Any subsequent `loadSession()` call (`firstLoad` is now `false`) returns the current JWT so token refresh works correctly during the active session.
+
+### Room data is preserved across restarts
+
+`SessionManagerImpl` distinguishes the startup clear from an explicit logout using a `startupDone` flag:
+
+```kotlin
+is SessionStatus.NotAuthenticated -> {
+    _currentUser.value = null
+    removeUserId()
+    if (startupDone) wipeLocalDataIfNeeded()   // skip on startup, run on explicit logout
+    startupDone = true
+    _isLoaded.value = true
+}
+```
+
+The local Room cache (mercados, clientes, productos, pedidos, sync queue) survives restarts. Only explicit logout triggers the table wipe.
+
+### Token refresh during the session
+
+supabase-kt calls `loadSession()` internally when the JWT approaches expiry to get the stored refresh token. Because `firstLoad` is `false` after startup, these calls read the DataStore normally and refresh proceeds transparently.
+
+---
 
 ### Indefinite ban / activate
 Supabase Auth has no permanent-ban boolean. Workaround used in `UsuarioDetalleViewModel`:

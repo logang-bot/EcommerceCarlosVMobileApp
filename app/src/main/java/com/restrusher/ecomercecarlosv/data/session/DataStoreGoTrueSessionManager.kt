@@ -28,7 +28,16 @@ class DataStoreGoTrueSessionManager @Inject constructor(
         }
     }
 
+    // On the very first load (app startup), wipe any persisted session so the user is always
+    // required to log in. Subsequent calls (token refresh mid-session) load normally.
+    @Volatile private var firstLoad = true
+
     override suspend fun loadSession(): UserSession? {
+        if (firstLoad) {
+            firstLoad = false
+            deleteSession()
+            return null
+        }
         val prefs = dataStore.data.first()
         val raw = prefs[SESSION_KEY] ?: return null
         return try {

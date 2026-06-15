@@ -36,6 +36,10 @@ class SessionManagerImpl @Inject constructor(
         val USER_ID_KEY = stringPreferencesKey("current_user_id")
     }
 
+    // Tracks whether the startup session clear has already been handled.
+    // wipeLocalDataIfNeeded() should only run on explicit logout, not on the startup clear.
+    private var startupDone = false
+
     private val _currentUser = MutableStateFlow<AppUser?>(null)
     override val currentUser: StateFlow<AppUser?> = _currentUser.asStateFlow()
 
@@ -60,7 +64,8 @@ class SessionManagerImpl @Inject constructor(
                     is SessionStatus.NotAuthenticated -> {
                         _currentUser.value = null
                         removeUserId()
-                        wipeLocalDataIfNeeded()
+                        if (startupDone) wipeLocalDataIfNeeded()
+                        startupDone = true
                         _isLoaded.value = true
                     }
                     is SessionStatus.Initializing -> {

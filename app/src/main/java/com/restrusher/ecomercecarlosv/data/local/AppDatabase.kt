@@ -9,12 +9,14 @@ import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import com.restrusher.ecomercecarlosv.data.local.entity.ClienteEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.MercadoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.PedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.ProductoEntity
+import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.UserEntity
 
 val MIGRATION_4_5 = object : Migration(4, 5) {
@@ -117,6 +119,24 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `sync_operations` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `entityType` TEXT NOT NULL,
+                `entityId` TEXT NOT NULL,
+                `operation` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `retryCount` INTEGER NOT NULL DEFAULT 0
+            )""",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_operations_entityType` ON `sync_operations` (`entityType`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_operations_entityId` ON `sync_operations` (`entityId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_operations_createdAt` ON `sync_operations` (`createdAt`)")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -143,8 +163,9 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         ProductoEntity::class,
         PedidoEntity::class,
         DetallePedidoEntity::class,
+        SyncOperationEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -154,4 +175,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun productoDao(): ProductoDao
     abstract fun pedidoDao(): PedidoDao
     abstract fun detallePedidoDao(): DetallePedidoDao
+    abstract fun syncOperationDao(): SyncOperationDao
 }

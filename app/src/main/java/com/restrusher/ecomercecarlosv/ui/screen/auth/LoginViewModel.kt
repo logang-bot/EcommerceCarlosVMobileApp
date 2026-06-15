@@ -8,6 +8,7 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restrusher.ecomercecarlosv.data.sync.DataSynchronizer
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
@@ -30,6 +31,7 @@ class LoginViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
     private val supabase: SupabaseClient,
+    private val dataSynchronizer: DataSynchronizer,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginFormState())
@@ -108,6 +110,7 @@ class LoginViewModel @Inject constructor(
 
                 Log.d(TAG, "onLoginClick: login successful, navigating to home")
                 sessionManager.setCurrentUser(user)
+                dataSynchronizer.resetStaleness()
                 _state.value = s.copy(isLoading = false)
                 onSuccess()
             } catch (e: RestException) {
@@ -159,6 +162,7 @@ class LoginViewModel @Inject constructor(
                     return@launch
                 }
                 sessionManager.setCurrentUser(user)
+                dataSynchronizer.resetStaleness()
                 _state.value = s.copy(isLoading = false)
                 onSuccess()
             } catch (e: RestException) {

@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.data.mapper
 
 import com.restrusher.ecomercecarlosv.data.local.entity.ProductoEntity
+import com.restrusher.ecomercecarlosv.data.remote.dto.ProductoDto
 import com.restrusher.ecomercecarlosv.domain.model.Producto
 
 object ProductoMapper {
@@ -22,5 +23,25 @@ object ProductoMapper {
         photoUrl = domain.photoUrl,
         isActive = domain.isActive,
         createdAt = domain.createdAt,
+    )
+
+    fun fromDto(dto: ProductoDto) = ProductoEntity(
+        id = dto.id,
+        name = dto.name,
+        description = dto.description,
+        price = dto.price,
+        photoUrl = dto.photoUrl,
+        isActive = dto.isActive,
+        createdAt = dto.createdAt,
+    )
+
+    fun toDto(entity: ProductoEntity) = ProductoDto(
+        id = entity.id,
+        name = entity.name,
+        description = entity.description,
+        price = entity.price,
+        photoUrl = entity.photoUrl,
+        isActive = entity.isActive,
+        createdAt = entity.createdAt,
     )
 }
