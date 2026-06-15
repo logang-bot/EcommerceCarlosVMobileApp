@@ -22,30 +22,94 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
 | 2h | Splash screen, app icon, app rename, real logo in Login, biometric screen redesign, file splits | ✅ Done |
 | 8 | Reportes tab (Diario + Por cliente modes, PDF export, Reporte de Pedidos) | ✅ Done |
-| 9 | Supabase auth + sync layer, DataStore session persistence | 🔲 Pending |
+| 9 | Supabase auth + sync layer, DataStore session persistence | 🔄 In Progress |
 
 ---
 
-## ⚠️ Critical blockers
+## ✅ Phase 9 — Auth + Supabase wiring (completed)
 
-> These items make the Login screen non-functional in production. Phase 9 must address both.
+### 🔐 Supabase Authentication — real auth implemented
+`LoginViewModel` now calls `supabase.auth.signInWith(Email)`. Three error paths:
+- **Invalid credentials** → inline red error banner above fields (bold title + body text); both fields show red border + error hint below password.
+- **Account disabled/banned** → blocking card replaces form (ban icon, "Tu cuenta está desactivada", "Contactar al administrador" + "Entrar con otra cuenta" buttons). Detected via `"banned"` in `RestException.message`.
+- **No connection** → generic error message in the banner.
 
-### 🔐 Supabase Authentication — stub active, no real auth
-The "Iniciar sesión" button currently does a fake 800ms delay and always succeeds.
-See **`docs/features/auth.md → Supabase Authentication`** for the full implementation checklist.
-Prerequisite: add credentials to `local.properties`:
-```
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-```
+### 💾 Session persistence — DataStore-backed
+`SessionManagerImpl` persists the `userId` in DataStore and the JWT in `DataStoreGoTrueSessionManager`.
+On app restart, supabase-kt auto-loads the JWT from DataStore; `SessionManagerImpl` listens to
+`auth.sessionStatus` and restores `currentUser` from Room (or fetches from Supabase on first device).
+- `SessionStatus.LoadingFromStorage` → renamed `Initializing` in supabase-kt 3.1.4
+- `SessionStatus.NetworkError` → renamed `RefreshFailure` in supabase-kt 3.1.4
 
-### 💾 Session persistence — in-memory only
-`SessionManagerImpl` stores the current user in a `MutableStateFlow`. Session is lost on process kill.
-Phase 9 must persist it via `DataStore<Preferences>`. See `docs/features/usuarios.md → Session persistence`.
+### 🔗 Create user — wired to Supabase admin API
+`CrearUsuarioViewModel` calls `adminClient.auth.admin.createUserWithEmail(...)` (renamed in supabase-kt 3.1.4), inserts a row in the `users` table, and upserts into local Room. Requires `STAGING/PRODUCTION_SECRET_KEY` in `local.properties`.
 
-### 🔗 Create user — saves locally, no Supabase sync
-`CrearUsuarioViewModel` validates a temp password but only creates an `AppUser` in Room.
-Phase 9 must wire this to the Supabase admin create-user API. See `docs/features/usuarios.md → Create User API`.
+Admin operations use `banDuration`:
+- Deactivate user → `banDuration = "876000h"` (~100 years; Supabase has no permanent-ban boolean)
+- Reactivate user → `banDuration = "none"`
+
+### 👥 Three-role schema (client requirement)
+| Role | Access |
+|------|--------|
+| SUPERUSUARIO | Full CRUD on all tables, manage users and roles |
+| USUARIO | Full CRUD on business tables (mercados/clientes/productos/pedidos); read/edit own profile only |
+| INVITADO | Read-only on all tables; read own profile only |
+
+**App changes:** `UserRole.INVITADO` enum added. `RoleBadge` updated (accent-tint/primary for USUARIO, blue-tint/blueText/eye icon for INVITADO). Role picker shows 3 cards; only the selected one expands its permissions list. `GestionUsuariosScreen` now groups users into 3 sections (Super usuarios / Usuarios / Invitados). Activate/Deactivate button toggles based on `user.isActive`.
+
+### 🔏 Role-gated UI (canWrite pattern)
+
+All business screens enforce the three-tier role matrix at the UI level via a `canWrite: Boolean` field in each UiState (computed as `user?.role != UserRole.INVITADO`).
+
+**INVITADO users see all data but cannot:**
+- Create mercados (FAB hidden in MercadosScreen)
+- Edit or delete mercados (edit icon + danger zone hidden in DetalleMercadoScreen)
+- Create clients (FAB + empty-state action hidden in ClientesScreen)
+- Edit clients, create pedidos, blacklist/unblacklist, or add saldo extra (all hidden in DetalleClienteScreen)
+- Edit pedidos or record payments (edit icon + bottom bar hidden in DetallePedidoScreen)
+- Create or edit products; product rows are non-clickable with no chevron (CatalogoScreen)
+
+User management (`GestionUsuariosScreen`) is gated separately in `PerfilScreen` by checking `state.role == UserRole.SUPERUSUARIO` — unchanged from Phase 9 auth wiring.
+
+**Files changed (role-gating):**
+`ui/screen/mercado/MercadosUiState.kt`, `MercadosViewModel.kt`, `MercadosScreen.kt`,
+`ui/screen/mercado/DetalleMercadoUiState.kt`, `DetalleMercadoViewModel.kt`, `DetalleMercadoScreen.kt`,
+`ui/screen/cliente/ClientesUiState.kt`, `ClientesViewModel.kt`, `ClientesScreen.kt`,
+`ui/screen/cliente/DetalleClienteUiState.kt`, `DetalleClienteViewModel.kt`, `DetalleClienteScreen.kt`, `DetalleClienteActions.kt`,
+`ui/screen/pedido/DetallePedidoUiState.kt`, `DetallePedidoViewModel.kt`, `DetallePedidoScreen.kt`,
+`ui/screen/producto/CatalogoUiState.kt`, `CatalogoViewModel.kt`, `CatalogoScreen.kt`
+
+See `docs/features/usuarios.md → canWrite pattern` for the full element table.
+
+### 🌍 Environments
+Two product flavors: **staging** and **production**. Each reads its own Supabase URL + keys from
+`local.properties`. Build variants: `stagingDebug`, `stagingRelease`, `productionDebug`, `productionRelease`.
+Staging fully wired and tested. Production keys TBD.
+
+### 📋 SQL docs
+`docs/sql/schema.sql` — all CREATE TABLE statements with inline `ENABLE ROW LEVEL SECURITY`.
+`docs/sql/rls.sql` — 3-tier RLS policies (SUPERUSUARIO / USUARIO / INVITADO).
+`docs/sql/storage.sql` — Storage bucket creation + policies.
+
+**Files changed (Phase 9 + this session):**
+`gradle/libs.versions.toml`, `app/build.gradle.kts`, `local.properties`,
+`di/AppQualifiers.kt`, `di/DataStoreModule.kt`, `di/SupabaseModule.kt`,
+`data/session/DataStoreGoTrueSessionManager.kt`, `data/session/SessionManagerImpl.kt`,
+`domain/session/SessionManager.kt`, `domain/model/UserRole.kt`,
+`domain/repository/UserRepository.kt`, `data/remote/dto/UserDto.kt`, `data/mapper/UserMapper.kt`,
+`data/repository/impl/UserRepositoryImpl.kt`,
+`presentation/navigation/AppNavigation.kt`, `presentation/navigation/AppViewModel.kt`,
+`MainActivity.kt`,
+`ui/screen/auth/LoginUiState.kt`, `ui/screen/auth/LoginViewModel.kt`,
+`ui/screen/auth/LoginScreen.kt`, `ui/screen/auth/LoginContent.kt`, `ui/screen/auth/LoginComponents.kt`,
+`ui/screen/usuario/CrearUsuarioViewModel.kt`, `ui/screen/usuario/UsuarioDetalleViewModel.kt`,
+`ui/screen/usuario/GestionUsuariosViewModel.kt`, `ui/screen/usuario/GestionUsuariosUiState.kt`,
+`ui/screen/usuario/GestionUsuariosScreen.kt`, `ui/screen/usuario/UsuarioDetalleScreen.kt`,
+`ui/screen/usuario/CrearUsuarioScreen.kt`, `ui/screen/usuario/UserUiModel.kt`,
+`ui/screen/perfil/PerfilViewModel.kt`, `ui/screen/perfil/EditarPerfilViewModel.kt`,
+`ui/common/RoleBadge.kt`,
+`docs/sql/schema.sql`, `docs/sql/rls.sql`, `docs/supabase-setup.md`,
+`docs/features/auth.md`, `docs/progress.md`
 
 ---
 

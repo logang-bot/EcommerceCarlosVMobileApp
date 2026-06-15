@@ -12,4 +12,5 @@ data class CrearUsuarioFormState(
     val passwordError: Boolean = false,
     val isSending: Boolean = false,
     val sent: Boolean = false,
+    val errorMessage: String? = null,
 )

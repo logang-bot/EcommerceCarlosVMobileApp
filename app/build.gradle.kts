@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
@@ -24,6 +32,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "SUPABASE_URL", "\"${localProperties["STAGING_SUPABASE_URL"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${localProperties["STAGING_SUPABASE_PUBLISHABLE_KEY"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${localProperties["STAGING_SUPABASE_SECRET_KEY"] ?: ""}\"")
+        }
+        create("production") {
+            dimension = "environment"
+            buildConfigField("String", "SUPABASE_URL", "\"${localProperties["PRODUCTION_SUPABASE_URL"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${localProperties["PRODUCTION_SUPABASE_PUBLISHABLE_KEY"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${localProperties["PRODUCTION_SUPABASE_SECRET_KEY"] ?: ""}\"")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -39,6 +65,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -62,6 +89,10 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.datastore.preferences)
     ksp(libs.hilt.compiler)
     ksp(libs.room.compiler)
     testImplementation(libs.junit)

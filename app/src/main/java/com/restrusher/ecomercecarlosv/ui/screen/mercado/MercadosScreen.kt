@@ -169,7 +169,7 @@ private fun MercadosContent(
             }
         },
         floatingActionButton = {
-            if (!isSelecting) {
+            if (!isSelecting && state.canWrite) {
                 ExtendedFloatingActionButton(
                     text = { Text(stringResource(R.string.mercados_fab)) },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },

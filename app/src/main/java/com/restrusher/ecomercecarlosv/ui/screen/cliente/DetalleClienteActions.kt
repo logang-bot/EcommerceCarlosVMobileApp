@@ -39,10 +39,12 @@ import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 @Composable
 internal fun ActionButtons(
     isBlacklisted: Boolean,
+    canWrite: Boolean,
     onListaNegraClick: () -> Unit,
     onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
 ) {
+    if (!canWrite) return
     val ext = MaterialTheme.extendedColors
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),

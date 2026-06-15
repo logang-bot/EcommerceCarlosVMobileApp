@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
@@ -32,10 +34,21 @@ fun RoleBadge(
     small: Boolean = false,
 ) {
     val ext = MaterialTheme.extendedColors
-    val isSuper = role == UserRole.SUPERUSUARIO
-    val bgColor = if (isSuper) ext.banana else ext.surface3
-    val textColor = if (isSuper) ext.onBanana else ext.text2
-    val label = if (isSuper) "Super usuario" else "Usuario"
+    val bgColor = when (role) {
+        UserRole.SUPERUSUARIO -> ext.banana
+        UserRole.INVITADO -> ext.blueTint
+        else -> ext.accentTint
+    }
+    val textColor = when (role) {
+        UserRole.SUPERUSUARIO -> ext.onBanana
+        UserRole.INVITADO -> ext.blueText
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val label = when (role) {
+        UserRole.SUPERUSUARIO -> stringResource(R.string.role_super)
+        UserRole.INVITADO -> stringResource(R.string.role_invitado)
+        else -> stringResource(R.string.role_usuario)
+    }
     val fontSize = if (small) 11.sp else 12.sp
     val iconSize = if (small) 12.dp else 13.dp
     val padH = if (small) 8.dp else 10.dp
@@ -46,21 +59,26 @@ fun RoleBadge(
             .clip(CircleShape)
             .background(bgColor)
             .then(
-                if (!isSuper) Modifier.border(1.dp, ext.border2, CircleShape) else Modifier
+                if (role != UserRole.SUPERUSUARIO) Modifier.border(1.dp, ext.border2, CircleShape) else Modifier
             )
             .padding(horizontal = padH, vertical = padV),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (small) 5.dp else 6.dp),
     ) {
-        if (isSuper) {
-            Icon(
+        when (role) {
+            UserRole.SUPERUSUARIO -> Icon(
                 painter = painterResource(R.drawable.ic_admin_panel),
                 contentDescription = null,
                 tint = textColor,
                 modifier = Modifier.size(iconSize),
             )
-        } else {
-            Icon(
+            UserRole.INVITADO -> Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(iconSize),
+            )
+            else -> Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
                 tint = textColor,

@@ -6,4 +6,5 @@ data class CatalogoUiState(
     val productos: List<Producto> = emptyList(),
     val searchQuery: String = "",
     val isLoading: Boolean = false,
+    val canWrite: Boolean = true,
 )

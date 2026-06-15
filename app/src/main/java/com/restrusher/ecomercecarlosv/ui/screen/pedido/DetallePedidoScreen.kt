@@ -91,14 +91,16 @@ private fun DetallePedidoContent(
                 },
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = null)
+                    if (state.canWrite) {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                        }
                     }
                 },
             )
         },
         bottomBar = {
-            if (pedido != null && pedido.status != PedidoStatus.PAID) {
+            if (pedido != null && pedido.status != PedidoStatus.PAID && state.canWrite) {
                 DetallePedidoBottomBar(
                     isSaving = state.isSaving,
                     onMarcarPagado = onMarcarPagado,

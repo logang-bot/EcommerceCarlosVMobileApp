@@ -1,15 +1,20 @@
 package com.restrusher.ecomercecarlosv.data.repository.impl
 
+import android.util.Log
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import com.restrusher.ecomercecarlosv.data.mapper.UserMapper
+import com.restrusher.ecomercecarlosv.data.remote.dto.UserDto
 import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class UserRepositoryImpl @Inject constructor(
     private val dao: UserDao,
+    private val supabase: SupabaseClient,
 ) : UserRepository {
 
     override fun getAll(): Flow<List<AppUser>> =
@@ -38,4 +43,24 @@ class UserRepositoryImpl @Inject constructor(
 
     override suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?) =
         dao.updateProfile(id, name, email, phone, photoUrl)
+
+    override suspend fun syncFromRemote(userId: String): AppUser? {
+        val dto = runCatching {
+            supabase.from("users")
+                .select { filter { eq("id", userId) } }
+                .decodeSingleOrNull<UserDto>()
+        }.onFailure { e ->
+            Log.e(TAG, "syncFromRemote: failed to fetch user $userId", e)
+        }.getOrNull() ?: return null
+
+        Log.d(TAG, "syncFromRemote: fetched user — name=${dto.name}, role=${dto.role}, isActive=${dto.isActive}")
+        val localBiometric = dao.getById(userId)?.biometricEnabledAt
+        val domain = UserMapper.toDomain(dto).copy(biometricEnabledAt = localBiometric)
+        dao.insert(UserMapper.toEntity(domain))
+        return domain
+    }
+
+    companion object {
+        private const val TAG = "UserRepository"
+    }
 }

@@ -105,13 +105,15 @@ private fun CatalogoContent(
         },
         bottomBar = { AppBottomNavBar(selectedTab = selectedTab, onTabSelected = onTabSelected) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.productos_fab)) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                onClick = onCreateClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            )
+            if (state.canWrite) {
+                ExtendedFloatingActionButton(
+                    text = { Text(stringResource(R.string.productos_fab)) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    onClick = onCreateClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                )
+            }
         },
     ) { innerPadding ->
         if (state.productos.isEmpty() && !state.isLoading) {
@@ -140,7 +142,7 @@ private fun CatalogoContent(
                 items(state.productos, key = { it.id }) { producto ->
                     ProductoRow(
                         producto = producto,
-                        onClick = { onProductoClick(producto.id) },
+                        onClick = if (state.canWrite) ({ onProductoClick(producto.id) }) else null,
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 83.dp),
@@ -191,12 +193,12 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-private fun ProductoRow(producto: Producto, onClick: () -> Unit) {
+private fun ProductoRow(producto: Producto, onClick: (() -> Unit)?) {
     val ext = MaterialTheme.extendedColors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -227,14 +229,16 @@ private fun ProductoRow(producto: Producto, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = ext.text4,
-            modifier = Modifier
-                .padding(start = 2.dp)
-                .size(17.dp),
-        )
+        if (onClick != null) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = ext.text4,
+                modifier = Modifier
+                    .padding(start = 2.dp)
+                    .size(17.dp),
+            )
+        }
     }
 }
 

@@ -156,6 +156,17 @@ private fun GestionUsuariosContent(
                 }
             }
 
+            if (state.invitados.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(18.dp))
+                    SectionLabel(stringResource(R.string.gestion_usuarios_section_invitado, state.invitados.size))
+                }
+                items(state.invitados, key = { it.id }) { user ->
+                    UserRow(user = user, onClick = { onUserClick(user.id) })
+                    HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
+                }
+            }
+
             item { Spacer(Modifier.height(96.dp)) } // FAB clearance
         }
     }
@@ -249,12 +260,15 @@ private fun GestionDarkPreview() {
         GestionUsuariosContent(
             state = GestionUsuariosUiState(
                 superUsuarios = listOf(
-                    UserUiModel("1", "Carlos Villarroel", "carlos@cv.ve", UserRole.SUPERUSUARIO, "CV", true, true, "Ahora", "Super usuario"),
-                    UserUiModel("2", "Rosa Villarroel", "rosa@cv.ve", UserRole.SUPERUSUARIO, "RV", true, false, "Hace 2 h", "Super usuario"),
+                    UserUiModel("1", "Carlos Villarroel", "carlos@cv.ve", UserRole.SUPERUSUARIO, "CV", true, true, "Ahora"),
+                    UserUiModel("2", "Rosa Villarroel", "rosa@cv.ve", UserRole.SUPERUSUARIO, "RV", true, false, "Hace 2 h"),
                 ),
                 usuarios = listOf(
-                    UserUiModel("3", "Daniel Ortega", "daniel@cv.ve", UserRole.USUARIO, "DO", true, false, "Ayer", "Usuario"),
-                    UserUiModel("4", "Keila Bravo", "keila@cv.ve", UserRole.USUARIO, "KB", false, false, null, "Usuario"),
+                    UserUiModel("3", "Daniel Ortega", "daniel@cv.ve", UserRole.USUARIO, "DO", true, false, "Ayer"),
+                    UserUiModel("4", "Keila Bravo", "keila@cv.ve", UserRole.USUARIO, "KB", false, false, null),
+                ),
+                invitados = listOf(
+                    UserUiModel("5", "Néstor Lugo", "nestor@cv.ve", UserRole.INVITADO, "NL", true, false, "Hace 5 h"),
                 ),
                 isLoading = false,
             ),

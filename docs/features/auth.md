@@ -31,10 +31,11 @@ After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inc
 |------|---------------|
 | `ui/screen/auth/LoginUiState.kt` | `LoginFormState` — all login form state including enrolled-user fields |
 | `ui/screen/auth/LoginViewModel.kt` | `@HiltViewModel` — biometric availability check, password login, biometric login, account switching |
-| `ui/screen/auth/LoginScreen.kt` | Thin router: reads state, wires `BiometricPrompt`, delegates to content composables |
+| `ui/screen/auth/LoginScreen.kt` | Thin router: reads state, wires `BiometricPrompt`, wraps with `LoadingOverlay`, delegates to content composables |
 | `ui/screen/auth/LoginContent.kt` | Regular login state UI + `BrandSection` + previews |
 | `ui/screen/auth/LoginBiometricoContent.kt` | Enrolled-user login state UI + `WelcomeBackCard` + `BrandSectionCompact` + previews |
 | `ui/screen/auth/LoginComponents.kt` | Shared internal composables: `BrandMark`, `LoginTextField`, `PrimaryLoginButton`, `DividerOr` |
+| `ui/common/LoadingOverlay.kt` | Reusable scrim overlay with centered spinner; wraps any content |
 
 ---
 
@@ -176,16 +177,63 @@ The prompt is constructed in `LoginScreen` (requires `FragmentActivity` context 
 
 ---
 
-## ⚠️ Critical TODOs (app non-functional without these)
+## ✅ Phase 9 — Supabase Authentication (implemented)
 
-### 🔐 Supabase Authentication
-The login button currently fakes success with a 300ms delay. **No real authentication happens.**
+### Supabase wiring
+- [x] `supabase-kt` 3.1.4 (auth-kt + postgrest-kt + ktor-okhttp) added to `libs.versions.toml` and `build.gradle.kts`
+- [x] Staging/production credentials in `local.properties` (`STAGING_SUPABASE_URL`, `STAGING_SUPABASE_KEY`, `STAGING_SUPABASE_SECRET_KEY`, and production equivalents); file is gitignored
+- [x] `LoginViewModel.onLoginClick` calls `supabase.auth.signInWith(Email)` — stub removed
+- [x] `RestException` caught and mapped: "banned" → `isAccountDisabled = true`; invalid credentials → Spanish `errorMessage`; other → generic auth error
+- [x] After auth succeeds, `syncFromRemote(userId)` is always called to get the freshest `is_active` value; if `isActive == false` → `signOut()` + `isAccountDisabled = true`
+- [x] `LoadingOverlay` (scrim + centered spinner) shown at `LoginScreen` level during `state.isLoading`, blocking both login paths
+- [x] `SessionManagerImpl` subscribes to `auth.sessionStatus` — auto-login on restart
+- [x] JWT persisted via `DataStoreGoTrueSessionManager`; userId in DataStore
+- [x] `MainActivity` keeps splash screen visible until `SessionManager.isLoaded = true`
+- [x] `AppNavigation` auto-navigates to `HomeRoute` if session is restored on startup
+- [x] On `NotAuthenticated` (logout or cold start with no session): all Room tables wiped via `database.clearAllTables()` unless a biometric-enrolled user exists; splash is held until wipe completes
 
-- [ ] Add `supabase-kt` Auth plugin to dependencies
-- [ ] Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` to `local.properties`
-- [ ] Replace `delay(300)` stub in `LoginViewModel.onLoginClick` with Supabase `signInWith(Email)`
-- [ ] Handle `AuthException` → map to `LoginFormState.errorMessage`
-- [ ] On app launch, check `currentSessionOrNull()` and skip login if valid
+### supabase-kt 3.1.4 API changes
+
+| Old symbol | New symbol |
+|------------|------------|
+| `io.github.jan.supabase.auth.SessionStatus` | `io.github.jan.supabase.auth.status.SessionStatus` |
+| `SessionStatus.LoadingFromStorage` | `SessionStatus.Initializing` |
+| `SessionStatus.NetworkError` | `SessionStatus.RefreshFailure` |
+| `import io.github.jan.supabase.auth.signOut` (bogus top-level) | removed; call `supabase.auth.signOut()` directly |
+| `admin.createUser { }` | `admin.createUserWithEmail { }` |
+| `emailConfirm = true` | `autoConfirm = true` |
+| `userMetadata = buildJsonObject { }` | `userMetadata { }` (lambda DSL) |
+| `banned = true` | `banDuration = "876000h"` (no permanent-ban field exists) |
+
+### Login error / disabled states
+
+Two extra visual states in `LoginContent.kt` (toggled by `LoginUiState`):
+
+**Credentials error** (`errorMessage != null`)
+```
+  ├── red-tint banner (13dp radius) — Warning icon + annotated text (bold + body)
+  ├── LoginTextField "Correo"    [isError = true]
+  └── LoginTextField "Contraseña" [isError = true, errorText = login_error_password_hint]
+```
+
+**Account disabled** (`isAccountDisabled = true`) — replaces the form entirely
+```
+  └── red-tint card (18dp radius)
+        ├── 52dp icon box (16dp radius, 0.16α red bg, Block icon)
+        ├── "Tu cuenta está desactivada" — 17sp bold
+        ├── body text
+        ├── Button [primary] — Phone icon + "Contactar al administrador"
+        └── OutlinedButton — "Entrar con otra cuenta" → switchToOtherAccount()
+```
+
+`isAccountDisabled` is set when `RestException.message` contains "banned".
+`switchToOtherAccount()` resets both `errorMessage` and `isAccountDisabled = false`.
+
+### Indefinite ban / activate
+Supabase Auth has no permanent-ban boolean. Workaround used in `UsuarioDetalleViewModel`:
+- **Deactivate**: `banDuration = "876000h"` (~100 years) + set `is_active = false` in users table
+- **Activate**: `banDuration = "none"` + set `is_active = true` in users table
 
 ### 👆 Biometric login
-Biometric authentication is fully wired end-to-end for **enabling from Perfil** and for **logging in** from the enrolled-user screen. No remaining TODOs for the biometric login path.
+No remaining TODOs. Biometric prompt verifies the user locally; the Supabase JWT is restored from
+DataStore and auto-refreshed by the Auth plugin, so no extra network call is needed on biometric login.

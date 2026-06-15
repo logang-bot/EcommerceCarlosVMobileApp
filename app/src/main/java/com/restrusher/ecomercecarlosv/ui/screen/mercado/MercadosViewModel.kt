@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
@@ -49,6 +50,7 @@ class MercadosViewModel @Inject constructor(
             currentUserInitials = initials,
             currentUserPhotoUrl = user?.photoUrl,
             selectedMercadoId = selectedId,
+            canWrite = user?.role != UserRole.INVITADO,
         )
     }.stateIn(
         scope = viewModelScope,

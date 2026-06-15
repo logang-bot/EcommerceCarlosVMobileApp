@@ -91,7 +91,7 @@ private fun DetalleMercadoContent(
                 title = stringResource(R.string.detalle_mercado_title),
                 onBack = onBack,
                 actions = {
-                    if (state.mercado != null) {
+                    if (state.mercado != null && state.canWrite) {
                         IconButton(onClick = { onEditClick(state.mercado.id) }) {
                             Icon(Icons.Default.Edit, contentDescription = null)
                         }
@@ -109,6 +109,7 @@ private fun DetalleMercadoContent(
             state.mercado != null -> MercadoDataContent(
                 mercado = state.mercado,
                 innerPadding = innerPadding,
+                canWrite = state.canWrite,
                 onDelete = onDelete,
                 onClientesClick = onClientesClick,
             )
@@ -120,6 +121,7 @@ private fun DetalleMercadoContent(
 private fun MercadoDataContent(
     mercado: Mercado,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
+    canWrite: Boolean,
     onDelete: () -> Unit,
     onClientesClick: () -> Unit,
 ) {
@@ -208,7 +210,7 @@ private fun MercadoDataContent(
         )
 
         // ── Danger zone ─────────────────────────────────────────────
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp)) {
+        if (canWrite) Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp)) {
             Button(
                 onClick = onDelete,
                 modifier = Modifier.fillMaxWidth().height(50.dp),

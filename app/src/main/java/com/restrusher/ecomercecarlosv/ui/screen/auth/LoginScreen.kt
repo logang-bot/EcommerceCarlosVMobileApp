@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 
 @Composable
 fun LoginScreen(
@@ -54,22 +55,25 @@ fun LoginScreen(
         }
     }
 
-    if (state.isBiometricEnabled) {
-        LoginBiometricoContent(
-            state = state,
-            onPasswordChange = viewModel::onPasswordChange,
-            onLoginClick = { viewModel.onBiometricPasswordLogin(onLoginSuccess) },
-            onBiometricClick = triggerBiometric,
-            onSwitchToPassword = viewModel::switchToPasswordLogin,
-            onOtherAccount = viewModel::switchToOtherAccount,
-        )
-    } else {
-        LoginContent(
-            state = state,
-            onEmailChange = viewModel::onEmailChange,
-            onPasswordChange = viewModel::onPasswordChange,
-            onLoginClick = { viewModel.onLoginClick(onLoginSuccess) },
-        )
+    LoadingOverlay(isLoading = state.isLoading) {
+        if (state.isBiometricEnabled) {
+            LoginBiometricoContent(
+                state = state,
+                onPasswordChange = viewModel::onPasswordChange,
+                onLoginClick = { viewModel.onBiometricPasswordLogin(onLoginSuccess) },
+                onBiometricClick = triggerBiometric,
+                onSwitchToPassword = viewModel::switchToPasswordLogin,
+                onOtherAccount = viewModel::switchToOtherAccount,
+            )
+        } else {
+            LoginContent(
+                state = state,
+                onEmailChange = viewModel::onEmailChange,
+                onPasswordChange = viewModel::onPasswordChange,
+                onLoginClick = { viewModel.onLoginClick(onLoginSuccess) },
+                onSwitchToOtherAccount = viewModel::switchToOtherAccount,
+            )
+        }
     }
 }
 

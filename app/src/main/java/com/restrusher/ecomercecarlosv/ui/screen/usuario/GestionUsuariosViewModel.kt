@@ -24,8 +24,9 @@ class GestionUsuariosViewModel @Inject constructor(
         val mapped = users.map { it.toUiModel(currentUser?.id) }
         GestionUsuariosUiState(
             superUsuarios = mapped.filter { it.role == UserRole.SUPERUSUARIO },
-            usuarios = mapped.filter { it.role == UserRole.USUARIO },
-            isLoading = false,
+            usuarios      = mapped.filter { it.role == UserRole.USUARIO },
+            invitados     = mapped.filter { it.role == UserRole.INVITADO },
+            isLoading     = false,
         )
     }.stateIn(
         scope = viewModelScope,

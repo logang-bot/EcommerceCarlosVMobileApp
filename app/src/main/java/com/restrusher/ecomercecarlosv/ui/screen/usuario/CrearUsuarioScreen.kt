@@ -183,18 +183,27 @@ private fun CrearUsuarioContent(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     RoleOption(
-                        role = UserRole.USUARIO,
-                        selected = state.role == UserRole.USUARIO,
-                        onClick = { onRoleChange(UserRole.USUARIO) },
-                        permissions = listOf(
-                            stringResource(R.string.role_perm_pedidos) to true,
-                            stringResource(R.string.role_perm_no_admin) to false,
-                        ),
-                    )
-                    RoleOption(
                         role = UserRole.SUPERUSUARIO,
                         selected = state.role == UserRole.SUPERUSUARIO,
                         onClick = { onRoleChange(UserRole.SUPERUSUARIO) },
+                    )
+                    RoleOption(
+                        role = UserRole.USUARIO,
+                        selected = state.role == UserRole.USUARIO,
+                        onClick = { onRoleChange(UserRole.USUARIO) },
+                        permissions = if (state.role == UserRole.USUARIO) listOf(
+                            stringResource(R.string.role_perm_pedidos) to true,
+                            stringResource(R.string.role_perm_no_admin) to false,
+                        ) else null,
+                    )
+                    RoleOption(
+                        role = UserRole.INVITADO,
+                        selected = state.role == UserRole.INVITADO,
+                        onClick = { onRoleChange(UserRole.INVITADO) },
+                        permissions = if (state.role == UserRole.INVITADO) listOf(
+                            stringResource(R.string.role_perm_ver_todo) to true,
+                            stringResource(R.string.role_perm_sin_edicion) to false,
+                        ) else null,
                     )
                 }
             }

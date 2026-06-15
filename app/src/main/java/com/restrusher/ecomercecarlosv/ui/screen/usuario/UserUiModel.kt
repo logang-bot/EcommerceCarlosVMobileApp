@@ -12,17 +12,15 @@ data class UserUiModel(
     val isActive: Boolean,
     val isCurrentUser: Boolean,
     val lastSeenLabel: String?,
-    val displayRole: String,
 )
 
 fun AppUser.toUiModel(currentUserId: String? = null) = UserUiModel(
-    id            = id,
-    name          = name,
-    email         = email,
-    role          = role,
-    initials      = name.split(' ').filter(String::isNotBlank).take(2).map { it.first().uppercaseChar() }.joinToString(""),
-    isActive      = isActive,
+    id = id,
+    name = name,
+    email = email,
+    role = role,
+    initials = name.split(' ').filter(String::isNotBlank).take(2).map { it.first().uppercaseChar() }.joinToString(""),
+    isActive = isActive,
     isCurrentUser = id == currentUserId,
     lastSeenLabel = null,
-    displayRole   = if (role == UserRole.SUPERUSUARIO) "Super usuario" else "Usuario",
 )

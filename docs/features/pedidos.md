@@ -12,6 +12,21 @@ Two sub-features:
 
 ---
 
+## Role-based access (INVITADO restrictions)
+
+`DetallePedidoUiState` carries `canWrite: Boolean` (computed as `user?.role != UserRole.INVITADO`).
+
+| Element | Who sees it |
+|---------|-------------|
+| Edit (pencil) icon in `DetallePedidoScreen` top bar | SUPERUSUARIO + USUARIO only |
+| Bottom bar ("Pago parcial" + "Marcar pagado") in `DetallePedidoScreen` | SUPERUSUARIO + USUARIO only (also hidden when `status == PAID`) |
+
+INVITADO users can view pedido details and payment history but cannot record payments or navigate to the edit screen.
+
+Note: `CreacionPedidoScreen` is never reachable for INVITADO because the "Nuevo Pedido" FAB in `DetalleClienteScreen` is already hidden by `canWrite` (see `docs/features/clientes.md`).
+
+---
+
 ## Screens
 
 | Screen | Route | File | Status |

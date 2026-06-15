@@ -18,4 +18,5 @@ data class ClientesUiState(
     val sortMode: ClienteSortMode = ClienteSortMode.AZ,
     val searchQuery: String = "",
     val isLoading: Boolean = false,
+    val canWrite: Boolean = true,
 )

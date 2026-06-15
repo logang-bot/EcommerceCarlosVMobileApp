@@ -111,15 +111,17 @@ private fun DetalleClienteContent(
                             onClearFilters = onClearPedidoFilters,
                             onGenerarReporte = onGenerarReporte,
                         )
-                        IconButton(onClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) }) {
-                            Icon(Icons.Default.Edit, contentDescription = null)
+                        if (state.canWrite) {
+                            IconButton(onClick = { onEditClick(state.cliente.id, state.cliente.mercadoId) }) {
+                                Icon(Icons.Default.Edit, contentDescription = null)
+                            }
                         }
                     }
                 },
             )
         },
         floatingActionButton = {
-            if (state.cliente != null && !state.cliente.isBlacklisted) {
+            if (state.cliente != null && !state.cliente.isBlacklisted && state.canWrite) {
                 ExtendedFloatingActionButton(
                     text = { Text(stringResource(R.string.pedidos_nuevo)) },
                     icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
@@ -139,6 +141,7 @@ private fun DetalleClienteContent(
             state.cliente != null -> ClienteData(
                 state = state,
                 innerPadding = innerPadding,
+                canWrite = state.canWrite,
                 onListaNegraClick = onListaNegraClick,
                 onQuitarListaNegraClick = onQuitarListaNegraClick,
                 onSaldoExtraClick = onSaldoExtraClick,
@@ -165,6 +168,7 @@ private fun DetalleClienteContent(
 private fun ClienteData(
     state: DetalleClienteUiState,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
+    canWrite: Boolean,
     onListaNegraClick: () -> Unit,
     onQuitarListaNegraClick: () -> Unit,
     onSaldoExtraClick: () -> Unit,
@@ -205,6 +209,7 @@ private fun ClienteData(
         Spacer(Modifier.height(12.dp))
         ActionButtons(
             isBlacklisted = cliente.isBlacklisted,
+            canWrite = canWrite,
             onListaNegraClick = onListaNegraClick,
             onQuitarListaNegraClick = onQuitarListaNegraClick,
             onSaldoExtraClick = onSaldoExtraClick,

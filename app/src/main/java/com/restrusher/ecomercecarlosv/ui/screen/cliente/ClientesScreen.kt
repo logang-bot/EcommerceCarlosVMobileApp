@@ -133,13 +133,15 @@ private fun ClientesContent(
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.clientes_fab)) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                onClick = onCreateClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            )
+            if (state.canWrite) {
+                ExtendedFloatingActionButton(
+                    text = { Text(stringResource(R.string.clientes_fab)) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    onClick = onCreateClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                )
+            }
         },
     ) { innerPadding ->
         if (state.clientes.isEmpty() && !state.isLoading) {
@@ -148,8 +150,8 @@ private fun ClientesContent(
                 icon = Icons.Default.Person,
                 title = stringResource(R.string.clientes_empty_title),
                 subtitle = stringResource(R.string.clientes_empty_subtitle),
-                hint = stringResource(R.string.clientes_empty_hint),
-                onActionClick = onCreateClick,
+                hint = if (state.canWrite) stringResource(R.string.clientes_empty_hint) else null,
+                onActionClick = if (state.canWrite) onCreateClick else null,
             )
         } else {
             LazyColumn(

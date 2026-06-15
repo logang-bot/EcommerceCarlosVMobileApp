@@ -1,6 +1,10 @@
 package com.restrusher.ecomercecarlosv.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -53,7 +57,21 @@ import com.restrusher.ecomercecarlosv.ui.screen.usuario.UsuarioDetalleScreen
 
 @Composable
 fun AppNavigation() {
+    val appViewModel: AppViewModel = hiltViewModel()
+    val isLoaded by appViewModel.isLoaded.collectAsStateWithLifecycle()
+    val currentUser by appViewModel.currentUser.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+
+    // Auto-login: when startup session check completes with a restored session,
+    // skip the Login screen and go straight to Home.
+    LaunchedEffect(isLoaded) {
+        if (isLoaded && currentUser != null) {
+            navController.navigate(HomeRoute) {
+                popUpTo(LoginRoute) { inclusive = true }
+            }
+        }
+    }
+
     NavHost(navController = navController, startDestination = LoginRoute) {
         composable<LoginRoute> {
             LoginScreen(onLoginSuccess = {

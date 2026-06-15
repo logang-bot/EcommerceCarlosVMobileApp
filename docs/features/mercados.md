@@ -26,6 +26,21 @@ Long-pressing a mercado row enters **selection mode**: the normal top bar is rep
 
 ## UI implementation notes
 
+### Role-based access (INVITADO restrictions)
+
+`MercadosUiState` carries `canWrite: Boolean` (computed as `user?.role != UserRole.INVITADO`).
+`DetalleMercadoUiState` also carries `canWrite: Boolean`.
+
+| Element | Who sees it |
+|---------|-------------|
+| FAB "Mercado" (create) | SUPERUSUARIO + USUARIO only |
+| Edit (pencil) icon in `DetalleMercadoScreen` | SUPERUSUARIO + USUARIO only |
+| Danger zone / Delete button in `DetalleMercadoScreen` | SUPERUSUARIO + USUARIO only |
+
+The FAB is already hidden during selection mode; `canWrite = false` adds a second gate so INVITADO users never see the create button.
+
+---
+
 ### MercadosScreen — normal state
 
 - Large `PedidosTopBar` with title "Mercados" and subtitle "%d mercados"

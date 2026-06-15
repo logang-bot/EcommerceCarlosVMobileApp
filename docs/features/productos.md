@@ -21,6 +21,21 @@ Global product catalogue shared across all users. Products appear in the CreaciÃ
 
 ---
 
+## Role-based access (INVITADO restrictions)
+
+`CatalogoUiState` carries `canWrite: Boolean` (computed as `user?.role != UserRole.INVITADO`).
+
+| Element | Who sees it / behavior |
+|---------|------------------------|
+| FAB "Producto" (create) | SUPERUSUARIO + USUARIO only |
+| Product row tap / chevron | SUPERUSUARIO + USUARIO only â€” INVITADO rows have no `Modifier.clickable` and no chevron icon |
+
+INVITADO users see the full product catalogue (names, descriptions, prices, photos) but cannot create, edit, or delete products. Rows are visually plain (no chevron, not tappable).
+
+Implementation: `ProductoRow` accepts `onClick: (() -> Unit)?`. When `null`, the `Modifier.clickable` block and the `ChevronRight` icon are both skipped.
+
+---
+
 ## UI notes
 
 **CatalogoScreen:**

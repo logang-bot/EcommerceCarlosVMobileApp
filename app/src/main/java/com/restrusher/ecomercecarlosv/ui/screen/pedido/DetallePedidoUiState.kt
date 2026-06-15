@@ -10,4 +10,5 @@ data class DetallePedidoUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val showPagoSheet: Boolean = false,
+    val canWrite: Boolean = true,
 )

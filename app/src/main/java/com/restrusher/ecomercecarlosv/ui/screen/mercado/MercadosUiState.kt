@@ -15,4 +15,5 @@ data class MercadosUiState(
     val currentUserInitials: String = "",
     val currentUserPhotoUrl: String? = null,
     val selectedMercadoId: String? = null,
+    val canWrite: Boolean = true,
 )

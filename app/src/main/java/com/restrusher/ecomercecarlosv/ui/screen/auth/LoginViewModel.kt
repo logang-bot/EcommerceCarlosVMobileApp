@@ -1,57 +1,41 @@
 package com.restrusher.ecomercecarlosv.ui.screen.auth
 
 import android.content.Context
+import android.util.Log
+import androidx.annotation.StringRes
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.delay
+import com.restrusher.ecomercecarlosv.R
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.exceptions.RestException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ─── STUB: hardcoded user — remove entirely in Phase 9 ──────────────────────
-// TODO (Phase 9): Delete STUB_ADMIN and the two credential constants below.
-//   Real auth flows through supabaseClient.auth.signInWith(Email) { ... }
-private val STUB_ADMIN = AppUser(
-    id = "u1",
-    email = "carlos@comercializadora.ve",
-    name = "Carlos Villarroel",
-    role = UserRole.SUPERUSUARIO,
-    isActive = true,
-    createdAt = 0L,
-)
-// ─────────────────────────────────────────────────────────────────────────────
-
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
+    private val supabase: SupabaseClient,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginFormState())
     val state: StateFlow<LoginFormState> = _state.asStateFlow()
 
     init {
-        // TODO (Phase 9): Before biometric check, restore an existing Supabase session so
-        //   users who were already signed in don't see the login screen on relaunch:
-        //     val session = supabaseClient.auth.currentSessionOrNull()
-        //     if (session != null && !session.isExpired()) {
-        //         val userId = supabaseClient.auth.currentUserOrNull()?.id ?: return
-        //         val user   = userRepository.getById(userId) ?: fetchAndUpsertFromSupabase(userId)
-        //         sessionManager.setCurrentUser(user)
-        //         onAutoLoginSuccess()   // navigate to HomeRoute via a callback passed into the VM
-        //     }
         checkBiometricAvailability()
     }
 
@@ -85,33 +69,63 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val s = _state.value
-            // ─── STUB: replace this entire block with Supabase auth (Phase 9) ──────
-            // TODO (Phase 9):
-            //   try {
-            //       supabaseClient.auth.signInWith(Email) {
-            //           email    = s.email.trim()
-            //           password = s.password
-            //       }
-            //       val userId = supabaseClient.auth.currentUserOrNull()?.id ?: return@launch
-            //       val user   = userRepository.getById(userId)
-            //                    ?: fetchAndUpsertFromSupabase(userId)  // sync on first device login
-            //       sessionManager.setCurrentUser(user)
-            //       _state.value = s.copy(isLoading = false)
-            //       onSuccess()
-            //   } catch (e: AuthException) {
-            //       _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
-            //   }
-            delay(300)
-            if (s.email.trim() == "admin" && s.password == "admin") {
-                if (userRepository.getById(STUB_ADMIN.id) == null) userRepository.save(STUB_ADMIN)
-                val user = userRepository.getById(STUB_ADMIN.id) ?: STUB_ADMIN
+            Log.d(TAG, "onLoginClick: attempting sign-in for '${s.email.trim()}'")
+            try {
+                supabase.auth.signInWith(Email) {
+                    email = s.email.trim()
+                    password = s.password
+                }
+                Log.d(TAG, "onLoginClick: Supabase auth succeeded")
+
+                val userId = supabase.auth.currentUserOrNull()?.id ?: run {
+                    Log.e(TAG, "onLoginClick: currentUserOrNull() returned null after successful sign-in")
+                    _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_get_user))
+                    return@launch
+                }
+                Log.d(TAG, "onLoginClick: userId=$userId")
+
+                // Sync from remote first to get the freshest is_active value;
+                // fall back to local cache only if the network call fails.
+                val remoteUser = userRepository.syncFromRemote(userId)
+                Log.d(TAG, "onLoginClick: syncFromRemote result=${if (remoteUser != null) "user(${remoteUser.name}, active=${remoteUser.isActive})" else "null"}")
+
+                val user = remoteUser
+                    ?: userRepository.getById(userId).also {
+                        Log.d(TAG, "onLoginClick: local cache result=${if (it != null) "user(${it.name})" else "null"}")
+                    }
+                    ?: run {
+                        Log.e(TAG, "onLoginClick: user not found in remote or local cache for userId=$userId")
+                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_not_registered))
+                        return@launch
+                    }
+
+                if (!user.isActive) {
+                    Log.w(TAG, "onLoginClick: user is inactive, signing out")
+                    supabase.auth.signOut()
+                    _state.value = s.copy(isLoading = false, isAccountDisabled = true)
+                    return@launch
+                }
+
+                Log.d(TAG, "onLoginClick: login successful, navigating to home")
                 sessionManager.setCurrentUser(user)
                 _state.value = s.copy(isLoading = false)
                 onSuccess()
-            } else {
-                _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
+            } catch (e: RestException) {
+                val body = e.message ?: ""
+                Log.e(TAG, "onLoginClick: RestException — status=${e.statusCode}, error='${e.error}', description='${e.description}'")
+                when {
+                    body.contains("banned", ignoreCase = true) ->
+                        _state.value = s.copy(isLoading = false, isAccountDisabled = true)
+                    body.contains("Invalid login", ignoreCase = true) ||
+                    body.contains("invalid_credentials", ignoreCase = true) ->
+                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_invalid_credentials))
+                    else ->
+                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_auth_failed))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "onLoginClick: unexpected exception", e)
+                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_no_internet))
             }
-            // ─────────────────────────────────────────────────────────────────────
         }
     }
 
@@ -129,18 +143,34 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val s = _state.value
-            // STUB: replace with Supabase signIn(enrolledUserEmail, password) in Phase 9
-            delay(300)
-            if (s.password == "admin") {
-                val user = userRepository.getBiometricEnabledUser() ?: run {
-                    _state.value = s.copy(isLoading = false, errorMessage = "Credenciales incorrectas")
+            val enrolledUser = userRepository.getBiometricEnabledUser() ?: run {
+                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_invalid_credentials))
+                return@launch
+            }
+            try {
+                supabase.auth.signInWith(Email) {
+                    email = enrolledUser.email
+                    password = s.password
+                }
+                val user = userRepository.syncFromRemote(enrolledUser.id) ?: enrolledUser
+                if (!user.isActive) {
+                    supabase.auth.signOut()
+                    _state.value = s.copy(isLoading = false, isAccountDisabled = true)
                     return@launch
                 }
                 sessionManager.setCurrentUser(user)
                 _state.value = s.copy(isLoading = false)
                 onSuccess()
-            } else {
-                _state.value = s.copy(isLoading = false, errorMessage = "Contraseña incorrecta")
+            } catch (e: RestException) {
+                val msg = when {
+                    e.message?.contains("Invalid login") == true ||
+                    e.message?.contains("invalid_credentials") == true -> str(R.string.login_error_wrong_password)
+                    else -> str(R.string.login_error_auth_failed)
+                }
+                _state.value = s.copy(isLoading = false, errorMessage = msg)
+            } catch (e: Exception) {
+                Log.e(TAG, "onBiometricPasswordLogin: unexpected exception", e)
+                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_no_internet))
             }
         }
     }
@@ -153,11 +183,14 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(
             isBiometricEnabled = false,
             showPasswordLogin = false,
+            isAccountDisabled = false,
             email = "",
             password = "",
             errorMessage = null,
         )
     }
+
+    private fun str(@StringRes id: Int) = context.getString(id)
 
     private fun computeInitials(name: String) = name
         .split(' ')
@@ -165,4 +198,8 @@ class LoginViewModel @Inject constructor(
         .take(2)
         .map { it.first().uppercaseChar() }
         .joinToString("")
+
+    companion object {
+        private const val TAG = "LoginViewModel"
+    }
 }

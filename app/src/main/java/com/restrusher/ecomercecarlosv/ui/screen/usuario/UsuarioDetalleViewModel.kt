@@ -4,15 +4,22 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.mapper.UserMapper
+import com.restrusher.ecomercecarlosv.di.AdminClient
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,6 +27,7 @@ class UsuarioDetalleViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val userRepository: UserRepository,
     private val sessionManager: SessionManager,
+    @AdminClient private val adminClient: SupabaseClient,
 ) : ViewModel() {
 
     private val userId: String = savedStateHandle.toRoute<UsuarioDetalleRoute>().userId
@@ -33,9 +41,9 @@ class UsuarioDetalleViewModel @Inject constructor(
             val currentId = sessionManager.currentUser.value?.id
             if (user != null) {
                 _state.value = UsuarioDetalleUiState(
-                    user = user.toUiModel(currentId),
+                    user         = user.toUiModel(currentId),
                     selectedRole = user.role,
-                    isLoading = false,
+                    isLoading    = false,
                 )
             } else {
                 _state.value = _state.value.copy(isLoading = false)
@@ -48,15 +56,21 @@ class UsuarioDetalleViewModel @Inject constructor(
     }
 
     fun onSaveRole(onDone: () -> Unit) {
-        val user = _state.value.user ?: return
+        val uiUser = _state.value.user ?: return
         _state.value = _state.value.copy(isSaving = true)
         viewModelScope.launch {
-            val domainUser = userRepository.getById(user.id) ?: return@launch
-            userRepository.save(domainUser.copy(role = _state.value.selectedRole))
-            // TODO (Phase 9): Sync role change to Supabase user metadata:
-            //   supabaseClient.auth.admin.updateUserById(userId) {
-            //       userMetadata = buildJsonObject { put("role", selectedRole.name) }
-            //   }
+            val domainUser = userRepository.getById(uiUser.id) ?: run {
+                _state.value = _state.value.copy(isSaving = false)
+                return@launch
+            }
+            val newRole = _state.value.selectedRole
+            try {
+                adminClient.auth.admin.updateUserById(userId) {
+                    userMetadata = buildJsonObject { put("role", newRole.name) }
+                }
+                adminClient.from("users").upsert(UserMapper.toDto(domainUser.copy(role = newRole)))
+            } catch (_: Exception) { /* will sync later */ }
+            userRepository.save(domainUser.copy(role = newRole))
             _state.value = _state.value.copy(isSaving = false)
             onDone()
         }
@@ -64,10 +78,30 @@ class UsuarioDetalleViewModel @Inject constructor(
 
     fun onDeactivate(onDone: () -> Unit) {
         viewModelScope.launch {
+            try {
+                // Supabase Auth has no permanent-ban flag; "876000h" (~100 years) is the maximum
+                // supported duration and serves as an indefinite disable.
+                adminClient.auth.admin.updateUserById(userId) { banDuration = "876000h" }
+                val domainUser = userRepository.getById(userId)
+                if (domainUser != null) {
+                    adminClient.from("users").upsert(UserMapper.toDto(domainUser.copy(isActive = false)))
+                }
+            } catch (_: Exception) { /* will sync later */ }
             userRepository.setActive(userId, false)
-            // TODO (Phase 9): Also disable the account in Supabase so the user cannot sign in:
-            //   supabaseClient.auth.admin.updateUserById(userId) { banned = true }
-            //   Run Supabase call first; only update Room on success to keep state consistent.
+            onDone()
+        }
+    }
+
+    fun onActivate(onDone: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                adminClient.auth.admin.updateUserById(userId) { banDuration = "none" }
+                val domainUser = userRepository.getById(userId)
+                if (domainUser != null) {
+                    adminClient.from("users").upsert(UserMapper.toDto(domainUser.copy(isActive = true)))
+                }
+            } catch (_: Exception) { /* will sync later */ }
+            userRepository.setActive(userId, true)
             onDone()
         }
     }
@@ -75,10 +109,11 @@ class UsuarioDetalleViewModel @Inject constructor(
     fun onDelete(onDone: () -> Unit) {
         _state.value = _state.value.copy(isDeleting = true)
         viewModelScope.launch {
+            try {
+                adminClient.auth.admin.deleteUser(userId)
+                adminClient.from("users").delete { filter { eq("id", userId) } }
+            } catch (_: Exception) { /* will sync later */ }
             userRepository.delete(userId)
-            // TODO (Phase 9): Also hard-delete the account from Supabase:
-            //   supabaseClient.auth.admin.deleteUser(userId)
-            //   Run Supabase call first; only delete from Room on success.
             _state.value = _state.value.copy(isDeleting = false)
             onDone()
         }

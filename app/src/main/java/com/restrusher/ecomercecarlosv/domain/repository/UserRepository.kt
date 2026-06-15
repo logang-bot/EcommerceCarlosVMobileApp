@@ -13,4 +13,7 @@ interface UserRepository {
     suspend fun hasBiometricEnabled(): Boolean
     suspend fun getBiometricEnabledUser(): AppUser?
     suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)
+    /** Fetches the user row from Supabase by [userId], saves it to Room, and returns it.
+     *  Returns null if the remote row doesn't exist yet. */
+    suspend fun syncFromRemote(userId: String): AppUser?
 }

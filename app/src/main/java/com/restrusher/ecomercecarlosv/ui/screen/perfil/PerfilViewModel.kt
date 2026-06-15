@@ -112,8 +112,10 @@ class PerfilViewModel @Inject constructor(
     }
 
     fun logout(onLoggedOut: () -> Unit) {
-        sessionManager.clearSession()
-        onLoggedOut()
+        viewModelScope.launch {
+            sessionManager.signOut()
+            onLoggedOut()
+        }
     }
 
     private fun computeInitials(name: String) = name

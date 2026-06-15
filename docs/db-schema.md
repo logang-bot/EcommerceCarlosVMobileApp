@@ -207,13 +207,11 @@ productos (standalone catalogue)
 
 ## Supabase setup checklist (Phase 9)
 
-- [ ] Enable UUID extension: `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`
-- [ ] Create tables in dependency order: `users` → `mercados` → `clientes` → `productos` → `pedidos` → `detalle_pedido` → `saldo_extra`
-- [ ] Add `ON DELETE CASCADE` on all FK columns listed above
-- [ ] Enable Row Level Security on all tables
-- [ ] RLS policies:
-  - `users`: SELECT for authenticated; INSERT/UPDATE/DELETE restricted to `SUPERUSUARIO` role
-  - all others: SELECT/INSERT/UPDATE/DELETE for authenticated users (shared resource)
-- [ ] Create Supabase Storage buckets: `mercado-photos`, `cliente-photos`, `producto-photos`
-- [ ] Add `biometricEnabledAt` to `local.properties` exclusion — this column must NOT exist in Supabase
-- [ ] Wire `SyncerRegistry` per `docs/features/mercados-supabase-todos.md`
+SQL files live in `docs/sql/`. Run them in the Supabase SQL editor in this order:
+
+- [ ] `docs/sql/schema.sql` — creates all tables with FK constraints and indexes
+- [ ] `docs/sql/rls.sql` — enables RLS and adds policies per table
+- [ ] `docs/sql/storage.sql` — creates `mercado-photos`, `cliente-photos`, `producto-photos` buckets + policies
+- [ ] Fill in `local.properties` with real Supabase URLs and keys (staging + production)
+- [ ] `biometric_enabled_at` column intentionally absent from `users` table — device-local only ✅
+- [ ] Wire `SyncerRegistry` per `docs/features/mercados-supabase-todos.md` (Phase 10)

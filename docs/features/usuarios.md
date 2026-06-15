@@ -8,10 +8,42 @@ Design reference: `docs/design/screens-profile.jsx`, `docs/design/screens-users.
 
 | Role | Value | Capabilities |
 |------|-------|--------------|
-| Superusuario | `UserRole.SUPERUSUARIO` | Full access + user management (Gestión de Usuarios) |
-| Usuario | `UserRole.USUARIO` | Standard access to Mercados, Clientes, Pedidos |
+| Superusuario | `UserRole.SUPERUSUARIO` | Full access to all tables + user management; only role that can create/edit/delete other users and change roles |
+| Usuario | `UserRole.USUARIO` | Can read and write Mercados, Clientes, Productos, Pedidos — cannot access Gestión de Usuarios |
+| Invitado | `UserRole.INVITADO` | Read-only access to all business tables; cannot modify anything |
 
 Role is stored as a `String` (enum name) in Room and transmitted as a plain string in the Supabase DTO.
+RLS enforces these permissions server-side — see `docs/sql/rls.sql`.
+
+### canWrite pattern (UI enforcement)
+
+Each business screen's UiState carries a `canWrite: Boolean` field:
+
+```kotlin
+val canWrite: Boolean = true   // default — safe for previews
+```
+
+Computed in every ViewModel that touches a business screen:
+```kotlin
+canWrite = user?.role != UserRole.INVITADO
+```
+
+`user` comes from `sessionManager.currentUser` (a `StateFlow<AppUser?>`) combined alongside the screen's data flows.
+
+**What `canWrite = false` hides:**
+
+| Screen | Hidden elements |
+|--------|----------------|
+| MercadosScreen | FAB "Mercado" |
+| DetalleMercadoScreen | Edit icon, Danger zone (delete button) |
+| ClientesScreen | FAB "Nuevo cliente", empty-state action button |
+| DetalleClienteScreen | Edit icon, FAB "Nuevo Pedido", all `ActionButtons` (blacklist / saldo extra) |
+| DetallePedidoScreen | Edit icon, payment bottom bar |
+| CatalogoScreen | FAB "Producto", row tap + chevron (rows become non-clickable) |
+
+User management (`GestionUsuariosScreen`) is gated separately: `PerfilScreen` only shows the Equipo navigation row when `state.role == UserRole.SUPERUSUARIO` — so USUARIO and INVITADO never see the link.
+
+**RLS note:** hiding UI buttons is the UX layer. The Supabase RLS policies in `docs/sql/rls.sql` independently enforce that INVITADO users cannot execute INSERT/UPDATE/DELETE via direct API calls either.
 
 ---
 
@@ -67,20 +99,26 @@ interface UserRepository {
 
 `SessionManager` interface (`domain/session/SessionManager.kt`) exposes a `StateFlow<AppUser?>` and two mutation methods.
 
-Current implementation (`SessionManagerImpl`) is **in-memory only** — process kill clears the session.
+`SessionManagerImpl` subscribes to `supabase.auth.sessionStatus`. On `Authenticated`, it reads
+the userId from the JWT, loads the `AppUser` from Room, and emits it. The Supabase JWT itself is
+persisted by `DataStoreGoTrueSessionManager` so sessions survive process death without an extra
+network call.
 
-### Session persistence (Phase 9)
+### Local data wipe on sign-out
 
-Replace `SessionManagerImpl` with a `DataStore<Preferences>`-backed implementation:
+`SessionManagerImpl` wipes all Room tables whenever `SessionStatus.NotAuthenticated` fires, **unless**
+a biometric-enrolled user exists (`users.biometricEnabledAt IS NOT NULL`). This covers two scenarios:
 
-```kotlin
-// In SessionManagerImpl:
-private val dataStore: DataStore<Preferences>   // inject via Hilt
-// Key:
-val USER_ID_KEY = stringPreferencesKey("current_user_id")
-// On setCurrentUser: save user.id to DataStore, store full AppUser in memory
-// On init: read id from DataStore, load AppUser from UserRepository
-```
+| Scenario | Trigger | Outcome |
+|----------|---------|---------|
+| Explicit logout | `signOut()` → Supabase clears local session → `NotAuthenticated` emitted | DB wiped (unless biometric) |
+| App killed mid-logout / no session on cold start | `NotAuthenticated` emitted by Supabase on startup | DB wiped (unless biometric) |
+
+`database.clearAllTables()` (Room built-in) is used — no custom DAO methods needed. The wipe runs
+before `_isLoaded = true` so the splash screen is held until the DB is clean.
+
+`RefreshFailure` (offline, JWT refresh failed) does **not** trigger a wipe — the cached data is
+kept so the app can serve it while the device is offline.
 
 ---
 
@@ -112,9 +150,10 @@ val USER_ID_KEY = stringPreferencesKey("current_user_id")
 ### GestionUsuariosScreen (`ui/screen/usuario/`)
 
 - **Route**: `GestionUsuariosRoute` (no arguments — superuser gate enforced at navigation call site in PerfilScreen)
-- Title: "Gestión de usuarios"; subtitle shows user/superuser counts
+- Title: "Gestión de usuarios"; subtitle: "X miembros · Y super usuarios"
 - Scope banner with shield icon + bold "super usuarios" in message (built via `buildAnnotatedString`)
-- Two sections: "Super usuarios · N" and "Usuarios · N"
+- Three sections: "Super usuarios · N", "Usuarios · N", "Invitados · N" (each shown only if non-empty)
+- Inactive user row: rendered at 55% opacity
 - Active user row subtitle: "Activo · lastSeenLabel" (or plain "Activo" if no timestamp)
 - FAB "Crear" → `CrearUsuarioRoute`
 - Reactive: uses `combine(userRepository.getAll(), sessionManager.currentUser)` to split list and mark current user
@@ -122,39 +161,42 @@ val USER_ID_KEY = stringPreferencesKey("current_user_id")
 ### UsuarioDetalleScreen (`ui/screen/usuario/`)
 
 - **Route**: `UsuarioDetalleRoute(userId: String)`
-- Shows user header, role selector (two `RoleOption` cards), activity rows
-- Save button appears only when role changes
-- Activity section: "Última sesión" row only (no "Pedidos creados")
+- Shows user header, role selector (three `RoleOption` cards), activity rows
+- Save button appears only when `selectedRole != user.role`
+- Permissions list in a `RoleOption` is shown **only when that card is selected** (collapsed otherwise)
+- Activity section: "Última sesión" row only
 - Inline action buttons at bottom of scroll:
-  - `OutlinedButton` "Desactivar usuario" (red outline, stub — Phase 9)
-  - `Button` "Eliminar usuario" (red filled, calls `userRepository.delete`)
+  - If `user.isActive`: `OutlinedButton` "Desactivar usuario" (red outline) → `onDeactivate` → `banDuration = "876000h"` + `is_active = false`
+  - If `!user.isActive`: `OutlinedButton` "Activar usuario" (green outline, Check icon) → `onActivate` → `banDuration = "none"` + `is_active = true`
+  - `Button` "Eliminar usuario" (red filled) → `onDelete` → removes from Supabase and Room
 
 ### CrearUsuarioScreen (`ui/screen/usuario/CrearUsuarioScreen.kt`)
 
 - **Route**: `CrearUsuarioRoute` (no arguments)
-- Composable function: `CrearUsuarioScreen` (backed by `CrearUsuarioViewModel`)
 - Fields: Nombre, Correo, Contraseña temporal (with hint "El usuario podrá cambiarla luego desde su perfil."), Rol
-- Password validated as non-blank; value stored locally only — not persisted to `AppUser` until Phase 9 Supabase wiring
+- Role picker: three cards (SUPERUSUARIO, USUARIO, INVITADO); permissions list expands only for the selected card
 - CTA: "Crear usuario"
-- On submit: creates `AppUser` with `UUID.randomUUID()` and saves to Room
+- On submit: calls `supabase.auth.admin.createUserWithEmail { }` + upserts to Room
 
 ---
 
-## Create User API (Phase 9)
+## Create User API (Phase 9 — implemented)
 
-Replace `CrearUsuarioViewModel.onCreate()` with a Supabase call using the temp password:
+`CrearUsuarioViewModel.onCreate()` uses the Supabase admin API:
 
 ```kotlin
-// Using supabase-kt auth-kt admin API:
-supabaseClient.auth.admin.createUserWithEmailAndPassword(
-    email = state.email,
-    password = state.password,
-    data = buildJsonObject {
+supabaseClient.auth.admin.createUserWithEmail {
+    email = state.email
+    password = state.password
+    autoConfirm = true
+    userMetadata {
         put("name", state.name)
         put("role", state.role.name)
     }
-)
+}
 ```
+
+Then upserts an `AppUser` to Room so the local database stays in sync.
 
 ---
 
@@ -196,9 +238,13 @@ BiometricPrompt.PromptInfo.Builder()
 | Token | Usage |
 |-------|-------|
 | `extendedColors.banana` | Superuser `RoleBadge` background |
-| `extendedColors.bananaText` | Superuser badge text + "Equipo" row icon tint |
-| `extendedColors.bananaTint` | Superuser scope banner bg in GestionUsuariosScreen |
-| `extendedColors.accentSoft` | BiometricCard background when enrolled; hint pill background in EmptyState; selected nav item indicator |
-| `extendedColors.accentTint` | BiometricCard icon box background when enrolled |
+| `extendedColors.bananaText` | Superuser badge text + scope banner icon tint |
+| `extendedColors.bananaTint` | Superuser scope banner bg; SUPERUSUARIO `RoleOption` icon box bg |
+| `extendedColors.accentSoft` | BiometricCard background when enrolled; selected `RoleOption` card bg |
+| `extendedColors.accentTint` | BiometricCard icon box when enrolled; USUARIO `RoleBadge` bg |
+| `colorScheme.primary` | USUARIO `RoleBadge` text; selected card border + radio fill |
+| `extendedColors.blueTint` | INVITADO `RoleBadge` bg + `RoleOption` icon box bg |
+| `extendedColors.blueText` | INVITADO `RoleBadge` text + icon tint |
 | `extendedColors.redTint` | Logout button bg; "Eliminar usuario" button bg |
 | `extendedColors.redText` | Danger text color; "Desactivar usuario" outline + text |
+| `extendedColors.greenText` | "Activar usuario" outline + text |

@@ -54,6 +54,8 @@ internal fun LoginTextField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     isPassword: Boolean = false,
+    isError: Boolean = false,
+    errorText: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Next,
     onImeAction: (() -> Unit)? = null,
@@ -64,6 +66,8 @@ internal fun LoginTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
+        isError = isError,
+        supportingText = if (isError && errorText != null) ({ Text(errorText) }) else null,
         visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
             keyboardType = if (isPassword) KeyboardType.Password else keyboardType,

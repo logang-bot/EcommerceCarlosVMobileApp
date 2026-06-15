@@ -46,6 +46,23 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 
 ---
 
+## Role-based access (INVITADO restrictions)
+
+`ClientesUiState` and `DetalleClienteUiState` each carry `canWrite: Boolean`
+(computed as `user?.role != UserRole.INVITADO`).
+
+| Element | Who sees it |
+|---------|-------------|
+| FAB "Nuevo cliente" in `ClientesScreen` | SUPERUSUARIO + USUARIO only |
+| Empty-state hint / action button in `ClientesScreen` | SUPERUSUARIO + USUARIO only |
+| Edit (pencil) icon in `DetalleClienteScreen` | SUPERUSUARIO + USUARIO only |
+| FAB "Nuevo Pedido" in `DetalleClienteScreen` | SUPERUSUARIO + USUARIO only (also hidden when client is blacklisted) |
+| `ActionButtons` composable (Agregar a LN, Quitar de LN, Agregar saldo extra) | SUPERUSUARIO + USUARIO only — early `return` when `!canWrite` |
+
+INVITADO users see the full client list, balances, status badges, and pedido history but cannot create clients, create pedidos, blacklist/unblacklist, or add saldo extra.
+
+---
+
 ## UI notes (from mockup)
 
 **Client row (inside Mercado) — Fuerte style**:

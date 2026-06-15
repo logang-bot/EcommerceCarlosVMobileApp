@@ -16,6 +16,18 @@
     <string name="login_bienvenido_de_nuevo">Bienvenido de nuevo</string>
     <string name="login_usar_contrasena">Usar contraseña</string>
     <string name="login_otra_cuenta">Entrar con otra cuenta</string>
+    <string name="login_error_credentials_bold">Correo o contraseña incorrectos.</string>
+    <string name="login_error_credentials_body"> Verifica tus datos e inténtalo de nuevo.</string>
+    <string name="login_error_password_hint">Revisa el correo y la contraseña</string>
+    <string name="login_disabled_title">Tu cuenta está desactivada</string>
+    <string name="login_disabled_body">No puedes acceder en este momento. Comunícate con un super usuario para reactivar tu acceso.</string>
+    <string name="login_disabled_contact">Contactar al administrador</string>
+    <string name="login_error_invalid_credentials">Credenciales incorrectas</string>
+    <string name="login_error_wrong_password">Contraseña incorrecta</string>
+    <string name="login_error_auth_failed">Error de autenticación</string>
+    <string name="login_error_get_user">Error al obtener usuario</string>
+    <string name="login_error_not_registered">Usuario no registrado en el sistema</string>
+    <string name="login_error_no_internet">Sin conexión a internet</string>
 
     <!-- Mercados -->
     <string name="mercados_title">Mercados</string>
@@ -188,10 +200,14 @@
     <!-- Roles -->
     <string name="role_super">Super usuario</string>
     <string name="role_usuario">Usuario</string>
+    <string name="role_invitado">Invitado</string>
     <string name="role_super_desc">Acceso total y gestión de equipo</string>
-    <string name="role_usuario_desc">Acceso estándar a pedidos y mercados</string>
+    <string name="role_usuario_desc">Gestiona pedidos y mercados, sin acceso a usuarios</string>
+    <string name="role_invitado_desc">Solo lectura, sin permisos de edición</string>
     <string name="role_perm_pedidos">Gestionar pedidos y mercados</string>
     <string name="role_perm_no_admin">Sin acceso a gestión de usuarios</string>
+    <string name="role_perm_ver_todo">Ver todo el contenido</string>
+    <string name="role_perm_sin_edicion">Sin permisos de edición</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_mercados">Mercados</string>
@@ -291,6 +307,7 @@
     <string name="gestion_usuarios_activo_sesion">Activo · %1$s</string>
     <string name="gestion_usuarios_section_super">Super usuarios · %1$d</string>
     <string name="gestion_usuarios_section_user">Usuarios · %1$d</string>
+    <string name="gestion_usuarios_section_invitado">Invitados · %1$d</string>
     <string name="gestion_usuarios_me">(tú)</string>
     <string name="gestion_usuarios_desactivado">Desactivado</string>
 
@@ -300,6 +317,7 @@
     <string name="usuario_detalle_actividad">Actividad</string>
     <string name="usuario_detalle_ultima_sesion">Última sesión</string>
     <string name="usuario_detalle_desactivar">Desactivar usuario</string>
+    <string name="usuario_detalle_activar">Activar usuario</string>
     <string name="usuario_detalle_eliminar">Eliminar usuario</string>
     <string name="usuario_detalle_not_found">Usuario no encontrado</string>
 

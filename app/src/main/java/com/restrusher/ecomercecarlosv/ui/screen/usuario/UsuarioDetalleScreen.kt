@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -73,6 +74,7 @@ fun UsuarioDetalleScreen(
         onRoleChange = { viewModel.onRoleChange(it) },
         onSaveRole = { viewModel.onSaveRole { navController.popBackStack() } },
         onDeactivate = { viewModel.onDeactivate { navController.popBackStack() } },
+        onActivate = { viewModel.onActivate { navController.popBackStack() } },
         onDelete = { viewModel.onDelete { navController.popBackStack() } },
     )
 }
@@ -84,6 +86,7 @@ private fun UsuarioDetalleContent(
     onRoleChange: (UserRole) -> Unit,
     onSaveRole: () -> Unit,
     onDeactivate: () -> Unit,
+    onActivate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -147,18 +150,27 @@ private fun UsuarioDetalleContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     RoleOption(
-                        role = UserRole.USUARIO,
-                        selected = state.selectedRole == UserRole.USUARIO,
-                        onClick = { onRoleChange(UserRole.USUARIO) },
-                        permissions = listOf(
-                            stringResource(R.string.role_perm_pedidos) to true,
-                            stringResource(R.string.role_perm_no_admin) to false,
-                        ),
-                    )
-                    RoleOption(
                         role = UserRole.SUPERUSUARIO,
                         selected = state.selectedRole == UserRole.SUPERUSUARIO,
                         onClick = { onRoleChange(UserRole.SUPERUSUARIO) },
+                    )
+                    RoleOption(
+                        role = UserRole.USUARIO,
+                        selected = state.selectedRole == UserRole.USUARIO,
+                        onClick = { onRoleChange(UserRole.USUARIO) },
+                        permissions = if (state.selectedRole == UserRole.USUARIO) listOf(
+                            stringResource(R.string.role_perm_pedidos) to true,
+                            stringResource(R.string.role_perm_no_admin) to false,
+                        ) else null,
+                    )
+                    RoleOption(
+                        role = UserRole.INVITADO,
+                        selected = state.selectedRole == UserRole.INVITADO,
+                        onClick = { onRoleChange(UserRole.INVITADO) },
+                        permissions = if (state.selectedRole == UserRole.INVITADO) listOf(
+                            stringResource(R.string.role_perm_ver_todo) to true,
+                            stringResource(R.string.role_perm_sin_edicion) to false,
+                        ) else null,
                     )
                 }
 
@@ -189,15 +201,28 @@ private fun UsuarioDetalleContent(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    OutlinedButton(
-                        onClick = onDeactivate,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ext.redText),
-                        border = BorderStroke(1.dp, ext.redText.copy(alpha = 0.4f)),
-                    ) {
-                        Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.usuario_detalle_desactivar))
+                    if (user.isActive) {
+                        OutlinedButton(
+                            onClick = onDeactivate,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ext.redText),
+                            border = BorderStroke(1.dp, ext.redText.copy(alpha = 0.4f)),
+                        ) {
+                            Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usuario_detalle_desactivar))
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onActivate,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ext.greenText),
+                            border = BorderStroke(1.dp, ext.greenText.copy(alpha = 0.4f)),
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.usuario_detalle_activar))
+                        }
                     }
                     Button(
                         onClick = onDelete,
@@ -229,9 +254,23 @@ fun RoleOption(
     permissions: List<Pair<String, Boolean>>? = null,
 ) {
     val ext = MaterialTheme.extendedColors
-    val isSuper = role == UserRole.SUPERUSUARIO
     val cardBg = if (selected) ext.accentSoft else ext.surface2
     val cardBorder = if (selected) MaterialTheme.colorScheme.primary else ext.border
+    val iconBg = when (role) {
+        UserRole.SUPERUSUARIO -> ext.bananaTint
+        UserRole.INVITADO -> ext.blueTint
+        else -> ext.surface3
+    }
+    val roleLabel = when (role) {
+        UserRole.SUPERUSUARIO -> stringResource(R.string.role_super)
+        UserRole.INVITADO -> stringResource(R.string.role_invitado)
+        else -> stringResource(R.string.role_usuario)
+    }
+    val roleDesc = when (role) {
+        UserRole.SUPERUSUARIO -> stringResource(R.string.role_super_desc)
+        UserRole.INVITADO -> stringResource(R.string.role_invitado_desc)
+        else -> stringResource(R.string.role_usuario_desc)
+    }
 
     Column(
         modifier = modifier
@@ -248,17 +287,22 @@ fun RoleOption(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(if (isSuper) ext.bananaTint else ext.surface3),
+                    .background(iconBg),
             ) {
-                if (isSuper) {
-                    Icon(
+                when (role) {
+                    UserRole.SUPERUSUARIO -> Icon(
                         painter = painterResource(R.drawable.ic_admin_panel),
                         contentDescription = null,
                         tint = ext.bananaText,
                         modifier = Modifier.size(20.dp),
                     )
-                } else {
-                    Icon(
+                    UserRole.INVITADO -> Icon(
+                        imageVector = Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = ext.blueText,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    else -> Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         tint = ext.text2,
@@ -268,12 +312,12 @@ fun RoleOption(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isSuper) stringResource(R.string.role_super) else stringResource(R.string.role_usuario),
+                    text = roleLabel,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = if (isSuper) stringResource(R.string.role_super_desc) else stringResource(R.string.role_usuario_desc),
+                    text = roleDesc,
                     style = MaterialTheme.typography.bodySmall,
                     color = ext.text3,
                     modifier = Modifier.padding(top = 1.dp),
@@ -336,11 +380,11 @@ private fun UsuarioDetalleDarkPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
         UsuarioDetalleContent(
             state = UsuarioDetalleUiState(
-                user = UserUiModel("3", "Daniel Ortega", "daniel@cv.ve", UserRole.USUARIO, "DO", true, false, "Ayer", "Usuario"),
+                user = UserUiModel("3", "Daniel Ortega", "daniel@cv.ve", UserRole.USUARIO, "DO", true, false, "Ayer"),
                 selectedRole = UserRole.USUARIO,
                 isLoading = false,
             ),
-            onBack = {}, onRoleChange = {}, onSaveRole = {}, onDeactivate = {}, onDelete = {},
+            onBack = {}, onRoleChange = {}, onSaveRole = {}, onDeactivate = {}, onActivate = {}, onDelete = {},
         )
     }
 }

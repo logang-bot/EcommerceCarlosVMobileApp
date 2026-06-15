@@ -18,4 +18,5 @@ data class DetalleClienteUiState(
     val pedidoFilters: Set<PedidoStatus> = emptySet(),
     val isLoading: Boolean = true,
     val showUnblacklistSheet: Boolean = false,
+    val canWrite: Boolean = true,
 )

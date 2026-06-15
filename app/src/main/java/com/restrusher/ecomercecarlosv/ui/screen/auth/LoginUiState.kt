@@ -7,6 +7,7 @@ data class LoginFormState(
     val password: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val isAccountDisabled: Boolean = false,
     val isBiometricEnabled: Boolean = false,
     val showPasswordLogin: Boolean = false,
     val enrolledUserName: String = "",

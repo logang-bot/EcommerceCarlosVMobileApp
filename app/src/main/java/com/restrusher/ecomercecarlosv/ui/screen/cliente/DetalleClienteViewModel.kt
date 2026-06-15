@@ -10,8 +10,10 @@ import com.restrusher.ecomercecarlosv.domain.usecase.CreateSaldoExtraUseCase
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
+import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ class DetalleClienteViewModel @Inject constructor(
     private val pedidoRepository: PedidoRepository,
     private val createSaldoExtraUseCase: CreateSaldoExtraUseCase,
     umbralesManager: UmbralesManager,
+    sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -37,12 +40,17 @@ class DetalleClienteViewModel @Inject constructor(
     private val _pedidoFilters = MutableStateFlow<Set<PedidoStatus>>(emptySet())
 
     val uiState: StateFlow<DetalleClienteUiState> = combine(
-        clienteRepository.getByIdFlow(clienteId),
-        pedidoRepository.getByClienteWithLines(clienteId),
-        umbralesManager.umbrales,
-        _showUnblacklistSheet,
-        _pedidoFilters,
-    ) { cliente, pedidos, umbrales, showSheet, filters ->
+        combine(
+            clienteRepository.getByIdFlow(clienteId),
+            pedidoRepository.getByClienteWithLines(clienteId),
+            umbralesManager.umbrales,
+        ) { cliente, pedidos, umbrales -> Triple(cliente, pedidos, umbrales) },
+        combine(_showUnblacklistSheet, _pedidoFilters, sessionManager.currentUser) { showSheet, filters, user ->
+            Triple(showSheet, filters, user)
+        },
+    ) { triple1, triple2 ->
+        val (cliente, pedidos, umbrales) = triple1
+        val (showSheet, filters, user) = triple2
         val unpaidRegular = pedidos.filter { !it.isSaldoExtra && it.status != PedidoStatus.PAID }
         val unpaidExtra = pedidos.filter { it.isSaldoExtra && it.status != PedidoStatus.PAID }
         val balance = pedidos.filter {
@@ -67,6 +75,7 @@ class DetalleClienteViewModel @Inject constructor(
             isLoading = false,
             showUnblacklistSheet = showSheet,
             pedidoFilters = filters,
+            canWrite = user?.role != UserRole.INVITADO,
         )
     }.stateIn(
         scope = viewModelScope,

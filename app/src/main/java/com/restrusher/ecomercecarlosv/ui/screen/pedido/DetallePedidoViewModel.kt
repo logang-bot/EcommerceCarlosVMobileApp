@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
+import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ import javax.inject.Inject
 class DetallePedidoViewModel @Inject constructor(
     private val pedidoRepository: PedidoRepository,
     private val clienteRepository: ClienteRepository,
+    sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -34,10 +37,11 @@ class DetallePedidoViewModel @Inject constructor(
             pedidoRepository.getByIdFlow(pedidoId),
             pedidoRepository.getDetallesByPedidoFlow(pedidoId),
         ) { pedido, detalles -> Pair(pedido, detalles) },
-        _showPagoSheet,
-        _isSaving,
-        _clienteName,
-    ) { (pedido, detalles), showSheet, saving, clienteName ->
+        combine(_showPagoSheet, _isSaving, _clienteName) { showSheet, saving, name -> Triple(showSheet, saving, name) },
+        sessionManager.currentUser,
+    ) { pedidoPair, sheetTriple, user ->
+        val (pedido, detalles) = pedidoPair
+        val (showSheet, saving, clienteName) = sheetTriple
         DetallePedidoUiState(
             pedido = pedido,
             detalles = detalles,
@@ -45,6 +49,7 @@ class DetallePedidoViewModel @Inject constructor(
             isLoading = pedido == null,
             isSaving = saving,
             showPagoSheet = showSheet,
+            canWrite = user?.role != UserRole.INVITADO,
         )
     }.stateIn(
         scope = viewModelScope,

@@ -9,9 +9,11 @@ import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
+import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +29,7 @@ class ClientesViewModel @Inject constructor(
     private val mercadoRepository: MercadoRepository,
     private val pedidoRepository: PedidoRepository,
     private val umbralesManager: UmbralesManager,
+    private val sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -55,10 +58,10 @@ class ClientesViewModel @Inject constructor(
                 ClienteUiModel(cliente, computeStatus(statusBalance, pedidos, umbrales), balance)
             }
         },
-        _sortMode,
-        _mercadoName,
-        _searchQuery,
-    ) { models, sort, name, query ->
+        combine(_sortMode, _mercadoName, _searchQuery) { sort, name, query -> Triple(sort, name, query) },
+        sessionManager.currentUser,
+    ) { models, sortTriple, user ->
+        val (sort, name, query) = sortTriple
         val filtered = if (query.isBlank()) models
         else models.filter { it.cliente.name.contains(query, ignoreCase = true) }
         val sorted = when (sort) {
@@ -76,6 +79,7 @@ class ClientesViewModel @Inject constructor(
             sortMode = sort,
             searchQuery = query,
             isLoading = false,
+            canWrite = user?.role != UserRole.INVITADO,
         )
     }.stateIn(
         scope = viewModelScope,
