@@ -168,8 +168,9 @@ data class MercadoDto(
 | `data/mapper/MercadoMapper.kt` | Entity ↔ Domain mapper |
 | `data/remote/dto/MercadoDto.kt` | Supabase DTO (`@SerialName` for snake_case) |
 | `data/repository/impl/MercadoRepositoryImpl.kt` | Repository implementation |
+| `domain/usecase/RefreshMercadoDataUseCase.kt` | Refreshes mercados + clientes + pedidos in parallel; returns `Boolean` success. The dashboard needs all three current to render per-market warnings correctly. |
 | `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `stats: Map<String, MercadoStat>`, `isLoading`, `currentUserInitials`, `currentUserPhotoUrl`, `selectedMercadoId`; `MercadoStat(activeClientCount, hasWarning, hasCritical)` |
-| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data; threads `currentUserPhotoUrl` from session |
+| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data; threads `currentUserPhotoUrl` from session; pull-to-refresh delegates to `RefreshMercadoDataUseCase` |
 | `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon; `MercadoStatRow` shows count + colored status dot; top-bar `ProfileAvatar` passes `currentUserPhotoUrl` |
 | `ui/screen/mercado/DetalleMercadoUiState.kt` | `mercado`, `isLoading` |
 | `ui/screen/mercado/DetalleMercadoViewModel.kt` | Reactive `stateIn` over `MercadoRepository.getByIdFlow(mercadoId)` — screen auto-updates after edits; `onDelete()` removes from Room and pops back |

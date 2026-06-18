@@ -11,6 +11,22 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 
 -- ────────────────────────────────────────────────────────────
+-- updated_at trigger function
+-- Sets updated_at to the current time (epoch ms) on every UPDATE.
+-- Attached to mercados, clientes, productos, pedidos below.
+-- detalle_pedido is intentionally excluded — lines are always
+-- deleted and re-inserted as a block when their parent pedido changes.
+-- ────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION set_updated_at_ms()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at := (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT;
+    RETURN NEW;
+END;
+$$;
+
+
+-- ────────────────────────────────────────────────────────────
 -- users
 -- Populated by the app via the admin API when a SUPERUSUARIO
 -- creates a new user. The `id` matches the Supabase Auth UID.
@@ -44,11 +60,17 @@ CREATE TABLE mercados (
     maps_url    text,
     latitude    float8,
     longitude   float8,
-    created_at  bigint      NOT NULL
+    created_at  bigint      NOT NULL,
+    updated_at  bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
 );
 
 ALTER TABLE mercados ENABLE ROW LEVEL SECURITY;
-CREATE INDEX idx_mercados_name ON mercados (name);
+CREATE INDEX idx_mercados_name       ON mercados (name);
+CREATE INDEX idx_mercados_updated_at ON mercados (updated_at);
+
+CREATE TRIGGER trg_mercados_updated_at
+    BEFORE UPDATE ON mercados
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
 -- ────────────────────────────────────────────────────────────
@@ -69,13 +91,19 @@ CREATE TABLE clientes (
     blacklisted_at             bigint,                           -- epoch ms
     blacklist_balance          float8      NOT NULL DEFAULT 0.0,
     blacklist_is_manual_amount boolean     NOT NULL DEFAULT false,
-    created_at                 bigint      NOT NULL
+    created_at                 bigint      NOT NULL,
+    updated_at                 bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
 );
 
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 CREATE INDEX idx_clientes_mercado_id   ON clientes (mercado_id);
-CREATE INDEX idx_clientes_name        ON clientes (name);
-CREATE INDEX idx_clientes_blacklisted ON clientes (is_blacklisted);
+CREATE INDEX idx_clientes_name         ON clientes (name);
+CREATE INDEX idx_clientes_blacklisted  ON clientes (is_blacklisted);
+CREATE INDEX idx_clientes_updated_at   ON clientes (updated_at);
+
+CREATE TRIGGER trg_clientes_updated_at
+    BEFORE UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
 -- ────────────────────────────────────────────────────────────
@@ -89,11 +117,17 @@ CREATE TABLE productos (
     price       float8      NOT NULL,
     photo_url   text,
     is_active   boolean     NOT NULL DEFAULT true,
-    created_at  bigint      NOT NULL
+    created_at  bigint      NOT NULL,
+    updated_at  bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
 );
 
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
-CREATE INDEX idx_productos_name ON productos (name);
+CREATE INDEX idx_productos_name       ON productos (name);
+CREATE INDEX idx_productos_updated_at ON productos (updated_at);
+
+CREATE TRIGGER trg_productos_updated_at
+    BEFORE UPDATE ON productos
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
 -- ────────────────────────────────────────────────────────────
@@ -110,13 +144,19 @@ CREATE TABLE pedidos (
     notes          text,
     is_saldo_extra boolean     NOT NULL DEFAULT false,
     created_at     bigint      NOT NULL,
-    paid_at        bigint                                    -- epoch ms; updated on each payment
+    paid_at        bigint,                                   -- epoch ms; updated on each payment
+    updated_at     bigint      NOT NULL DEFAULT 0            -- epoch ms; auto-set by trigger on UPDATE
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
 CREATE INDEX idx_pedidos_cliente_id ON pedidos (cliente_id);
 CREATE INDEX idx_pedidos_status     ON pedidos (status);
 CREATE INDEX idx_pedidos_created_at ON pedidos (created_at DESC);
+CREATE INDEX idx_pedidos_updated_at ON pedidos (updated_at);
+
+CREATE TRIGGER trg_pedidos_updated_at
+    BEFORE UPDATE ON pedidos
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
 -- ────────────────────────────────────────────────────────────

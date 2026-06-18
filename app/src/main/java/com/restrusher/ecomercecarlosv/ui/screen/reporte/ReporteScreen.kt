@@ -2,7 +2,6 @@ package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -12,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ClienteDateChips
@@ -191,13 +190,7 @@ private fun ReporteContent(
             AppBottomNavBar(selectedTab = selectedTab, onTabSelected = onTabSelected)
         },
     ) { innerPadding ->
-        if (state.isLoading) {
-            Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
+        LoadingOverlay(isLoading = state.isLoading) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -297,6 +290,7 @@ private fun ReporteContent(
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
+        } // LoadingOverlay
     }
 }
 

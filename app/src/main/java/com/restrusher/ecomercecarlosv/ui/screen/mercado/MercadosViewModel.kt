@@ -5,27 +5,35 @@ import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.RefreshMercadoDataUseCase
+import com.restrusher.ecomercecarlosv.ui.common.SyncIconState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class MercadosViewModel @Inject constructor(
-    mercadoRepository: MercadoRepository,
-    clienteRepository: ClienteRepository,
-    pedidoRepository: PedidoRepository,
+    private val mercadoRepository: MercadoRepository,
+    private val clienteRepository: ClienteRepository,
+    private val pedidoRepository: PedidoRepository,
     sessionManager: SessionManager,
+    syncOperationDao: SyncOperationDao,
+    private val refreshMercadoData: RefreshMercadoDataUseCase,
 ) : ViewModel() {
 
     private val _selectedMercadoId = MutableStateFlow<String?>(null)
+    private val _isRefreshing = MutableStateFlow(false)
+    private val _refreshFailed = MutableStateFlow(false)
 
     val uiState = combine(
         combine(
@@ -35,7 +43,9 @@ class MercadosViewModel @Inject constructor(
         ) { mercados, clientes, unpaid -> Triple(mercados, clientes, unpaid) },
         sessionManager.currentUser,
         _selectedMercadoId,
-    ) { triple, user, selectedId ->
+        mercadoRepository.isSyncing,
+        syncOperationDao.observeAll(),
+    ) { triple, user, selectedId, isSyncing, allOps ->
         val (mercados, clientes, unpaidPedidos) = triple
         val initials = user?.name
             ?.split(' ')
@@ -43,15 +53,25 @@ class MercadosViewModel @Inject constructor(
             ?.take(2)
             ?.map { it.first().uppercaseChar() }
             ?.joinToString("") ?: ""
+        val iconState = when {
+            allOps.isEmpty() -> SyncIconState.SYNCED
+            allOps.any { it.retryCount > 0 } -> SyncIconState.ERROR
+            else -> SyncIconState.PENDING
+        }
         MercadosUiState(
             mercados = mercados,
             stats = buildStats(mercados, clientes, unpaidPedidos),
-            isLoading = false,
+            isLoading = isSyncing && mercados.isEmpty(),
             currentUserInitials = initials,
             currentUserPhotoUrl = user?.photoUrl,
             selectedMercadoId = selectedId,
             canWrite = user?.role != UserRole.INVITADO,
+            syncIconState = iconState,
         )
+    }.combine(_isRefreshing) { state, refreshing ->
+        state.copy(isRefreshing = refreshing)
+    }.combine(_refreshFailed) { state, failed ->
+        state.copy(refreshFailed = failed)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -65,6 +85,17 @@ class MercadosViewModel @Inject constructor(
     fun clearSelection() {
         _selectedMercadoId.value = null
     }
+
+    fun onRefresh() {
+        _refreshFailed.value = false
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            _refreshFailed.value = !refreshMercadoData()
+            _isRefreshing.value = false
+        }
+    }
+
+    fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 
     private fun buildStats(
         mercados: List<Mercado>,

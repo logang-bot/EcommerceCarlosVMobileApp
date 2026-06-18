@@ -19,28 +19,66 @@ class PedidoSyncer @Inject constructor(
     private val supabase: SupabaseClient,
 ) : EntitySyncer {
 
-    override suspend fun sync(): SyncResult {
+    override suspend fun sync(since: Long): SyncResult {
         return runCatching {
-            val pedidoDtos = supabase.from("pedidos").select().decodeList<PedidoDto>()
-            pedidoDtos.forEach { dto ->
-                val entity = PedidoMapper.fromDto(dto)
-                pedidoDao.insert(entity)
+            val pedidoDtos = if (since == 0L) {
+                fetchAllPedidoPages()
+            } else {
+                supabase.from("pedidos").select {
+                    filter { gt("updated_at", since) }
+                }.decodeList<PedidoDto>()
             }
+            pedidoDtos.forEach { dto -> pedidoDao.insert(PedidoMapper.fromDto(dto)) }
 
-            val detalleDtos = supabase.from("detalle_pedido").select().decodeList<DetallePedidoDto>()
+            val detalleDtos: List<DetallePedidoDto> = if (since == 0L) {
+                fetchAllDetallPages()
+            } else {
+                // Re-fetch lines only for changed pedidos; delete stale lines first.
+                val changedIds = pedidoDtos.map { it.id }
+                if (changedIds.isEmpty()) return@runCatching SyncResult.Success
+                changedIds.forEach { detalleDao.deleteByPedido(it) }
+                supabase.from("detalle_pedido").select {
+                    filter { isIn("pedido_id", changedIds) }
+                }.decodeList()
+            }
             if (detalleDtos.isNotEmpty()) {
                 detalleDao.insertAll(detalleDtos.map(DetallePedidoMapper::fromDto))
             }
 
-            Log.d(TAG, "sync: fetched ${pedidoDtos.size} pedidos and ${detalleDtos.size} detalles")
+            Log.d(TAG, "${if (since > 0L) "delta" else "full"} sync: ${pedidoDtos.size} pedidos, ${detalleDtos.size} detalles")
             SyncResult.Success
         }.getOrElse { e ->
-            Log.e(TAG, "sync: failed", e)
+            Log.e(TAG, "sync failed", e)
             SyncResult.Failure(e)
+        }
+    }
+
+    private suspend fun fetchAllPedidoPages(): List<PedidoDto> = buildList {
+        var offset = 0L
+        while (true) {
+            val page = supabase.from("pedidos").select {
+                range(offset, offset + BATCH_SIZE - 1)
+            }.decodeList<PedidoDto>()
+            addAll(page)
+            if (page.size < BATCH_SIZE) break
+            offset += BATCH_SIZE
+        }
+    }
+
+    private suspend fun fetchAllDetallPages(): List<DetallePedidoDto> = buildList {
+        var offset = 0L
+        while (true) {
+            val page = supabase.from("detalle_pedido").select {
+                range(offset, offset + BATCH_SIZE - 1)
+            }.decodeList<DetallePedidoDto>()
+            addAll(page)
+            if (page.size < BATCH_SIZE) break
+            offset += BATCH_SIZE
         }
     }
 
     companion object {
         private const val TAG = "PedidoSyncer"
+        private const val BATCH_SIZE = 1000
     }
 }

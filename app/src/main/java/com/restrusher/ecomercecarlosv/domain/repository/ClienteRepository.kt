@@ -4,6 +4,7 @@ import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import kotlinx.coroutines.flow.Flow
 
 interface ClienteRepository {
+    val isSyncing: Flow<Boolean>
     fun getAll(): Flow<List<Cliente>>
     fun getAllIncludingBlacklisted(): Flow<List<Cliente>>
     fun getByMercado(mercadoId: String): Flow<List<Cliente>>
@@ -14,4 +15,5 @@ interface ClienteRepository {
     suspend fun delete(id: String)
     suspend fun blacklist(id: String, reason: String, balance: Double, at: Long, isManualAmount: Boolean)
     suspend fun unblacklist(id: String)
+    suspend fun refresh(): Boolean
 }

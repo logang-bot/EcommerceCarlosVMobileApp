@@ -6,6 +6,8 @@ import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import kotlinx.coroutines.flow.Flow
 
 interface PedidoRepository {
+    val isSyncing: Flow<Boolean>
+    suspend fun refresh(): Boolean
     fun getByCliente(clienteId: String): Flow<List<Pedido>>
     fun getByClienteWithLines(clienteId: String): Flow<List<Pedido>>
     fun getAll(): Flow<List<Pedido>>

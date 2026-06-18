@@ -13,7 +13,7 @@ interface SyncOperationDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueue(op: SyncOperationEntity): Long
 
-    @Query("SELECT * FROM sync_operations WHERE retryCount < 3 ORDER BY createdAt ASC")
+    @Query("SELECT * FROM sync_operations ORDER BY createdAt ASC")
     suspend fun getPending(): List<SyncOperationEntity>
 
     @Query("DELETE FROM sync_operations WHERE id = :id")
@@ -25,7 +25,7 @@ interface SyncOperationDao {
     @Query("DELETE FROM sync_operations WHERE entityType = :entityType AND entityId = :entityId AND operation != 'DELETE'")
     suspend fun deduplicateUpserts(entityType: String, entityId: String)
 
-    @Query("SELECT COUNT(*) FROM sync_operations WHERE retryCount < 3")
+    @Query("SELECT COUNT(*) FROM sync_operations")
     suspend fun pendingCount(): Int
 
     @Query("SELECT COALESCE(MAX(id), 0) FROM sync_operations")
@@ -33,4 +33,7 @@ interface SyncOperationDao {
 
     @Query("UPDATE sync_operations SET retryCount = 0")
     suspend fun resetAllRetryCount()
+
+    @Query("SELECT * FROM sync_operations ORDER BY createdAt ASC")
+    fun observeAll(): Flow<List<SyncOperationEntity>>
 }

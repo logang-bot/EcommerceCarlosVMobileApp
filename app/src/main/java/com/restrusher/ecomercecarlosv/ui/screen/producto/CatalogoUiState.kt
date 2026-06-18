@@ -7,4 +7,6 @@ data class CatalogoUiState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val canWrite: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val refreshFailed: Boolean = false,
 )

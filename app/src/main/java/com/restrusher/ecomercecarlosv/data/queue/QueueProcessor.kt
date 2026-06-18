@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.data.queue
 
 import android.util.Log
+import androidx.work.WorkManager
 import com.restrusher.ecomercecarlosv.data.error.GlobalErrorHandler
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
 import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
@@ -22,14 +23,14 @@ import com.restrusher.ecomercecarlosv.domain.error.AppError
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-
-private const val RETRY_DELAY_MS = 2_000L
 
 @Singleton
 class QueueProcessor @Inject constructor(
@@ -42,8 +43,12 @@ class QueueProcessor @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val supabase: SupabaseClient,
     private val errorHandler: GlobalErrorHandler,
+    private val workManager: WorkManager,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
+
+    private val _lastSuccessfulFlushAt = MutableStateFlow<Long?>(null)
+    val lastSuccessfulFlushAt: StateFlow<Long?> = _lastSuccessfulFlushAt.asStateFlow()
 
     fun start() {
         // Flush when connectivity is restored after being offline.
@@ -57,15 +62,14 @@ class QueueProcessor @Inject constructor(
                     }
                 }
         }
-        // Flush immediately when a new entry is enqueued and we are already online.
-        // MAX(id) is used instead of COUNT(*): autoGenerate ids only ever increase, so a new
-        // insert always produces a higher max regardless of concurrent deletions. COUNT(*) could
-        // return the same value after a delete+insert pair and fool distinctUntilChanged.
+        // On every new enqueue: ensure a WorkManager job exists (survives app kill) and, if
+        // already online, flush immediately without waiting for the worker to fire.
         appScope.launch {
             syncOperationDao.observeLatestEnqueuedId()
                 .distinctUntilChanged()
                 .filter { it > 0 }
                 .collect {
+                    SyncWorker.schedule(workManager)
                     if (networkMonitor.isOnline) {
                         Log.d(TAG, "new queue entry detected — flushing immediately")
                         flush()
@@ -74,27 +78,38 @@ class QueueProcessor @Inject constructor(
         }
     }
 
-    suspend fun flush() {
+    // Returns true if at least one operation failed to push. SyncWorker uses this to decide
+    // whether to return Result.retry() so WorkManager can apply exponential backoff.
+    suspend fun flush(): Boolean {
         val pending = syncOperationDao.getPending()
-        if (pending.isEmpty()) return
+        if (pending.isEmpty()) return false
 
-        // Deduplicate: group by entityType+entityId, DELETE wins over UPSERT
         val deduplicated = deduplicate(pending)
         Log.d(TAG, "flush: ${pending.size} raw ops → ${deduplicated.size} after dedup")
 
+        var anyFailed = false
         for (op in deduplicated) {
             val success = processOperation(op)
             if (success) {
-                // Delete all raw entries for this entity (including duplicates)
                 pending
                     .filter { it.entityType == op.entityType && it.entityId == op.entityId }
                     .forEach { syncOperationDao.delete(it.id) }
             } else {
+                anyFailed = true
                 pending
                     .filter { it.entityType == op.entityType && it.entityId == op.entityId }
                     .forEach { syncOperationDao.incrementRetry(it.id) }
-                delay(RETRY_DELAY_MS)
             }
+        }
+        if (!anyFailed) {
+            _lastSuccessfulFlushAt.value = System.currentTimeMillis()
+        }
+        return anyFailed
+    }
+
+    fun triggerFlush() {
+        appScope.launch {
+            if (networkMonitor.isOnline) flush()
         }
     }
 

@@ -14,6 +14,7 @@ import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.RefreshClienteDataUseCase
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,7 @@ class ClientesViewModel @Inject constructor(
     private val pedidoRepository: PedidoRepository,
     private val umbralesManager: UmbralesManager,
     private val sessionManager: SessionManager,
+    private val refreshClienteData: RefreshClienteDataUseCase,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -38,15 +40,18 @@ class ClientesViewModel @Inject constructor(
     private val _sortMode = MutableStateFlow(ClienteSortMode.AZ)
     private val _mercadoName = MutableStateFlow("")
     private val _searchQuery = MutableStateFlow("")
+    private val _isRefreshing = MutableStateFlow(false)
+    private val _refreshFailed = MutableStateFlow(false)
 
     val uiState = combine(
         combine(
             clienteRepository.getByMercado(mercadoId),
             pedidoRepository.getAllUnpaid(),
             umbralesManager.umbrales,
-        ) { clientes, allUnpaid, umbrales ->
+            clienteRepository.isSyncing,
+        ) { clientes, allUnpaid, umbrales, isSyncing ->
             val pedidosByCliente = allUnpaid.groupBy { it.clienteId }
-            clientes.map { cliente ->
+            val models = clientes.map { cliente ->
                 val pedidos = pedidosByCliente[cliente.id].orEmpty()
                 val balance = pedidos.filter {
                     it.status == PedidoStatus.PARTIAL ||
@@ -57,10 +62,11 @@ class ClientesViewModel @Inject constructor(
                 }.sumOf { it.pending }
                 ClienteUiModel(cliente, computeStatus(statusBalance, pedidos, umbrales), balance)
             }
+            Pair(models, isSyncing && clientes.isEmpty())
         },
         combine(_sortMode, _mercadoName, _searchQuery) { sort, name, query -> Triple(sort, name, query) },
         sessionManager.currentUser,
-    ) { models, sortTriple, user ->
+    ) { (models, isLoading), sortTriple, user ->
         val (sort, name, query) = sortTriple
         val filtered = if (query.isBlank()) models
         else models.filter { it.cliente.name.contains(query, ignoreCase = true) }
@@ -78,9 +84,13 @@ class ClientesViewModel @Inject constructor(
             mercadoName = name,
             sortMode = sort,
             searchQuery = query,
-            isLoading = false,
+            isLoading = isLoading,
             canWrite = user?.role != UserRole.INVITADO,
         )
+    }.combine(_isRefreshing) { state, refreshing ->
+        state.copy(isRefreshing = refreshing)
+    }.combine(_refreshFailed) { state, failed ->
+        state.copy(refreshFailed = failed)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -93,8 +103,24 @@ class ClientesViewModel @Inject constructor(
         }
     }
 
-    fun onSortChange(mode: ClienteSortMode) { _sortMode.value = mode }
-    fun onSearchChange(query: String) { _searchQuery.value = query }
+    fun onSortChange(mode: ClienteSortMode) {
+        _sortMode.value = mode
+    }
+
+    fun onSearchChange(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun onRefresh() {
+        _refreshFailed.value = false
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            _refreshFailed.value = !refreshClienteData()
+            _isRefreshing.value = false
+        }
+    }
+
+    fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 
     private fun computeStatus(statusBalance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
         if (statusBalance <= 0.0) return ClientStatus.AL_DIA

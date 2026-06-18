@@ -43,6 +43,8 @@ import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.SincronizacionRoute
+import com.restrusher.ecomercecarlosv.ui.screen.sincronizacion.SincronizacionScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.EditarPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteClienteScreen
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteStatusScreen
@@ -91,7 +93,10 @@ fun AppNavigation() {
             })
         }
         composable<HomeRoute> {
-            HomeScreen(navController = navController)
+            HomeScreen(
+                navController = navController,
+                onSyncClick = { navController.navigate(SincronizacionRoute) },
+            )
         }
         composable<DetalleMercadoRoute> {
             DetalleMercadoScreen(navController = navController)
@@ -155,6 +160,9 @@ fun AppNavigation() {
         }
         composable<ReporteStatusRoute> {
             ReporteStatusScreen(navController = navController)
+        }
+        composable<SincronizacionRoute> {
+            SincronizacionScreen(navController = navController)
         }
     }
 }

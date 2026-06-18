@@ -29,6 +29,11 @@
     <string name="login_error_not_registered">Usuario no registrado en el sistema</string>
     <string name="login_error_no_internet">Sin conexión a internet</string>
 
+    <!-- Pull-to-refresh error toast -->
+    <string name="refresh_error_title">No se pudo actualizar</string>
+    <string name="refresh_error_subtitle">Sin conexión con el servidor</string>
+    <string name="refresh_error_retry">Reintentar</string>
+
     <!-- Mercados -->
     <string name="mercados_title">Mercados</string>
     <string name="mercados_subtitle">%1$d mercados</string>
@@ -275,6 +280,11 @@
     <string name="perfil_cambiar_contrasena">Cambiar contraseña</string>
     <string name="perfil_section_ajustes">Ajustes</string>
     <string name="perfil_umbrales_title">Umbrales de estado</string>
+    <string name="perfil_apariencia_title">Apariencia</string>
+    <string name="perfil_apariencia_subtitle">Tema de la aplicación</string>
+    <string name="perfil_theme_light">Claro</string>
+    <string name="perfil_theme_dark">Oscuro</string>
+    <string name="perfil_theme_system">Sistema</string>
 
     <!-- Umbrales de estado -->
     <string name="umbrales_title">Umbrales de estado</string>
@@ -558,4 +568,40 @@
     <string name="reporte_status_error_escritura_label">Error al escribir el archivo</string>
     <string name="reporte_status_error_codigo">Código de error</string>
     <string name="reporte_status_error_reassurance">No se perdió nada. Puedes reintentar en cualquier momento.</string>
+
+    <!-- Sincronización screen -->
+    <string name="sinc_title">Sincronización</string>
+    <string name="sinc_done_title">Todo sincronizado</string>
+    <string name="sinc_done_subtitle">No hay solicitudes pendientes. Cada acción se guardó en el servidor.</string>
+    <string name="sinc_last_sync">Última sincronización · %1$s</string>
+    <string name="sinc_pending_title">%1$d solicitudes en cola</string>
+    <string name="sinc_pending_body">Se enviarán automáticamente en cuanto se restablezca la conexión.</string>
+    <string name="sinc_error_title">No se pudieron enviar %1$d solicitudes</string>
+    <string name="sinc_error_body">El servidor rechazó el último envío. Tus datos están guardados en el dispositivo — nada se perdió.</string>
+    <string name="sinc_retry">Reintentar envío</string>
+    <string name="sinc_section_label">En cola · %1$d</string>
+    <string name="sinc_footer_note">Cada acción sin conexión se guarda aquí hasta confirmarse en el servidor.</string>
+    <string name="sinc_never">Nunca sincronizado</string>
+    <string name="sinc_chip_queued">En cola</string>
+    <string name="sinc_chip_not_sent">Sin enviar</string>
+    <string name="sinc_op_pedido">Pedido</string>
+    <string name="sinc_op_pedido_delete">Pedido eliminado</string>
+    <string name="sinc_op_cliente">Cliente</string>
+    <string name="sinc_op_cliente_delete">Cliente eliminado</string>
+    <string name="sinc_op_mercado">Mercado</string>
+    <string name="sinc_op_mercado_delete">Mercado eliminado</string>
+    <string name="sinc_op_producto">Producto</string>
+    <string name="sinc_op_producto_delete">Producto eliminado</string>
+    <string name="sinc_time_just_now">hace un momento</string>
+    <string name="sinc_time_minutes">hace %1$d min</string>
+    <string name="sinc_time_hours">hace %1$d h</string>
+    <string name="sinc_time_days">hace %1$d d</string>
+
+    <!-- Sync notifications -->
+    <string name="sync_channel_name">Sincronización</string>
+    <string name="sync_channel_description">Notificaciones sobre el envío de datos al servidor</string>
+    <string name="sync_notification_started_title">Sincronizando datos…</string>
+    <string name="sync_notification_success_title">Datos sincronizados</string>
+    <string name="sync_notification_failure_title">Error al sincronizar</string>
+    <string name="sync_notification_failure_body">No se pudieron enviar algunos cambios. Se reintentará automáticamente.</string>
 </resources>

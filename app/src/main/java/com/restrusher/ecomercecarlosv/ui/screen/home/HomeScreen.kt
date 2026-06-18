@@ -11,7 +11,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.producto.CatalogoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteScreen
 
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(navController: NavController, onSyncClick: () -> Unit = {}) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     when (selectedTab) {
@@ -19,6 +19,7 @@ fun HomeScreen(navController: NavController) {
             navController = navController,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
+            onSyncClick = onSyncClick,
         )
         1 -> CatalogoScreen(
             navController = navController,

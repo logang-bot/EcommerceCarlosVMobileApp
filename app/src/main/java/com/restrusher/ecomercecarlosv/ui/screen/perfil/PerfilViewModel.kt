@@ -6,7 +6,9 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restrusher.ecomercecarlosv.data.prefs.ThemeManager
 import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
+import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
@@ -29,6 +31,7 @@ class PerfilViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
     private val umbralesManager: UmbralesManager,
+    private val themeManager: ThemeManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PerfilUiState())
@@ -39,6 +42,11 @@ class PerfilViewModel @Inject constructor(
         viewModelScope.launch {
             umbralesManager.umbrales.collect { u ->
                 _state.value = _state.value.copy(umbralesSummary = formatUmbralesSummary(u))
+            }
+        }
+        viewModelScope.launch {
+            themeManager.themeMode.collect { mode ->
+                _state.value = _state.value.copy(themeMode = mode)
             }
         }
     }
@@ -110,6 +118,8 @@ class PerfilViewModel @Inject constructor(
     fun onBiometricAuthFailed() {
         // No-op: prompt was dismissed or failed — leave state unchanged.
     }
+
+    fun setTheme(mode: ThemeMode) = themeManager.setTheme(mode)
 
     fun logout(onLoggedOut: () -> Unit) {
         viewModelScope.launch {

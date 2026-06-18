@@ -19,30 +19,36 @@ class ProductoRepositoryImpl @Inject constructor(
     private val dataSynchronizer: DataSynchronizer,
 ) : ProductoRepository {
 
+    override val isSyncing: Flow<Boolean> = dataSynchronizer.isSyncingEntity(EntityType.PRODUCTO)
+
     override fun getAll(): Flow<List<Producto>> {
         dataSynchronizer.triggerSyncIfStale(EntityType.PRODUCTO, DataSynchronizer.THRESHOLD_MASTER_MS)
         return dao.getAll().map { it.map(ProductoMapper::toDomain) }
     }
+
+    override suspend fun refresh(): Boolean = dataSynchronizer.forceSync(EntityType.PRODUCTO)
 
     override suspend fun getById(id: String): Producto? =
         dao.getById(id)?.let(ProductoMapper::toDomain)
 
     override suspend fun save(producto: Producto) {
         dao.insert(ProductoMapper.toEntity(producto))
-        enqueue(SyncOp.UPSERT, producto.id)
+        enqueue(SyncOp.UPSERT, producto.id, producto.name)
     }
 
     override suspend fun delete(id: String) {
+        val label = dao.getById(id)?.name ?: ""
         dao.deleteById(id)
-        enqueue(SyncOp.DELETE, id)
+        enqueue(SyncOp.DELETE, id, label)
     }
 
-    private suspend fun enqueue(operation: String, entityId: String) {
+    private suspend fun enqueue(operation: String, entityId: String, label: String) {
         syncOperationDao.enqueue(
             SyncOperationEntity(
                 entityType = EntityType.PRODUCTO,
                 entityId = entityId,
                 operation = operation,
+                entityLabel = label,
             ),
         )
     }

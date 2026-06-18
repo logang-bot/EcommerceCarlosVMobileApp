@@ -13,4 +13,5 @@ data class MercadoDto(
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerialName("created_at") val createdAt: Long,
+    @SerialName("updated_at") val updatedAt: Long = 0L,
 )

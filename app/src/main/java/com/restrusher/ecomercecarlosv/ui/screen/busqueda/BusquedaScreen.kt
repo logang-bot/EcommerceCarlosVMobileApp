@@ -58,6 +58,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 
@@ -96,6 +97,7 @@ private fun BusquedaContent(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
+        LoadingOverlay(isLoading = state.isLoading) {
         Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -180,6 +182,7 @@ private fun BusquedaContent(
                 }
             }
         }
+        } // LoadingOverlay
     }
 }
 

@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **13**. Supabase integration: Phase 9.
+Room version: **16**. Supabase integration: Phase 10 (delta sync).
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v13)
+## Current tables (Room v16)
 
 ### `users`
 
@@ -45,10 +45,11 @@ Shared resource. All users can read and write.
 | `latitude` | `Double?` | `float8` | ✓ | Extracted from `mapsUrl` on save |
 | `longitude` | `Double?` | `float8` | ✓ | Extracted from `mapsUrl` on save |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
+| `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger on every UPDATE. **Used as delta-sync cursor.** *(added v16)* |
 
 **DAO operations:** `getAll()` flow (ordered `name ASC`) · `getById()` (suspend) · `getByIdFlow()` (Flow — reactive) · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()`
 
-**Supabase notes:** Consider a `geography(Point)` column as an alternative to separate lat/lng if you want PostGIS distance queries later. Suggested index: `mercados(name)`.
+**Supabase notes:** Consider a `geography(Point)` column as an alternative to separate lat/lng if you want PostGIS distance queries later. Suggested indexes: `mercados(name)`, `mercados(updated_at)`.
 
 ---
 
@@ -72,10 +73,11 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `blacklistBalance` | `Double` | `float8` | — | Owed balance recorded at time of blacklisting; default `0.0` *(added v8)* |
 | `blacklistIsManualAmount` | `Boolean` | `boolean` | — | `true` when amount was entered manually (MANUAL mode); `false` = AUTO *(added v12)* |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
+| `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
 
 **DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at, isManualAmount)` · `unblacklist(id)` (resets all blacklist fields incl. `blacklistIsManualAmount`)
 
-**Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`.
+**Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`, `clientes(updated_at)`.
 
 > `status` and `balance` are computed from `pedidos` in Phase 4 — do not store them. Location is stored only as `mapsUrl`; no lat/lng columns.
 
@@ -94,12 +96,13 @@ Global product catalogue, shared across all users.
 | `photoUrl` | `String?` | `text` | ✓ | Supabase Storage URL |
 | `isActive` | `Boolean` | `boolean` | — | Default `true`; soft-delete |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
+| `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
 
 **DAO operations:** `getAll()` flow (active only, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
 
 > `ProductoDao` safely keeps `REPLACE` — `productos` has no inbound FK CASCADE references.
 
-**Index:** `productos(name)`.
+**Indexes:** `productos(name)`, `productos(updated_at)`.
 
 **Domain model:** `Producto.kt` — fields match Room columns 1:1.  
 **DTO:** `ProductoDto.kt` — snake_case field names for Supabase.  
@@ -128,10 +131,11 @@ A delivery order. Belongs to a `clientes` row.
 | `created_at` | `bigint` | — | Epoch ms |
 | `paid_at` | `bigint` | ✓ | Epoch ms; set on every payment (partial or full) — always reflects the most recent payment date |
 | `is_saldo_extra` | `boolean` | — | `true` for manual balance entries (Saldo Extra) — no line items; default `false` *(added v10)* |
+| `updated_at` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
 
 **DAO operations:** `getByCliente(clienteId)` flow · `getByClienteWithLines(clienteId)` flow (`@Transaction`, returns `PedidoWithLines`) · `getByIdFlow(id)` flow · `getById(id)` · `getAllUnpaid()` flow · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `deleteById(id)`
 
-**Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`.
+**Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`, `pedidos(updated_at)`.
 
 ---
 
@@ -163,6 +167,30 @@ Saldo Extra entries are stored directly in the `pedidos` table with `isSaldoExtr
 - `notes` on the pedido stores the description.
 - `total` stores the amount; `paid = 0`, `status = PENDING`.
 - `PedidoRow` renders these with an amber Tag icon and a "Manual" badge instead of the normal PayChip.
+
+---
+
+### `sync_operations` *(Room v14 + v15 — Phase 9b)*
+
+Write-queue table. Every user mutation (create / update / delete) appends a row here immediately after the local Room write. `QueueProcessor` reads this table and pushes the corresponding Supabase call in the background. Rows are deleted only after a successful push — never before.
+
+| Column | Room type | Notes |
+|--------|-----------|-------|
+| `id` | `Long` PK autoGenerate | Monotonically increasing — used as the flush trigger via `MAX(id)` |
+| `entityType` | `String` | `MERCADO` · `CLIENTE` · `PRODUCTO` · `PEDIDO` |
+| `entityId` | `String` | UUID of the affected entity |
+| `operation` | `String` | `UPSERT` · `DELETE` |
+| `createdAt` | `Long` | Epoch ms — used for deduplication ordering (latest UPSERT wins) |
+| `retryCount` | `Int` | Incremented on each failed push attempt; used for observability and drives the `SyncIconState.ERROR` state |
+| `entityLabel` | `String` | Human-readable label shown in the Sincronización screen (e.g. `"Bs. 120,00"` for a pedido, `"Mercado de Coche"` for a mercado). Added in MIGRATION_14_15. |
+
+**DAO operations:** `enqueue(entity)` · `getPending()` · `observeAll(): Flow<List>` · `observeLatestEnqueuedId(): Flow<Long>` · `delete(id)` · `incrementRetry(id)`
+
+**Migrations:**
+- `MIGRATION_13_14` — creates the table (all columns except `entityLabel`)
+- `MIGRATION_14_15` — `ALTER TABLE sync_operations ADD COLUMN entityLabel TEXT NOT NULL DEFAULT ''`
+
+**Not synced to Supabase** — this table is device-local only. It is never read-synced from the server.
 
 ---
 
@@ -215,3 +243,80 @@ SQL files live in `docs/sql/`. Run them in the Supabase SQL editor in this order
 - [ ] Fill in `local.properties` with real Supabase URLs and keys (staging + production)
 - [ ] `biometric_enabled_at` column intentionally absent from `users` table — device-local only ✅
 - [ ] Wire `SyncerRegistry` per `docs/features/mercados-supabase-todos.md` (Phase 10)
+
+---
+
+## Staging environment changes (Phase 10 — delta sync)
+
+Run the following SQL in the **staging** Supabase SQL editor after the base schema is applied.
+
+### 1. Enable `moddatetime` extension (one-time)
+
+```sql
+CREATE EXTENSION IF NOT EXISTS moddatetime;
+```
+
+### 2. Add `updated_at` column to each table
+
+```sql
+-- mercados
+ALTER TABLE mercados ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0;
+UPDATE mercados SET updated_at = created_at WHERE updated_at = 0;
+
+-- clientes
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0;
+UPDATE clientes SET updated_at = created_at WHERE updated_at = 0;
+
+-- productos
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0;
+UPDATE productos SET updated_at = created_at WHERE updated_at = 0;
+
+-- pedidos
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0;
+UPDATE pedidos SET updated_at = created_at WHERE updated_at = 0;
+```
+
+> **Note:** `detalle_pedido` intentionally has no `updated_at`. Line items are treated as a block: when a `pedidos` row changes, all its `detalle_pedido` rows are deleted and re-fetched.
+
+### 3. Auto-update `updated_at` on every row change
+
+Because `updated_at` stores epoch milliseconds (not a Postgres `timestamptz`), we use a custom trigger function instead of `moddatetime`:
+
+```sql
+CREATE OR REPLACE FUNCTION set_updated_at_ms()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at := (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_mercados_updated_at
+  BEFORE UPDATE ON mercados
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_clientes_updated_at
+  BEFORE UPDATE ON clientes
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_productos_updated_at
+  BEFORE UPDATE ON productos
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_pedidos_updated_at
+  BEFORE UPDATE ON pedidos
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+```
+
+### 4. Add indexes for delta-sync queries
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_mercados_updated_at  ON mercados (updated_at);
+CREATE INDEX IF NOT EXISTS idx_clientes_updated_at  ON clientes (updated_at);
+CREATE INDEX IF NOT EXISTS idx_productos_updated_at ON productos (updated_at);
+CREATE INDEX IF NOT EXISTS idx_pedidos_updated_at   ON pedidos  (updated_at);
+```
+
+### Room migration reference
+
+`MIGRATION_15_16` in `AppDatabase.kt` adds `updatedAt INTEGER NOT NULL DEFAULT 0` to the four Room entity tables and backfills `updatedAt = createdAt`. The Supabase column is named `updated_at` (snake_case); the DTO field is `@SerialName("updated_at") val updatedAt: Long`.

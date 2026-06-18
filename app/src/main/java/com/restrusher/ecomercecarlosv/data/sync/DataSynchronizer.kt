@@ -13,15 +13,19 @@ import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.error.AppError
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -66,10 +70,17 @@ class DataSynchronizer @Inject constructor(
     // failure so the next navigation can retry. Also loaded from prefs on startup.
     private val lastSyncedAt = ConcurrentHashMap<String, Long>()
 
-    private val activeSyncs = AtomicInteger(0)
+    // Set of entity types currently being synced. Thread-safe via StateFlow.update (CAS).
+    private val _syncingEntities = MutableStateFlow<Set<String>>(emptySet())
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+    /** True whenever at least one entity sync is in-flight. */
+    val isSyncing: StateFlow<Boolean> = _syncingEntities
+        .map { it.isNotEmpty() }
+        .stateIn(appScope, SharingStarted.Eagerly, false)
+
+    /** Emits true while the given entity type is actively being synced. */
+    fun isSyncingEntity(entityType: String): Flow<Boolean> =
+        _syncingEntities.map { entityType in it }.distinctUntilChanged()
 
     init {
         // Restore timestamps persisted from the previous session (biometric login path).
@@ -106,6 +117,21 @@ class DataSynchronizer @Inject constructor(
     }
 
     /**
+     * Forces a delta sync for [entityType], bypassing the staleness threshold. Uses
+     * [lastSyncedAt] as the delta cursor so only records changed since the last successful
+     * sync are fetched — making pull-to-refresh cheap. If a sync is already in-flight,
+     * waits for it to complete and returns true (treat the in-flight sync as success).
+     * Returns false if the sync fails or times out.
+     */
+    suspend fun forceSync(entityType: String): Boolean {
+        if (entityType in _syncingEntities.value) {
+            _syncingEntities.first { entityType !in it }
+            return true
+        }
+        return syncIfStale(entityType, 0L)
+    }
+
+    /**
      * Clears both the in-memory staleness map and the persisted SharedPreferences.
      * Call this after an email/password login so the user always gets fresh data.
      * Do NOT call this after biometric login — the thresholds should survive across restarts
@@ -117,14 +143,15 @@ class DataSynchronizer @Inject constructor(
         Log.d(TAG, "staleness reset")
     }
 
-    private suspend fun syncIfStale(entityType: String, thresholdMs: Long) {
-        if (!networkMonitor.isOnline) return
+    // Returns true on success/skipped, false on failure/timeout/offline.
+    private suspend fun syncIfStale(entityType: String, thresholdMs: Long): Boolean {
+        if (!networkMonitor.isOnline) return false
 
         val now = System.currentTimeMillis()
-        if (now - (lastSyncedAt[entityType] ?: 0L) < thresholdMs) return
+        if (now - (lastSyncedAt[entityType] ?: 0L) < thresholdMs) return true
 
-        // Optimistic stamp — any concurrent call for the same entity will see it as "in-progress"
-        // and exit early. Restored to the previous value on failure so next navigation can retry.
+        // `previous` is the delta cursor passed to the syncer (0 = full fetch, >0 = delta).
+        // The optimistic stamp prevents concurrent syncs for the same entity.
         val previous = lastSyncedAt[entityType] ?: 0L
         lastSyncedAt[entityType] = now
 
@@ -133,34 +160,34 @@ class DataSynchronizer @Inject constructor(
             EntityType.CLIENTE  -> clienteSyncer
             EntityType.PRODUCTO -> productoSyncer
             EntityType.PEDIDO   -> pedidoSyncer
-            else -> { lastSyncedAt[entityType] = previous; return }
+            else -> { lastSyncedAt[entityType] = previous; return false }
         }
 
-        if (activeSyncs.incrementAndGet() == 1) _isSyncing.value = true
-        try {
-            Log.d(TAG, "syncing $entityType")
-            val result = withTimeoutOrNull(SYNC_TIMEOUT_MS) { syncer.sync() }
+        _syncingEntities.update { it + entityType }
+        return try {
+            Log.d(TAG, "${if (previous > 0L) "delta" else "full"} sync: $entityType (since=$previous)")
+            val result = withTimeoutOrNull(SYNC_TIMEOUT_MS) { syncer.sync(since = previous) }
             when {
                 result == null -> {
-                    // Timeout — restore previous so next navigation retries; don't persist.
                     lastSyncedAt[entityType] = previous
                     errorHandler.emit(AppError.Sync("Sync timed out for $entityType", null))
                     Log.w(TAG, "sync timeout: $entityType")
+                    false
                 }
                 result is SyncResult.Failure -> {
-                    // Error — restore previous so next navigation retries; don't persist.
                     lastSyncedAt[entityType] = previous
                     errorHandler.emit(AppError.Sync("Failed to sync $entityType", result.error))
                     Log.w(TAG, "sync failure: $entityType — ${result.error.message}")
+                    false
                 }
                 else -> {
-                    // Success or Skipped — persist the timestamp so biometric restarts inherit it.
                     prefs.edit().putLong(entityType, now).apply()
                     Log.d(TAG, "sync success: $entityType")
+                    true
                 }
             }
         } finally {
-            if (activeSyncs.decrementAndGet() == 0) _isSyncing.value = false
+            _syncingEntities.update { it - entityType }
         }
     }
 }

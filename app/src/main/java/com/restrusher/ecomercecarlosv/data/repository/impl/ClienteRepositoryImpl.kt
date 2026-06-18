@@ -19,6 +19,8 @@ class ClienteRepositoryImpl @Inject constructor(
     private val dataSynchronizer: DataSynchronizer,
 ) : ClienteRepository {
 
+    override val isSyncing: Flow<Boolean> = dataSynchronizer.isSyncingEntity(EntityType.CLIENTE)
+
     private fun triggerSync() =
         dataSynchronizer.triggerSyncIfStale(EntityType.CLIENTE, DataSynchronizer.THRESHOLD_BUSINESS_MS)
 
@@ -42,6 +44,8 @@ class ClienteRepositoryImpl @Inject constructor(
         return dao.getBlacklisted().map { it.map(ClienteMapper::toDomain) }
     }
 
+    override suspend fun refresh(): Boolean = dataSynchronizer.forceSync(EntityType.CLIENTE)
+
     override fun getByIdFlow(id: String): Flow<Cliente?> =
         dao.getByIdFlow(id).map { it?.let(ClienteMapper::toDomain) }
 
@@ -51,30 +55,34 @@ class ClienteRepositoryImpl @Inject constructor(
     override suspend fun save(cliente: Cliente) {
         val entity = ClienteMapper.toEntity(cliente)
         if (dao.insert(entity) == -1L) dao.update(entity)
-        enqueue(SyncOp.UPSERT, cliente.id)
+        enqueue(SyncOp.UPSERT, cliente.id, cliente.name)
     }
 
     override suspend fun delete(id: String) {
+        val label = dao.getById(id)?.name ?: ""
         dao.deleteById(id)
-        enqueue(SyncOp.DELETE, id)
+        enqueue(SyncOp.DELETE, id, label)
     }
 
     override suspend fun blacklist(id: String, reason: String, balance: Double, at: Long, isManualAmount: Boolean) {
+        val label = dao.getById(id)?.name ?: ""
         dao.blacklist(id, reason, balance, at, isManualAmount)
-        enqueue(SyncOp.UPSERT, id)
+        enqueue(SyncOp.UPSERT, id, label)
     }
 
     override suspend fun unblacklist(id: String) {
+        val label = dao.getById(id)?.name ?: ""
         dao.unblacklist(id)
-        enqueue(SyncOp.UPSERT, id)
+        enqueue(SyncOp.UPSERT, id, label)
     }
 
-    private suspend fun enqueue(operation: String, entityId: String) {
+    private suspend fun enqueue(operation: String, entityId: String, label: String) {
         syncOperationDao.enqueue(
             SyncOperationEntity(
                 entityType = EntityType.CLIENTE,
                 entityId = entityId,
                 operation = operation,
+                entityLabel = label,
             ),
         )
     }

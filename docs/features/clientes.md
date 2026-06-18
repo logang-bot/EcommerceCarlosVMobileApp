@@ -34,6 +34,7 @@ Each Mercado contains a list of Clientes. The client row is fully colored by sta
 | `data/remote/dto/ClienteDto.kt` | ✅ |
 | `data/mapper/ClienteMapper.kt` | ✅ |
 | `data/repository/impl/ClienteRepositoryImpl.kt` | ✅ |
+| `domain/usecase/RefreshClienteDataUseCase.kt` | Refreshes clientes + pedidos in parallel; returns `Boolean` success. Client status is computed from unpaid pedidos, so both must be current together. | ✅ |
 | Room migration 5→6 (`MIGRATION_5_6`) | ✅ |
 | Room migration 7→8 (`MIGRATION_7_8`) — adds `blacklistBalance` column | ✅ |
 | Room migration 11→12 (`MIGRATION_11_12`) — adds `blacklistIsManualAmount` column | ✅ |

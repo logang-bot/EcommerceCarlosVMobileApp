@@ -31,7 +31,7 @@ data class BusquedaUiState(
     val clienteResults: List<ClienteSearchResult> = emptyList(),
     val blacklistResults: List<BlacklistSearchResult> = emptyList(),
     val mercadoResults: List<MercadoSearchResult> = emptyList(),
-    val isSearching: Boolean = false,
+    val isLoading: Boolean = false,
 ) {
     val hasResults get() = clienteResults.isNotEmpty() || blacklistResults.isNotEmpty() || mercadoResults.isNotEmpty()
 }

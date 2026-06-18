@@ -33,6 +33,7 @@ The app has a single top-level navigation graph (`AppNavigation.kt`). After logi
 | `CreacionPedidoRoute(clienteId, clienteName, mercadoName)` | `CreacionPedidoScreen` | Cart-based order creation (Phase 4) |
 | `DetallePedidoRoute(pedidoId)` | `DetallePedidoScreen` | Order detail + payment actions (Phase 5) |
 | `SaldoExtraRoute(clienteId)` | `SaldoExtraScreen` | Manual balance entry (Phase 3) |
+| `SincronizacionRoute` | `SincronizacionScreen` | Sync queue viewer; reached from the cloud icon in the MercadosScreen top bar |
 
 All routes are `@Serializable` objects/data classes in `presentation/screens/AppRoutes.kt`.
 

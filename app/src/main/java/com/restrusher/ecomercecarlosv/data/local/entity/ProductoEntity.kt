@@ -16,4 +16,5 @@ data class ProductoEntity(
     val photoUrl: String?,
     val isActive: Boolean,
     val createdAt: Long,
+    val updatedAt: Long = 0L,
 )

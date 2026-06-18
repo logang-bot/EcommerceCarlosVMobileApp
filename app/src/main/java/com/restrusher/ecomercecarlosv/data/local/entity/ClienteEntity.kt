@@ -34,4 +34,5 @@ data class ClienteEntity(
     val blacklistBalance: Double,
     val blacklistIsManualAmount: Boolean = false,
     val createdAt: Long,
+    val updatedAt: Long = 0L,
 )

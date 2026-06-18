@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 @HiltViewModel
 class ListaNegraViewModel @Inject constructor(
@@ -19,36 +21,55 @@ class ListaNegraViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
+    private val _isRefreshing = MutableStateFlow(false)
+    private val _refreshFailed = MutableStateFlow(false)
 
     private val _uiState = MutableStateFlow(ListaNegraUiState())
     val uiState: StateFlow<ListaNegraUiState> = _uiState.asStateFlow()
 
     init {
+        combine(
+            clienteRepository.getBlacklisted(),
+            mercadoRepository.getAll(),
+            _query,
+            clienteRepository.isSyncing,
+        ) { clientes, mercados, query, isSyncing ->
+            val mercadoMap = mercados.associateBy { it.id }
+            ListaNegraUiState(
+                items = clientes.map { c ->
+                    BlacklistUiModel(
+                        clienteId = c.id,
+                        name = c.name,
+                        photoUrl = c.photoUrl,
+                        mercadoName = mercadoMap[c.mercadoId]?.name ?: "",
+                        blacklistBalance = c.blacklistBalance,
+                        blacklistReason = c.blacklistReason,
+                        blacklistedAt = c.blacklistedAt,
+                    )
+                },
+                query = query,
+                isLoading = isSyncing && clientes.isEmpty(),
+            )
+        }.combine(_isRefreshing) { state, refreshing ->
+            state.copy(isRefreshing = refreshing)
+        }.combine(_refreshFailed) { state, failed ->
+            state.copy(refreshFailed = failed)
+        }.onEach { _uiState.value = it }.launchIn(viewModelScope)
+    }
+
+    fun onQueryChange(query: String) {
+        _query.value = query
+    }
+
+    fun onRefresh() {
+        _refreshFailed.value = false
         viewModelScope.launch {
-            combine(
-                clienteRepository.getBlacklisted(),
-                mercadoRepository.getAll(),
-                _query,
-            ) { clientes, mercados, query ->
-                val mercadoMap = mercados.associateBy { it.id }
-                ListaNegraUiState(
-                    items = clientes.map { c ->
-                        BlacklistUiModel(
-                            clienteId = c.id,
-                            name = c.name,
-                            photoUrl = c.photoUrl,
-                            mercadoName = mercadoMap[c.mercadoId]?.name ?: "",
-                            blacklistBalance = c.blacklistBalance,
-                            blacklistReason = c.blacklistReason,
-                            blacklistedAt = c.blacklistedAt,
-                        )
-                    },
-                    query = query,
-                    isLoading = false,
-                )
-            }.collect { _uiState.value = it }
+            _isRefreshing.value = true
+            val success = clienteRepository.refresh()
+            _isRefreshing.value = false
+            _refreshFailed.value = !success
         }
     }
 
-    fun onQueryChange(query: String) { _query.value = query }
+    fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 }

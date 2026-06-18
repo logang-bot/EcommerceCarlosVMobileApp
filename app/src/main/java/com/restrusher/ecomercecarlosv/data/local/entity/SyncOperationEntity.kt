@@ -15,6 +15,7 @@ data class SyncOperationEntity(
     val operation: String,
     val createdAt: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
+    val entityLabel: String = "",
 )
 
 object EntityType {

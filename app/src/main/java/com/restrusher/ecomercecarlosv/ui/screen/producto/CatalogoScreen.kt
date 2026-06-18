@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -48,6 +51,8 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.Producto
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
+import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
@@ -69,9 +74,12 @@ fun CatalogoScreen(
         onProductoClick = { navController.navigate(CreateProductoRoute(productId = it)) },
         onCreateClick = { navController.navigate(CreateProductoRoute()) },
         onSearchQueryChange = viewModel::onSearchQueryChange,
+        onRefresh = viewModel::onRefresh,
+        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CatalogoContent(
     state: CatalogoUiState,
@@ -80,6 +88,8 @@ private fun CatalogoContent(
     onProductoClick: (String) -> Unit,
     onCreateClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
+    onRefresh: () -> Unit = {},
+    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     val count = state.productos.size
@@ -116,39 +126,61 @@ private fun CatalogoContent(
             }
         },
     ) { innerPadding ->
-        if (state.productos.isEmpty() && !state.isLoading) {
-            EmptyState(
-                modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.Sell,
-                title = stringResource(R.string.catalogo_empty_title),
-                subtitle = stringResource(R.string.catalogo_empty_subtitle),
-                hint = stringResource(R.string.catalogo_empty_hint),
-                onActionClick = onCreateClick,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                ),
-            ) {
-                item {
-                    SearchBar(
-                        query = state.searchQuery,
-                        onQueryChange = onSearchQueryChange,
+        Box(modifier = Modifier.fillMaxSize()) {
+            LoadingOverlay(isLoading = state.isLoading) {
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                if (state.productos.isEmpty() && !state.isLoading) {
+                    EmptyState(
+                        modifier = Modifier.padding(innerPadding),
+                        icon = Icons.Default.Sell,
+                        title = stringResource(R.string.catalogo_empty_title),
+                        subtitle = stringResource(R.string.catalogo_empty_subtitle),
+                        hint = stringResource(R.string.catalogo_empty_hint),
+                        onActionClick = onCreateClick,
                     )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding(),
+                            bottom = innerPadding.calculateBottomPadding() + 16.dp,
+                        ),
+                    ) {
+                        item {
+                            SearchBar(
+                                query = state.searchQuery,
+                                onQueryChange = onSearchQueryChange,
+                            )
+                        }
+                        items(state.productos, key = { it.id }) { producto ->
+                            ProductoRow(
+                                producto = producto,
+                                onClick = if (state.canWrite) ({ onProductoClick(producto.id) }) else null,
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 83.dp),
+                                color = ext.border,
+                            )
+                        }
+                    }
                 }
-                items(state.productos, key = { it.id }) { producto ->
-                    ProductoRow(
-                        producto = producto,
-                        onClick = if (state.canWrite) ({ onProductoClick(producto.id) }) else null,
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 83.dp),
-                        color = ext.border,
-                    )
-                }
+            }
+            }
+            if (state.refreshFailed) {
+                RefreshErrorToast(
+                    onRetry = onRefresh,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 12.dp,
+                        ),
+                )
             }
         }
     }

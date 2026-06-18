@@ -26,4 +26,5 @@ data class PedidoEntity(
     val paidAt: Long?,
     val isSaldoExtra: Boolean = false,
     val itemCount: Int = 0,
+    val updatedAt: Long = 0L,
 )

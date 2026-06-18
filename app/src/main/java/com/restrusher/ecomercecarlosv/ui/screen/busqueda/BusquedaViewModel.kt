@@ -24,8 +24,10 @@ class BusquedaViewModel @Inject constructor(
         _query,
         clienteRepository.getAllIncludingBlacklisted(),
         mercadoRepository.getAll(),
-    ) { query, clientes, mercados ->
-        if (query.isBlank()) return@combine BusquedaUiState(query = query)
+        clienteRepository.isSyncing,
+    ) { query, clientes, mercados, isSyncing ->
+        val isLoading = isSyncing && clientes.isEmpty()
+        if (query.isBlank()) return@combine BusquedaUiState(query = query, isLoading = isLoading)
 
         val q = query.trim().lowercase()
         val mercadoIndex = mercados.associateBy { it.id }
@@ -82,6 +84,7 @@ class BusquedaViewModel @Inject constructor(
             clienteResults = clienteResults,
             blacklistResults = blacklistResults,
             mercadoResults = mercadoResults,
+            isLoading = isLoading,
         )
     }.stateIn(
         scope = viewModelScope,

@@ -16,4 +16,5 @@ data class ClienteDto(
     @SerialName("blacklist_reason") val blacklistReason: String? = null,
     @SerialName("blacklisted_at") val blacklistedAt: Long? = null,
     @SerialName("created_at") val createdAt: Long,
+    @SerialName("updated_at") val updatedAt: Long = 0L,
 )

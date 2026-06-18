@@ -33,6 +33,7 @@ object ProductoMapper {
         photoUrl = dto.photoUrl,
         isActive = dto.isActive,
         createdAt = dto.createdAt,
+        updatedAt = dto.updatedAt,
     )
 
     fun toDto(entity: ProductoEntity) = ProductoDto(

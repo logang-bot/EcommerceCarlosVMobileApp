@@ -19,10 +19,14 @@ class MercadoRepositoryImpl @Inject constructor(
     private val dataSynchronizer: DataSynchronizer,
 ) : MercadoRepository {
 
+    override val isSyncing: Flow<Boolean> = dataSynchronizer.isSyncingEntity(EntityType.MERCADO)
+
     override fun getAll(): Flow<List<Mercado>> {
         dataSynchronizer.triggerSyncIfStale(EntityType.MERCADO, DataSynchronizer.THRESHOLD_MASTER_MS)
         return dao.getAll().map { it.map(MercadoMapper::toDomain) }
     }
+
+    override suspend fun refresh(): Boolean = dataSynchronizer.forceSync(EntityType.MERCADO)
 
     override fun getByIdFlow(id: String): Flow<Mercado?> =
         dao.getByIdFlow(id).map { it?.let(MercadoMapper::toDomain) }
@@ -33,20 +37,22 @@ class MercadoRepositoryImpl @Inject constructor(
     override suspend fun save(mercado: Mercado) {
         val entity = MercadoMapper.toEntity(mercado)
         if (dao.insert(entity) == -1L) dao.update(entity)
-        enqueue(SyncOp.UPSERT, mercado.id)
+        enqueue(SyncOp.UPSERT, mercado.id, mercado.name)
     }
 
     override suspend fun delete(id: String) {
+        val label = dao.getById(id)?.name ?: ""
         dao.deleteById(id)
-        enqueue(SyncOp.DELETE, id)
+        enqueue(SyncOp.DELETE, id, label)
     }
 
-    private suspend fun enqueue(operation: String, entityId: String) {
+    private suspend fun enqueue(operation: String, entityId: String, label: String) {
         syncOperationDao.enqueue(
             SyncOperationEntity(
                 entityType = EntityType.MERCADO,
                 entityId = entityId,
                 operation = operation,
+                entityLabel = label,
             ),
         )
     }

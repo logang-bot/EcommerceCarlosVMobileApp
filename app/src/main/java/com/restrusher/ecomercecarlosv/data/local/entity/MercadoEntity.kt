@@ -13,4 +13,5 @@ data class MercadoEntity(
     val latitude: Double?,
     val longitude: Double?,
     val createdAt: Long,
+    val updatedAt: Long = 0L,
 )

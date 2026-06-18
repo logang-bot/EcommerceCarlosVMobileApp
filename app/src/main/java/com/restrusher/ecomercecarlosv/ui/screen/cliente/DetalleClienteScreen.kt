@@ -11,8 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.CircularProgressIndicator
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,7 +20,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -132,23 +130,20 @@ private fun DetalleClienteContent(
             }
         },
     ) { innerPadding ->
-        when {
-            state.isLoading -> Box(
-                modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
-
-            state.cliente != null -> ClienteData(
-                state = state,
-                innerPadding = innerPadding,
-                canWrite = state.canWrite,
-                onListaNegraClick = onListaNegraClick,
-                onQuitarListaNegraClick = onQuitarListaNegraClick,
-                onSaldoExtraClick = onSaldoExtraClick,
-                onPedidoClick = onPedidoClick,
-                onNuevoPedidoClick = onNuevoPedidoClick,
-                onClearPedidoFilters = onClearPedidoFilters,
-            )
+        LoadingOverlay(isLoading = state.isLoading) {
+            if (state.cliente != null) {
+                ClienteData(
+                    state = state,
+                    innerPadding = innerPadding,
+                    canWrite = state.canWrite,
+                    onListaNegraClick = onListaNegraClick,
+                    onQuitarListaNegraClick = onQuitarListaNegraClick,
+                    onSaldoExtraClick = onSaldoExtraClick,
+                    onPedidoClick = onPedidoClick,
+                    onNuevoPedidoClick = onNuevoPedidoClick,
+                    onClearPedidoFilters = onClearPedidoFilters,
+                )
+            }
         }
 
         if (state.showUnblacklistSheet && state.cliente != null) {

@@ -47,7 +47,8 @@ class ReporteViewModel @Inject constructor(
             clienteRepository.getAll(),
             mercadoRepository.getAll(),
         ) { pedidos, clientes, mercados -> Triple(pedidos, clientes, mercados) },
-    ) { input, repoData ->
+        pedidoRepository.isSyncing,
+    ) { input, repoData, isSyncing ->
         val allPedidos = repoData.first
         val allClientes = repoData.second
         val allMercados = repoData.third
@@ -67,9 +68,10 @@ class ReporteViewModel @Inject constructor(
             }
             .sortedBy { it.name }
 
+        val loading = isSyncing && allPedidos.isEmpty()
         when (input.mode) {
-            ReporteMode.DIARIO -> buildDiarioState(input, allPedidos, clienteIndex, mercadoIndex, allClienteOptions)
-            ReporteMode.POR_CLIENTE -> buildClienteState(input, allPedidos, clienteIndex, mercadoIndex, allClienteOptions)
+            ReporteMode.DIARIO -> buildDiarioState(input, allPedidos, clienteIndex, mercadoIndex, allClienteOptions).copy(isLoading = loading)
+            ReporteMode.POR_CLIENTE -> buildClienteState(input, allPedidos, clienteIndex, mercadoIndex, allClienteOptions).copy(isLoading = loading)
         }
     }.stateIn(
         scope = viewModelScope,

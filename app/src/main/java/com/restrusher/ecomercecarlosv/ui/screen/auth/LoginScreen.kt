@@ -1,7 +1,11 @@
 package com.restrusher.ecomercecarlosv.ui.screen.auth
 
+import android.Manifest
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
@@ -24,10 +28,21 @@ fun LoginScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* SyncNotifier has its own permission guard — result is not needed here */ }
+
+    val handleLoginSuccess: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        onLoginSuccess()
+    }
+
     val biometricCallback = remember {
         object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                viewModel.onBiometricSuccess(onLoginSuccess)
+                viewModel.onBiometricSuccess(handleLoginSuccess)
             }
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 viewModel.onBiometricFailed()
@@ -60,7 +75,7 @@ fun LoginScreen(
             LoginBiometricoContent(
                 state = state,
                 onPasswordChange = viewModel::onPasswordChange,
-                onLoginClick = { viewModel.onBiometricPasswordLogin(onLoginSuccess) },
+                onLoginClick = { viewModel.onBiometricPasswordLogin(handleLoginSuccess) },
                 onBiometricClick = triggerBiometric,
                 onSwitchToPassword = viewModel::switchToPasswordLogin,
                 onOtherAccount = viewModel::switchToOtherAccount,
@@ -70,7 +85,7 @@ fun LoginScreen(
                 state = state,
                 onEmailChange = viewModel::onEmailChange,
                 onPasswordChange = viewModel::onPasswordChange,
-                onLoginClick = { viewModel.onLoginClick(onLoginSuccess) },
+                onLoginClick = { viewModel.onLoginClick(handleLoginSuccess) },
                 onSwitchToOtherAccount = viewModel::switchToOtherAccount,
             )
         }

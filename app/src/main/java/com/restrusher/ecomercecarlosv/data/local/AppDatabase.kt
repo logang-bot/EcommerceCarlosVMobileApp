@@ -137,6 +137,25 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sync_operations ADD COLUMN entityLabel TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE mercados ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE mercados SET updatedAt = createdAt")
+        db.execSQL("ALTER TABLE clientes ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE clientes SET updatedAt = createdAt")
+        db.execSQL("ALTER TABLE productos ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE productos SET updatedAt = createdAt")
+        db.execSQL("ALTER TABLE pedidos ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE pedidos SET updatedAt = createdAt")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -165,7 +184,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         DetallePedidoEntity::class,
         SyncOperationEntity::class,
     ],
-    version = 14,
+    version = 16,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

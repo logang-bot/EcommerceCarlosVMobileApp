@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -65,6 +67,8 @@ import com.restrusher.ecomercecarlosv.presentation.screens.ListaNegraRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
+import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
@@ -83,9 +87,12 @@ fun ClientesScreen(
         onListaNegraClick = { navController.navigate(ListaNegraRoute) },
         onSortChange = viewModel::onSortChange,
         onSearchChange = viewModel::onSearchChange,
+        onRefresh = viewModel::onRefresh,
+        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ClientesContent(
     state: ClientesUiState,
@@ -95,6 +102,8 @@ private fun ClientesContent(
     onListaNegraClick: () -> Unit,
     onSortChange: (ClienteSortMode) -> Unit,
     onSearchChange: (String) -> Unit,
+    onRefresh: () -> Unit = {},
+    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val count = state.clientes.size
     var searchActive by remember { mutableStateOf(false) }
@@ -144,37 +153,59 @@ private fun ClientesContent(
             }
         },
     ) { innerPadding ->
-        if (state.clientes.isEmpty() && !state.isLoading) {
-            EmptyState(
-                modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.Person,
-                title = stringResource(R.string.clientes_empty_title),
-                subtitle = stringResource(R.string.clientes_empty_subtitle),
-                hint = if (state.canWrite) stringResource(R.string.clientes_empty_hint) else null,
-                onActionClick = if (state.canWrite) onCreateClick else null,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                ),
-            ) {
-                items(state.clientes, key = { it.cliente.id }) { model ->
-                    ClienteRow(
-                        model = model,
-                        onClick = { onClienteClick(model.cliente.id) },
+        Box(modifier = Modifier.fillMaxSize()) {
+            LoadingOverlay(isLoading = state.isLoading) {
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                if (state.clientes.isEmpty() && !state.isLoading) {
+                    EmptyState(
+                        modifier = Modifier.padding(innerPadding),
+                        icon = Icons.Default.Person,
+                        title = stringResource(R.string.clientes_empty_title),
+                        subtitle = stringResource(R.string.clientes_empty_subtitle),
+                        hint = if (state.canWrite) stringResource(R.string.clientes_empty_hint) else null,
+                        onActionClick = if (state.canWrite) onCreateClick else null,
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 82.dp),
-                        color = MaterialTheme.extendedColors.border,
-                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding() + 8.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 16.dp,
+                        ),
+                    ) {
+                        items(state.clientes, key = { it.cliente.id }) { model ->
+                            ClienteRow(
+                                model = model,
+                                onClick = { onClienteClick(model.cliente.id) },
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 82.dp),
+                                color = MaterialTheme.extendedColors.border,
+                            )
+                        }
+                        item {
+                            Spacer(Modifier.height(16.dp))
+                            ListaNegraButton(onClick = onListaNegraClick)
+                        }
+                    }
                 }
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    ListaNegraButton(onClick = onListaNegraClick)
-                }
+            }
+            }
+            if (state.refreshFailed) {
+                RefreshErrorToast(
+                    onRetry = onRefresh,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 12.dp,
+                        ),
+                )
             }
         }
     }

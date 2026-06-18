@@ -36,6 +36,7 @@ object MercadoMapper {
         latitude = dto.latitude,
         longitude = dto.longitude,
         createdAt = dto.createdAt,
+        updatedAt = dto.updatedAt,
     )
 
     fun toDto(entity: MercadoEntity) = MercadoDto(

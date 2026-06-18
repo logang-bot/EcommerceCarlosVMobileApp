@@ -1,7 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
 import android.content.res.Configuration
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +49,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ResolvedDateB
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.SummaryCard
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.WarningBanner
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.buildReporteClienteHtml
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.formatPeriodLabel
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -182,16 +180,7 @@ private fun ReporteClienteContent(
             )
         },
     ) { innerPadding ->
-        if (state.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
+        LoadingOverlay(isLoading = state.isLoading) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -249,6 +238,7 @@ private fun ReporteClienteContent(
 
             Spacer(Modifier.height(12.dp))
         }
+        } // LoadingOverlay
     }
 }
 

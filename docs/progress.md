@@ -27,6 +27,176 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 9c | WorkManager background queue, immediate flush on enqueue, reliable trigger via MAX(id) | ✅ Done |
 | 9d | Always require login on app start — session wiped on startup, Room cache preserved | ✅ Done |
 | 9e | Lazy per-screen data sync with staleness thresholds (2h master / 30 min business) | ✅ Done |
+| 9f | In-app theme switcher (Claro / Oscuro / Sistema) with system bar support | ✅ Done |
+| 10 | Client-side pagination (Load More button, 20/batch) + pull-to-refresh on all list screens | ✅ Done |
+| 10b | Delta sync: `updated_at` cursor, Room v16 migration, pull-to-refresh error toast | ✅ Done |
+
+---
+
+## ✅ Phase 10 — Pagination & Pull-to-Refresh
+
+Applied to all four primary list screens: **Mercados**, **Clientes**, **Lista Negra**, **Catálogo**.
+
+### 📄 Client-side Pagination
+
+All list data is already in Room (synced from Supabase). Pagination is applied in the UI layer — no new DAO queries or DB migrations required.
+
+**Batch size:** 20 items per page (constant `PAGE_SIZE = 20`).
+
+**UiState additions** (per screen):
+- `visibleCount: Int = 20` — how many items the UI should render.
+- `isRefreshing: Boolean = false` — drives the pull-to-refresh indicator.
+- Computed props: `visibleXxx` (`.take(visibleCount)`) and `hasMore` (`.size > visibleCount`).
+
+**ViewModel additions** (per screen):
+- `_visibleCount: MutableStateFlow<Int>` — chained onto the existing state flow via `.combine()`.
+- `_isRefreshing: MutableStateFlow<Boolean>` — chained similarly.
+- `onLoadMore()` — increments `_visibleCount` by `PAGE_SIZE`.
+- `onRefresh()` — resets `_visibleCount`, sets `_isRefreshing = true`, calls `repository.refresh()` for all relevant entities (concurrently via `coroutineScope`), then clears `_isRefreshing`.
+- Sort/search changes also reset `_visibleCount` to avoid stale pages after a filter.
+
+**Screen additions**:
+- `PullToRefreshBox` (Material3 experimental, `@OptIn`) wraps the content area.
+- `LoadMoreButton` appended as a `LazyColumn` item when `state.hasMore`.
+
+**New composables:**
+
+`ui/common/LoadMoreButton.kt` — design-matched component with 4 states (`LoadMoreState` enum):
+- **IDLE** — `surface2` bg, `border2` 1dp, 13dp corners, 50dp height; `KeyboardArrowDown` icon (18dp, `text2`); "Cargar más" semibold (`onSurface`) + "· X restantes" medium (`text3`) at 14.5sp, 9dp gap; "Mostrando X de Y" caption (12sp, `text4`) 9dp below.
+- **LOADING** — same shape but disabled; spinning `Refresh` icon (900ms `infiniteRepeatable`); "Cargando…" text in `text2`.
+- **END** — two `HorizontalDivider(weight=1f)` flanking a `Check` icon (16dp, `text3`); "Fin de la lista · N registros" caption (12.5sp, `text3`, medium weight). Shown when `total > PAGE_SIZE && !hasMore`.
+- **ERROR** — red-tinted card (`redTint` bg, `redText/20%` border, 13dp corners); `Warning` icon + "No se pudieron cargar más" / "Revisa tu conexión"; optional "Reintentar" pill button (36dp height, 10dp corners, `redText/25%` border).
+- Container padding: 12dp top, 18dp sides, 8dp bottom (matching design `12px 18px 8px`).
+
+`ui/common/SkeletonRow.kt` — `SkeletonClienteRow` pulsing placeholder (alpha 0.4→0.9, 800ms Reverse) matching Cliente row layout: 46dp circle + two text bars (left) + badge and balance bars (right), all `surface3`.
+
+**Screen logic change**: `LoadMoreButton` now shown when `total > PAGE_SIZE` (not just `hasMore`), passing `IDLE` or `END` state accordingly. This reveals the "Fin de la lista" marker once the user loads past the first page.
+
+### 🔄 Pull-to-Refresh
+
+**DataSynchronizer** — new `suspend fun forceSync(entityType: String)`:
+- If a sync for that entity is already in-flight, waits for it to complete (no duplicate network calls).
+- Otherwise clears the staleness stamp (both in-memory `lastSyncedAt` and `SharedPreferences`) and calls `syncIfStale(entityType, 0L)`, which always runs because `elapsed >= 0 >= 0` → threshold `0` is never exceeded.
+- Suspends until the sync finishes (success, failure, or timeout).
+
+**Repository interfaces & impls** — new `suspend fun refresh()`:
+- `MercadoRepository`, `ClienteRepository`, `ProductoRepository`, `PedidoRepository`.
+- Each impl delegates to `dataSynchronizer.forceSync(EntityType.XXX)`.
+
+**Entities refreshed per screen on pull-to-refresh:**
+| Screen | Entities refreshed |
+|---|---|
+| MercadosScreen | MERCADO + CLIENTE + PEDIDO |
+| ClientesScreen | CLIENTE + PEDIDO |
+| ListaNegraScreen | CLIENTE |
+| CatalogoScreen | PRODUCTO |
+
+**Files changed:**
+`data/sync/DataSynchronizer.kt` (+`forceSync`, +`first` import),
+`domain/repository/MercadoRepository.kt`, `ClienteRepository.kt`, `ProductoRepository.kt`, `PedidoRepository.kt` (+`refresh`),
+`data/repository/impl/MercadoRepositoryImpl.kt`, `ClienteRepositoryImpl.kt`, `ProductoRepositoryImpl.kt`, `PedidoRepositoryImpl.kt` (+`refresh`),
+`ui/common/LoadMoreButton.kt` (rewritten — 4 states, design-matched),
+`ui/common/SkeletonRow.kt` (new — `SkeletonClienteRow`),
+`res/values/strings.xml` (+`load_more_*` strings for all 4 states),
+`ui/screen/cliente/ClientesUiState.kt`, `ClientesViewModel.kt`, `ClientesScreen.kt`,
+`ui/screen/mercado/MercadosUiState.kt`, `MercadosViewModel.kt`, `MercadosScreen.kt`,
+`ui/screen/lista_negra/ListaNegraUiState.kt`, `ListaNegraViewModel.kt`, `ListaNegraScreen.kt`,
+`ui/screen/producto/CatalogoUiState.kt`, `CatalogoViewModel.kt`, `CatalogoScreen.kt`,
+`docs/progress.md`
+
+---
+
+## ✅ Phase 10b — Delta Sync + Pull-to-Refresh Error Toast
+
+### 🔄 Delta Sync
+
+Replaces full-table re-downloads with incremental fetches keyed on `updated_at`.
+
+**How it works:**
+- Each entity syncer (`MercadoSyncer`, `ClienteSyncer`, `ProductoSyncer`, `PedidoSyncer`) now accepts a `since: Long` parameter (epoch ms).
+- If `since == 0L` (first run, Room is empty): full fetch with no filter.
+- Otherwise: `WHERE updated_at > since` via supabase-kt filter DSL (`gt("updated_at", since)`).
+- `DataSynchronizer.syncIfStale()` passes `previous = lastSyncedAt[entity] ?: 0L` to the syncer and updates `lastSyncedAt` only on success (rolls back on timeout or failure).
+- `forceSync()` (called by pull-to-refresh) no longer clears `lastSyncedAt` — pull-to-refresh also uses the delta path.
+- `detalle_pedido` has no `updated_at`: in delta mode, lines for changed pedidos are deleted and re-fetched via `isIn("pedido_id", changedIds)`. If no pedidos changed, the syncer returns `Success` immediately.
+
+**`ClienteSyncer` local-only field preservation**: fetches the existing Room row by ID before mapping, so `isBlacklisted`, `blacklistReason`, `blacklistBalance`, `blacklistedAt`, `blacklistIsManualAmount`, and `primaryPhoneIndex` (fields absent in Supabase) are preserved on delta upsert.
+
+**Room migration (v15 → v16):** `updatedAt INTEGER NOT NULL DEFAULT 0` added to `mercados`, `clientes`, `productos`, `pedidos`. Backfilled with `createdAt`. See `AppDatabase.MIGRATION_15_16`.
+
+**Supabase changes required:** See *Staging environment changes* section in `docs/db-schema.md` for the exact SQL (add column, trigger function, indexes).
+
+### 🍞 Pull-to-Refresh Error Toast
+
+**Signal chain:** `syncIfStale()` / `forceSync()` → `Boolean` → `repository.refresh(): Boolean` → `_refreshFailed: MutableStateFlow<Boolean>` in ViewModel → `refreshFailed: Boolean` in UiState → `RefreshErrorToast` composable.
+
+**`RefreshErrorToast`** (`ui/common/RefreshErrorToast.kt`):
+- `surface2` bg, `border2` 1dp border, 14dp corner radius.
+- Warning icon (20dp, `redText`) + "No se pudo actualizar" (semibold, `onSurface`) / "Sin conexión con el servidor" (`text3`) + `TextButton` with Refresh icon + "Reintentar" (`redText`).
+- Positioned at `Alignment.BottomCenter` inside a `Box` wrapping the Scaffold content; padding = `navBar + 12dp`.
+- Tapping "Reintentar" calls `onRefresh()`, which resets `_refreshFailed = false` before the new attempt.
+
+**ViewModel pattern** (all 4 screens):
+- `_refreshFailed: MutableStateFlow<Boolean>` chained via `.combine()` before `.stateIn()`.
+- `onRefresh()` delegates to a use case (see below) or calls `repo.refresh()` directly for single-repo screens. All must succeed for the result to be `true`.
+- `onRefreshErrorDismissed()` resets `_refreshFailed`.
+
+**Use cases extracted:**
+- `RefreshMercadoDataUseCase(mercadoRepo, clienteRepo, pedidoRepo)` — refreshes all three in parallel via `coroutineScope { async { } }`; used by `MercadosViewModel`. The "mercado dashboard requires all three current" is a domain rule, not ViewModel glue.
+- `RefreshClienteDataUseCase(clienteRepo, pedidoRepo)` — refreshes the pair in parallel; used by `ClientesViewModel`. Client status is computed from unpaid pedidos, so both must be in sync.
+- `ListaNegraViewModel` and `CatalogoViewModel` call a single `repo.refresh()` — no use case warranted for a one-liner.
+
+**Files changed:**
+`data/remote/dto/{Cliente,Mercado,Producto,Pedido}Dto.kt` (+`updatedAt`),
+`data/local/entity/{Cliente,Mercado,Producto,Pedido}Entity.kt` (+`updatedAt`),
+`data/mapper/{Cliente,Mercado,Producto,Pedido}Mapper.kt` (+`updatedAt` in `fromDto`),
+`data/local/AppDatabase.kt` (v16, `MIGRATION_15_16`),
+`di/DatabaseModule.kt` (+`MIGRATION_15_16`),
+`data/sync/EntitySyncer.kt` (interface: `sync(since: Long)`),
+`data/sync/impl/{Mercado,Cliente,Producto,Pedido}Syncer.kt` (delta logic),
+`data/sync/DataSynchronizer.kt` (`syncIfStale` + `forceSync` return `Boolean`),
+`domain/repository/{Cliente,Mercado,Producto,Pedido}Repository.kt` (`refresh(): Boolean`),
+`data/repository/impl/*RepositoryImpl.kt` (`refresh(): Boolean`),
+`domain/usecase/RefreshMercadoDataUseCase.kt` (new — parallel refresh of mercado+cliente+pedido),
+`domain/usecase/RefreshClienteDataUseCase.kt` (new — parallel refresh of cliente+pedido),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***UiState.kt` (+`refreshFailed`),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***ViewModel.kt` (+`_refreshFailed`, `onRefreshErrorDismissed`; Mercados+Clientes delegate to use cases),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***Screen.kt` (+`RefreshErrorToast` overlay),
+`ui/common/RefreshErrorToast.kt` (new),
+`res/values/strings.xml` (+`refresh_error_{title,subtitle,retry}`),
+`docs/db-schema.md` (v16, `updatedAt` columns, staging SQL),
+`docs/progress.md`
+
+---
+
+## ✅ Phase 10c — Remove Client-Side Pagination; Server-Side Range Fetch
+
+Replaced the UI load-more button with proper server-side batched fetching and LazyColumn unbounded rendering.
+
+**Why**: `LoadMoreButton` was slicing a list that was already in Room. LazyColumn renders only visible items regardless of list size, so client-side pagination had no performance benefit. The real concern — Supabase PostgREST's 1 000-row cap on a single `select()` — is now solved at the syncer layer.
+
+**Server-side range fetch (all 4 syncers)**:
+- Full-fetch path (`since == 0L`) replaced with a `while(true)` loop calling `supabase.from(...).select { range(offset, offset + BATCH_SIZE - 1) }`.
+- `BATCH_SIZE = 1000`. Loop breaks when `page.size < BATCH_SIZE`.
+- Results accumulated via `buildList { addAll(page) }`.
+- `PedidoSyncer` has two methods: `fetchAllPedidoPages()` and `fetchAllDetallPages()`.
+- Delta path (`since > 0L`) unchanged — PostgREST's row cap is not a concern there.
+
+**UI removal**:
+- `ui/common/LoadMoreButton.kt` — deleted.
+- All 4 UiStates — `visibleCount`, `visibleXxx`, `hasMore`, `PAGE_SIZE` removed.
+- All 4 ViewModels — `_visibleCount`, `onLoadMore()`, and related resets removed; use case extractions (`RefreshMercadoDataUseCase`, `RefreshClienteDataUseCase`) unchanged.
+- All 4 Screens — `onLoadMore` param removed; `items(state.visibleXxx)` → `items(state.xxx)`; `LoadMoreButton` item blocks removed.
+- `res/values/strings.xml` — `load_more_*` and `pagination_load_more_label` strings removed.
+
+**Files changed:**
+`data/sync/impl/{Mercado,Cliente,Producto,Pedido}Syncer.kt` (+`fetchAllPages()` / `fetchAllDetallPages()`),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***UiState.kt` (removed pagination fields),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***ViewModel.kt` (removed `_visibleCount`, `onLoadMore`),
+`ui/screen/{cliente,mercado,lista_negra,producto}/***Screen.kt` (removed `LoadMoreButton`),
+`ui/common/LoadMoreButton.kt` (deleted),
+`res/values/strings.xml` (removed `load_more_*`),
+`docs/progress.md`
 
 ---
 
@@ -69,6 +239,27 @@ New Room table `sync_operations` (Room v14, migration 13→14). Every repository
 `PedidosApp.kt`, `presentation/navigation/AppViewModel.kt`, `presentation/navigation/AppNavigation.kt`,
 `ui/screen/cliente/DetalleClienteActions.kt` (fixed pre-existing preview bug),
 `docs/features/infrastructure.md`, `docs/progress.md`
+
+---
+
+## ✅ Phase 9f — In-app theme switcher (Claro / Oscuro / Sistema)
+
+Three-way theme selector added to **Mi Perfil → Ajustes** (visible to all users). Full details in `docs/features/perfil.md → Theme system`.
+
+### What changed
+
+**New files:**
+- `domain/model/ThemeMode.kt` — `LIGHT`, `DARK`, `SYSTEM` enum
+- `data/prefs/ThemeManager.kt` — `@Singleton`, `SharedPreferences("theme_prefs")`, `StateFlow<ThemeMode>` + `setTheme()`
+
+**Updated files:**
+- `ui/theme/Theme.kt` — `EcomerceCarlosVTheme` now accepts `themeMode: ThemeMode`; resolves `darkTheme` from it; `SideEffect` drives `isAppearanceLightStatusBars` / `isAppearanceLightNavigationBars` via `WindowCompat.getInsetsController` so the device status bar and navigation bar icons follow the theme
+- `MainActivity.kt` — field-injects `ThemeManager`; collects `themeMode` flow inside `setContent`; passes it to `EcomerceCarlosVTheme`
+- `ui/screen/perfil/PerfilUiState.kt` — added `themeMode: ThemeMode`
+- `ui/screen/perfil/PerfilViewModel.kt` — injects `ThemeManager`; collects theme flow → `state.themeMode`; exposes `setTheme()`
+- `ui/screen/perfil/PerfilScreen.kt` — new `AppearanceCard` composable (rounded card, moon icon header, 3-button segment selector); "Ajustes" section now shown for **all users** (was superuser-only); Umbrales row remains inside Ajustes but superuser-gated
+- `res/values/strings.xml` — added `perfil_apariencia_title`, `perfil_apariencia_subtitle`, `perfil_theme_light`, `perfil_theme_dark`, `perfil_theme_system`
+- `docs/features/perfil.md`, `docs/progress.md`
 
 ---
 

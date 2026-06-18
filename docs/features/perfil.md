@@ -1,6 +1,6 @@
 # Mi Perfil
 
-Screen accessible from the Home bottom bar. Shows identity info, security settings, and (for superusers) team management and system configuration.
+Screen accessible from the Home bottom bar. Shows identity info, security settings, team management (superusers), and appearance settings (all users).
 
 ## Sections
 
@@ -15,11 +15,33 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 ### Equipo *(superuser only)*
 - **Gestión de usuarios** — navigates to `GestionUsuariosRoute`. Subtitle shows total users + superuser count.
 
-### Ajustes *(superuser only)*
-- **Umbrales de estado** (`Icons.Default.BarChart`) — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value (via `PerfilViewModel`).
+### Ajustes *(all users)*
+- **Apariencia** — in-card segment selector with three options: Claro / Oscuro / Sistema. Active option has accent background + white text/icon; inactive options are transparent. Persisted via `ThemeManager`; change takes effect instantly app-wide including system status bar and navigation bar icons.
+- **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value.
 
 ### Logout
 - Red tinted button, clears session and navigates to `LoginRoute` with full backstack pop.
+
+---
+
+## Theme system
+
+### `ThemeMode` enum
+`domain/model/ThemeMode.kt` — three values: `LIGHT`, `DARK`, `SYSTEM`.
+
+### `ThemeManager`
+`data/prefs/ThemeManager.kt` — `@Singleton`. Persists the selected mode to `SharedPreferences("theme_prefs")` under key `theme_mode` (stored as `ThemeMode.ordinal`). Exposes `StateFlow<ThemeMode>`.
+
+```kotlin
+themeManager.setTheme(ThemeMode.DARK)
+themeManager.themeMode // StateFlow<ThemeMode>
+```
+
+### `EcomerceCarlosVTheme` wiring
+`Theme.kt` — accepts a `themeMode: ThemeMode` parameter (default `SYSTEM`). Resolves `darkTheme` from it (`SYSTEM` follows `isSystemInDarkTheme()`). A `SideEffect` calls `WindowCompat.getInsetsController` to flip `isAppearanceLightStatusBars` and `isAppearanceLightNavigationBars` so system bar icon colors track the active theme in real time.
+
+### `MainActivity` wiring
+`ThemeManager` is field-injected (`@Inject`). Inside `setContent`, `themeManager.themeMode` is collected via `collectAsStateWithLifecycle` and passed to `EcomerceCarlosVTheme(themeMode = ...)`. The entire app re-themes on every emission without recreating the Activity.
 
 ---
 
@@ -61,4 +83,8 @@ data class Umbrales(
 
 ## ViewModel: `PerfilViewModel`
 
-Injects `UmbralesManager`. On `init` it launches a `collect` on `umbralesManager.umbrales` and updates `state.umbralesSummary` with a human-readable string (`"Crítico desde Bs. X o Y días sin pagar"`). This keeps the subtitle in the Perfil row live without any manual refresh.
+Injects `UmbralesManager` and `ThemeManager`. On `init` it launches:
+- A `collect` on `umbralesManager.umbrales` → updates `state.umbralesSummary`.
+- A `collect` on `themeManager.themeMode` → updates `state.themeMode`.
+
+`setTheme(mode: ThemeMode)` delegates directly to `themeManager.setTheme(mode)`.

@@ -77,3 +77,6 @@ data class ReporteClienteRoute(val clienteId: String)
 
 @Serializable
 object ReporteStatusRoute
+
+@Serializable
+object SincronizacionRoute

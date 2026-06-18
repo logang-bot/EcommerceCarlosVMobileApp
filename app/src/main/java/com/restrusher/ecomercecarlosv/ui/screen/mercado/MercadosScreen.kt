@@ -22,6 +22,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,7 +38,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Notifications
+import com.restrusher.ecomercecarlosv.ui.common.SyncBarIcon
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -69,6 +71,8 @@ import com.restrusher.ecomercecarlosv.presentation.screens.CreateMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
+import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
@@ -81,6 +85,7 @@ fun MercadosScreen(
     navController: NavController,
     selectedTab: Int = 0,
     onTabSelected: (Int) -> Unit = {},
+    onSyncClick: () -> Unit = {},
     viewModel: MercadosViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -99,6 +104,9 @@ fun MercadosScreen(
         onPerfilClick = { navController.navigate(PerfilRoute) },
         onSearchClick = { navController.navigate(BusquedaRoute) },
         onClearSelection = viewModel::clearSelection,
+        onSyncClick = onSyncClick,
+        onRefresh = viewModel::onRefresh,
+        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
@@ -122,6 +130,7 @@ private fun LogoMark() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MercadosContent(
     state: MercadosUiState,
@@ -135,6 +144,9 @@ private fun MercadosContent(
     onPerfilClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onClearSelection: () -> Unit = {},
+    onSyncClick: () -> Unit = {},
+    onRefresh: () -> Unit = {},
+    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val count = state.mercados.size
     val isSelecting = state.selectedMercadoId != null
@@ -158,9 +170,7 @@ private fun MercadosContent(
                         IconButton(onClick = onSearchClick) {
                             Icon(Icons.Default.Search, contentDescription = null)
                         }
-                        IconButton(onClick = { }) {
-                            Icon(Icons.Default.Notifications, contentDescription = null)
-                        }
+                        SyncBarIcon(state = state.syncIconState, onClick = onSyncClick)
                         IconButton(onClick = onPerfilClick) {
                             ProfileAvatar(initials = state.currentUserInitials.ifBlank { "?" }, photoUrl = state.currentUserPhotoUrl, size = 30)
                         }
@@ -180,49 +190,69 @@ private fun MercadosContent(
             }
         },
     ) { innerPadding ->
-        if (state.mercados.isEmpty() && !state.isLoading) {
-            EmptyState(
-                modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.GridView,
-                title = stringResource(R.string.mercados_empty_title),
-                subtitle = stringResource(R.string.mercados_empty_subtitle),
-                hint = stringResource(R.string.mercados_empty_hint),
-                onActionClick = onCreateClick,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() + 4.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                ),
-            ) {
-                if (isSelecting) {
-                    item {
-                        SelectionHint()
-                    }
-                }
-                items(state.mercados, key = { it.id }) { mercado ->
-                    val selected = mercado.id == state.selectedMercadoId
-                    MercadoRow(
-                        mercado = mercado,
-                        stat = state.stats[mercado.id] ?: MercadoStat(),
-                        selected = selected,
-                        onClick = { onMercadoClick(mercado.id) },
-                        onLongClick = { onMercadoLongPress(mercado.id) },
+        Box(modifier = Modifier.fillMaxSize()) {
+            LoadingOverlay(isLoading = state.isLoading) {
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                if (state.mercados.isEmpty() && !state.isLoading) {
+                    EmptyState(
+                        modifier = Modifier.padding(innerPadding),
+                        icon = Icons.Default.GridView,
+                        title = stringResource(R.string.mercados_empty_title),
+                        subtitle = stringResource(R.string.mercados_empty_subtitle),
+                        hint = stringResource(R.string.mercados_empty_hint),
+                        onActionClick = onCreateClick,
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 78.dp),
-                        color = MaterialTheme.extendedColors.border,
-                    )
-                }
-                if (!isSelecting) {
-                    item {
-                        Spacer(Modifier.height(18.dp))
-                        ListaNegraButton(onClick = onListaNegraClick)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding() + 4.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 16.dp,
+                        ),
+                    ) {
+                        if (isSelecting) {
+                            item { SelectionHint() }
+                        }
+                        items(state.mercados, key = { it.id }) { mercado ->
+                            val selected = mercado.id == state.selectedMercadoId
+                            MercadoRow(
+                                mercado = mercado,
+                                stat = state.stats[mercado.id] ?: MercadoStat(),
+                                selected = selected,
+                                onClick = { onMercadoClick(mercado.id) },
+                                onLongClick = { onMercadoLongPress(mercado.id) },
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 78.dp),
+                                color = MaterialTheme.extendedColors.border,
+                            )
+                        }
+                        if (!isSelecting) {
+                            item {
+                                Spacer(Modifier.height(18.dp))
+                                ListaNegraButton(onClick = onListaNegraClick)
+                            }
+                        }
                     }
                 }
             }
+        }
+        if (state.refreshFailed) {
+            RefreshErrorToast(
+                onRetry = onRefresh,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = innerPadding.calculateBottomPadding() + 12.dp,
+                    ),
+            )
+        }
         }
     }
 }
@@ -441,7 +471,7 @@ private fun ListaNegraButton(modifier: Modifier = Modifier, onClick: () -> Unit)
 @Composable
 private fun MercadosScreenDarkPreview() {
     EcomerceCarlosVTheme(darkTheme = true) {
-        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {}, {}, {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -449,7 +479,7 @@ private fun MercadosScreenDarkPreview() {
 @Composable
 private fun MercadosScreenPreview() {
     EcomerceCarlosVTheme(darkTheme = false) {
-        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {}, {}, {}, {}, {})
+        MercadosContent(MercadosUiState(currentUserInitials = "CV"), 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 

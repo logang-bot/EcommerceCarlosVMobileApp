@@ -44,11 +44,14 @@ class DetalleClienteViewModel @Inject constructor(
             clienteRepository.getByIdFlow(clienteId),
             pedidoRepository.getByClienteWithLines(clienteId),
             umbralesManager.umbrales,
-        ) { cliente, pedidos, umbrales -> Triple(cliente, pedidos, umbrales) },
+            pedidoRepository.isSyncing,
+        ) { cliente, pedidos, umbrales, isSyncing ->
+            Pair(Triple(cliente, pedidos, umbrales), isSyncing && pedidos.isEmpty())
+        },
         combine(_showUnblacklistSheet, _pedidoFilters, sessionManager.currentUser) { showSheet, filters, user ->
             Triple(showSheet, filters, user)
         },
-    ) { triple1, triple2 ->
+    ) { (triple1, isLoading), triple2 ->
         val (cliente, pedidos, umbrales) = triple1
         val (showSheet, filters, user) = triple2
         val unpaidRegular = pedidos.filter { !it.isSaldoExtra && it.status != PedidoStatus.PAID }
@@ -72,7 +75,7 @@ class DetalleClienteViewModel @Inject constructor(
             extraBalance = unpaidExtra.sumOf { it.pending },
             unpaidExtraCount = unpaidExtra.size,
             status = computeStatus(statusBalance, pedidos, umbrales),
-            isLoading = false,
+            isLoading = isLoading,
             showUnblacklistSheet = showSheet,
             pedidoFilters = filters,
             canWrite = user?.role != UserRole.INVITADO,

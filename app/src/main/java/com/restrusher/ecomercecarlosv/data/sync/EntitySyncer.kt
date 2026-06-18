@@ -7,5 +7,6 @@ sealed class SyncResult {
 }
 
 interface EntitySyncer {
-    suspend fun sync(): SyncResult
+    /** [since] = epoch-ms of last successful sync. 0 means first run → full fetch. */
+    suspend fun sync(since: Long = 0L): SyncResult
 }

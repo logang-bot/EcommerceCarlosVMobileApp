@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.perfil
 
+import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 
 data class PerfilUiState(
@@ -14,5 +15,6 @@ data class PerfilUiState(
     val biometricEnabledDate: String? = null,
     val teamSummary: String = "",
     val umbralesSummary: String = "Crítico desde Bs. 200 o 30 días sin pagar",
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val isLoading: Boolean = true,
 )

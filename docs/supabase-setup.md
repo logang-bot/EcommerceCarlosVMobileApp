@@ -22,9 +22,11 @@ In the Supabase dashboard → **SQL Editor**, run the following files **in order
 
 | Order | File | What it does |
 |-------|------|--------------|
-| 1 | `docs/sql/schema.sql` | Creates all tables with FK constraints and indexes |
+| 1 | `docs/sql/schema.sql` | Creates all tables, indexes, triggers, and the `set_updated_at_ms` function |
 | 2 | `docs/sql/rls.sql` | Enables Row Level Security and adds per-table policies |
 | 3 | `docs/sql/storage.sql` | Creates photo storage buckets and their access policies |
+
+> `schema.sql` already includes the `updated_at` column, the auto-update trigger, and the delta-sync indexes on all four business tables. No extra SQL is needed for a fresh environment.
 
 ---
 
@@ -128,12 +130,13 @@ The `SUPABASE_SERVICE_ROLE_KEY` is compiled into the APK via `BuildConfig` and i
 
 ### Staging
 - [x] Supabase project created
-- [x] `schema.sql` executed
+- [x] `schema.sql` executed *(v1 — no `updated_at`)*
 - [x] `rls.sql` executed
 - [x] `storage.sql` executed
 - [x] `local.properties` updated with staging values
 - [x] First SUPERUSUARIO created (auth user + `users` table row)
 - [x] `stagingDebug` variant selected — login works end-to-end
+- [ ] **Phase 10b migration** — run the ALTER TABLE statements from `docs/db-schema.md` → "Staging environment changes" section to add `updated_at` + triggers + indexes to the existing staging DB
 
 ### Production
 - [ ] Supabase project created

@@ -14,15 +14,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +54,8 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
+import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
@@ -69,15 +73,20 @@ fun ListaNegraScreen(
         onBack = { navController.popBackStack() },
         onQueryChange = viewModel::onQueryChange,
         onClienteClick = { clienteId -> navController.navigate(DetalleClienteRoute(clienteId)) },
+        onRefresh = viewModel::onRefresh,
+        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ListaNegraContent(
     state: ListaNegraUiState,
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onClienteClick: (String) -> Unit,
+    onRefresh: () -> Unit = {},
+    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     var searchActive by remember { mutableStateOf(false) }
@@ -126,43 +135,60 @@ private fun ListaNegraContent(
             }
         },
     ) { innerPadding ->
-        when {
-            state.isLoading -> Box(
-                Modifier.padding(innerPadding).fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
-
-            state.items.isEmpty() -> EmptyState(
-                modifier = Modifier.padding(innerPadding),
-                icon = Icons.Default.Block,
-                title = stringResource(R.string.lista_negra_empty_title),
-                subtitle = stringResource(R.string.lista_negra_empty_subtitle),
-            )
-
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding() + 4.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                ),
-            ) {
-                item { ListaNegraBanner(count = state.items.size, totalBalance = state.totalBalance) }
-                if (state.filtered.isEmpty()) {
-                    item {
-                        EmptyState(
-                            icon = Icons.Default.Search,
-                            title = stringResource(R.string.lista_negra_no_results_title),
-                            subtitle = stringResource(R.string.lista_negra_no_results_subtitle),
-                            compact = true,
-                            modifier = Modifier.height(280.dp),
-                        )
-                    }
+        Box(modifier = Modifier.fillMaxSize()) {
+            LoadingOverlay(isLoading = state.isLoading) {
+                PullToRefreshBox(
+                    isRefreshing = state.isRefreshing,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                if (!state.isLoading && state.items.isEmpty()) {
+                    EmptyState(
+                        modifier = Modifier.padding(innerPadding),
+                        icon = Icons.Default.Block,
+                        title = stringResource(R.string.lista_negra_empty_title),
+                        subtitle = stringResource(R.string.lista_negra_empty_subtitle),
+                    )
                 } else {
-                    items(state.filtered, key = { it.clienteId }) { model ->
-                        BlacklistRow(model = model, onClick = { onClienteClick(model.clienteId) })
-                        HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding() + 4.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 16.dp,
+                        ),
+                    ) {
+                        item { ListaNegraBanner(count = state.items.size, totalBalance = state.totalBalance) }
+                        if (state.filtered.isEmpty()) {
+                            item {
+                                EmptyState(
+                                    icon = Icons.Default.Search,
+                                    title = stringResource(R.string.lista_negra_no_results_title),
+                                    subtitle = stringResource(R.string.lista_negra_no_results_subtitle),
+                                    compact = true,
+                                    modifier = Modifier.height(280.dp),
+                                )
+                            }
+                        } else {
+                            items(state.filtered, key = { it.clienteId }) { model ->
+                                BlacklistRow(model = model, onClick = { onClienteClick(model.clienteId) })
+                                HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
+                            }
+                        }
                     }
                 }
+            }
+            }
+            if (state.refreshFailed) {
+                RefreshErrorToast(
+                    onRetry = onRefresh,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = innerPadding.calculateBottomPadding() + 12.dp,
+                        ),
+                )
             }
         }
     }

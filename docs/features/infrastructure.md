@@ -137,7 +137,7 @@ QueueProcessor picks it up and pushes to Supabase (background)
 
 The user never waits for the network. The UI is always driven by Room.
 
-### Room table: `sync_operations` (Room v14)
+### Room table: `sync_operations` (Room v15)
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -147,6 +147,7 @@ The user never waits for the network. The UI is always driven by Room.
 | `operation` | `TEXT` | `UPSERT` · `DELETE` |
 | `createdAt` | `INTEGER` | Epoch ms — used for deduplication ordering |
 | `retryCount` | `INTEGER` | Incremented on each failed push attempt within a flush run |
+| `entityLabel` | `TEXT` | Human-readable label shown in the Sincronización screen (e.g. `"Bs. 120,00"` for a pedido, `"Mercado de Coche"` for a mercado). Added in MIGRATION_14_15. |
 
 ### Write path (repositories)
 
@@ -175,15 +176,19 @@ Affected repositories: `MercadoRepositoryImpl`, `ClienteRepositoryImpl`, `Produc
 **Trigger 1 — connectivity restore:**
 Collects `NetworkMonitor.isOnlineFlow`. Calls `flush()` every time the device goes from offline to online.
 
-**Trigger 2 — new entry enqueued while already online:**
-Observes `MAX(id)` from `sync_operations` via `observeLatestEnqueuedId(): Flow<Long>`. Since `id` is auto-incremented, every new insert produces a strictly higher `MAX(id)`. When `distinctUntilChanged` detects a new value and the device is online, `flush()` is called immediately.
+**Trigger 2 — new entry enqueued (and startup orphan recovery):**
+Observes `MAX(id)` from `sync_operations` via `observeLatestEnqueuedId(): Flow<Long>`. Since `id` is auto-incremented, every new insert produces a strictly higher `MAX(id)`. When `distinctUntilChanged` detects a new value and the device is online, `flush()` is called immediately. It also calls `SyncWorker.schedule()` unconditionally so a WorkManager job is always queued as a fallback in case the app dies before the in-process flush completes.
+
+Room `Flow` queries **emit the current DB value immediately when collection starts**, not only on subsequent changes. This means Trigger 2 also acts as an **orphan recovery mechanism on every app launch**: if rows survived a previous force-stop, `MAX(id) > 0` fires the moment `QueueProcessor.start()` begins collecting, flushing them in-process right away (if online) or queuing a WorkManager job (if offline).
 
 > **Why `MAX(id)` and not `COUNT(*)`?**
 > If a deletion and insertion happen at the same time, Room may coalesce both changes into a single table notification. `COUNT(*)` could return the same number before and after (e.g. 3→2→3 coalesced to 3→3), and `distinctUntilChanged` would suppress it, missing the new row. `MAX(id)` always increases on a new insert regardless of concurrent deletions, so it can never miss an enqueue event.
 
 ### flush() algorithm
 
-1. Load all pending entries from `sync_operations` where `retryCount < 3`.
+`flush()` returns `Boolean` — `true` if at least one op failed, `false` if everything was pushed successfully (or the queue was empty). `SyncWorker` uses this return value to decide between `Result.success()` and `Result.retry()`.
+
+1. Load **all** pending entries from `sync_operations` (no retry-count filter — WorkManager backoff is the retry gate, not a per-row counter).
 2. Deduplicate by `(entityType, entityId)`:
    - `DELETE` always wins over `UPSERT` for the same entity.
    - Multiple `UPSERT` entries collapse into one (latest wins by `createdAt`).
@@ -191,40 +196,66 @@ Observes `MAX(id)` from `sync_operations` via `observeLatestEnqueuedId(): Flow<L
    - **UPSERT**: read the current entity state from Room → push DTO to Supabase via `upsert()`.
    - **DELETE**: call `supabase.from(table).delete { filter { eq("id", entityId) } }`.
 4. On success: delete all raw queue entries for that entity.
-5. On failure: increment `retryCount` for all raw entries for that entity, wait 2 seconds, continue to next entity.
+5. On failure: increment `retryCount` for all raw entries for that entity (observability only — not used to gate retries), set `anyFailed = true`, continue to next entity.
+6. Return `anyFailed`.
 
 **PEDIDO UPSERT** also pushes the current `detalle_pedido` rows: it deletes all remote detalles for the pedido and re-inserts the current Room set. This ensures line-item edits are always consistent.
 
-### SyncWorker — periodic background safety net
+### SyncWorker — background safety net with exponential backoff
 
 **Package:** `data/queue/SyncWorker`
 
-A `@HiltWorker` (WorkManager) that runs every **15 minutes** whenever the device has network connectivity. It acts as a safety net for two scenarios:
-
-1. The app was killed with pending rows in the queue — `QueueProcessor`'s coroutines died but the Room rows survived.
-2. All in-session flush attempts exhausted their 3-try limit — rows are stuck until the next worker run resets them.
+A `@HiltWorker` (WorkManager) that acts as the safety net for the write queue. It covers the scenario where the app is killed with pending rows in the queue — `QueueProcessor`'s coroutines died, but the Room rows survived.
 
 ```kotlin
 override suspend fun doWork(): Result {
-    syncOperationDao.resetAllRetryCount()  // give all rows a fresh start
-    queueProcessor.flush()
-    return Result.success()
+    val anyFailed = queueProcessor.flush()
+    return if (anyFailed) Result.retry() else Result.success()
 }
 ```
 
-`resetAllRetryCount()` sets every row's `retryCount` back to 0 before flushing. This means rows are **never permanently abandoned** — they get up to 3 attempts per flush session, and a fresh 3 attempts on every subsequent WorkManager run.
+- If `flush()` pushed every pending op successfully → `Result.success()`. The worker is done; the next write will schedule a new one.
+- If any op failed → `Result.retry()`. WorkManager automatically reschedules the worker with **exponential backoff**: 30 s → 60 s → 120 s → … capped at WorkManager's internal maximum (~5 hours). No manual retry logic is needed.
 
-Scheduled in `PedidosApp.onCreate()` with `ExistingPeriodicWorkPolicy.KEEP` (won't re-schedule if already enqueued).
+```kotlin
+fun schedule(workManager: WorkManager) {
+    val request = OneTimeWorkRequestBuilder<SyncWorker>()
+        .setConstraints(
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        )
+        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+        .build()
+    workManager.enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.KEEP, request)
+}
+```
+
+Key properties of `schedule()`:
+
+| Property | Value | Effect |
+|---|---|---|
+| `OneTimeWorkRequest` | — | Worker fires once; a new job is only created by the next write |
+| `NetworkType.CONNECTED` | — | Worker won't run without internet; WorkManager watches `ConnectivityManager.NetworkCallback` and fires automatically on reconnect |
+| `BackoffPolicy.EXPONENTIAL, 30s` | — | On `Result.retry()`: 30 s → 60 s → 120 s → … up to ~5 h |
+| `ExistingWorkPolicy.KEEP` | — | If a worker is already pending or in backoff, a new `schedule()` call is silently ignored |
+
+`schedule()` is called from two places:
+1. **`QueueProcessor.start()`** — called every time `observeLatestEnqueuedId()` emits (new write or startup with orphaned rows). This is the primary scheduling path. With `KEEP`, it is a no-op when a worker is already pending.
+2. **`PedidosApp.onCreate()`** — narrow insurance against a race condition: if the app is killed in the brief window between `onCreate()` returning and `QueueProcessor`'s coroutines starting, WorkManager already has a job queued. In practice this window is milliseconds and the scenario is extremely unlikely, but the call costs nothing. With `KEEP`, it is a no-op in all normal cases where `QueueProcessor` has already scheduled a job.
+
+> The primary orphan recovery is handled by `QueueProcessor` itself (Trigger 2 above). `SyncWorker.schedule()` in `onCreate()` is purely a last-resort belt-and-suspenders measure, not the main mechanism.
+
+This means a WorkManager job is **always scheduled** whenever there is a pending op in the queue, regardless of whether the in-process flush succeeded or the app was killed mid-session.
 
 ### Retry lifecycle
 
 | Event | What happens |
 |---|---|
-| Push fails | `retryCount++`, 2s delay, continue with next entity |
-| `retryCount` reaches 3 | Row skipped by `getPending()` for this flush run; logged to Logcat via `QueueProcessor` tag |
-| Next connectivity restore | `flush()` runs again (rows with `retryCount < 3` only) |
-| Next `SyncWorker` run (≤15 min) | `resetAllRetryCount()` → all rows eligible again → `flush()` |
-| App killed | Room rows survive; `SyncWorker` picks them up within 15 min |
+| Push fails | `retryCount++` (observability), `anyFailed = true`, continue to next entity |
+| `flush()` returns `true` (any failure) | `SyncWorker` returns `Result.retry()` → WorkManager reschedules with backoff |
+| WorkManager backoff schedule | 30 s → 60 s → 120 s → 240 s → … (capped at ~5 h) |
+| Connectivity restored (in-process) | `QueueProcessor.isOnlineFlow` triggers `flush()` immediately regardless of backoff |
+| New write while worker is in backoff | `QueueProcessor` calls `flush()` in-process immediately (app alive); WorkManager KEEP ensures a job is also queued for the app-killed case |
+| App killed with pending rows | Room rows survive; `SyncWorker` picks them up when device reconnects or on next app launch |
 
 ---
 
@@ -270,36 +301,52 @@ Device goes back online
 
 ```
 User creates a pedido while offline → row in sync_operations
+observeLatestEnqueuedId() emits → SyncWorker.schedule() called (WorkManager job queued)
 User force-kills the app
-  [QueueProcessor coroutines are dead, but Room row survives]
+  [QueueProcessor coroutines are dead, but Room row and WorkManager job survive]
 
-15 minutes later — WorkManager SyncWorker fires (device is online)
-  ↓ syncOperationDao.resetAllRetryCount()
+Device goes online → WorkManager fires SyncWorker (CONNECTED constraint satisfied)
   ↓ queueProcessor.flush()
     - Finds the pending PEDIDO UPSERT row
-    - Pushes pedido + detalles to Supabase → ✅
-    - Deletes row
+    - Pushes pedido + detalles to Supabase → ✅ → returns false
+  ↓ Result.success() — worker is done
 ```
 
 ### Scenario 4: Supabase is temporarily down
 
 ```
 User edits a mercado → row enqueued (id=7)
-flush() runs:
-  - Attempt 1: Supabase 503 → retryCount=1, wait 2s
-  - Attempt 2: Supabase 503 → retryCount=2, wait 2s
-  - Attempt 3: Supabase 503 → retryCount=3, wait 2s
-  - Row now has retryCount=3 → skipped by getPending()
+  ↓ SyncWorker.schedule() called (WorkManager job queued)
+  ↓ networkMonitor.isOnline == true → flush() called in-process
+    - Supabase 503 → retryCount=1 → returns true (anyFailed)
 
-[Supabase comes back 10 minutes later]
+SyncWorker doWork() runs:
+  ↓ flush() → Supabase 503 → retryCount=2 → returns true
+  ↓ Result.retry() → WorkManager backoff: wait 30 s
 
-SyncWorker fires:
-  ↓ resetAllRetryCount() → row id=7 retryCount reset to 0
-  ↓ flush():
-    - Supabase is healthy → push succeeds → row deleted ✅
+30 s later — WorkManager retries:
+  ↓ flush() → Supabase 503 → retryCount=3 → returns true
+  ↓ Result.retry() → WorkManager backoff: wait 60 s
+
+60 s later — WorkManager retries:
+  ↓ flush() → Supabase is healthy → push succeeds → row deleted ✅ → returns false
+  ↓ Result.success() — worker is done
 ```
 
-### Scenario 5: Edit → delete same entity before flush
+### Scenario 5 (updated): New write while worker is in backoff
+
+```
+User edits cliente A → row enqueued (id=10)
+  ↓ SyncWorker.schedule() → KEEP: worker already in 60 s backoff, ignored
+  ↓ networkMonitor.isOnline == true → flush() called in-process immediately
+    - Supabase recovers → push succeeds → row deleted ✅
+
+WorkManager backoff eventually fires → flush() finds empty queue → returns false → Result.success()
+```
+
+The in-process path always bypasses WorkManager backoff while the app is alive.
+
+### Scenario 6: Edit → delete same entity before flush
 
 ```
 User creates cliente A → UPSERT enqueued (id=10)
@@ -313,21 +360,117 @@ flush() deduplicates (entityType=CLIENTE, entityId=<A>):
 
 ---
 
+---
+
+## Local Notifications (SyncNotifier)
+
+**Package:** `data/queue/SyncNotifier`
+
+Shows a system notification for each `SyncWorker` run so the user knows their data is being sent even when the app is in the background.
+
+### Channel setup
+
+`createChannel()` is called once in `PedidosApp.onCreate()`. It registers a `NotificationChannelCompat` with:
+- ID: `sync_channel`
+- Importance: `IMPORTANCE_LOW` — no sound, no vibration, appears silently in the notification shade.
+- The call is idempotent (Android ignores it if the channel already exists).
+
+### Three notification states
+
+All three share the same `NOTIFICATION_ID = 1001`, so each replaces the previous one instead of stacking.
+
+| Method | Title string | Notable flags |
+|---|---|---|
+| `notifyStarted()` | `sync_notification_started_title` | `setProgress(0,0,true)` (indeterminate bar) + `setOngoing(true)` (not dismissible) |
+| `notifySuccess()` | `sync_notification_success_title` | `setAutoCancel(true)` (dismissed on tap) |
+| `notifyFailure()` | `sync_notification_failure_title` | `setAutoCancel(true)` + body text via `sync_notification_failure_body` |
+
+`SyncWorker` calls them in sequence: `notifyStarted()` at the top of `doWork()`, then either `notifySuccess()` or `notifyFailure()` depending on whether `flush()` returned `true`.
+
+### Permission guard
+
+`show()` has two silent bail-outs before posting:
+1. **Android 13+ (TIRAMISU):** checks `POST_NOTIFICATIONS` at runtime — skips the notification if not granted.
+2. **`areNotificationsEnabled()`:** covers the case where the user disabled notifications for the app globally in system settings.
+
+The `@SuppressLint("MissingPermission")` annotation is present because the lint rule can't see that the check is already done inside `show()`.
+
+### Permission request
+
+`POST_NOTIFICATIONS` is declared in `AndroidManifest.xml` and requested at runtime **immediately after a successful login** in `LoginScreen`. A `rememberLauncherForActivityResult(RequestPermission)` launcher wraps the `onLoginSuccess` callback:
+
+```kotlin
+val handleLoginSuccess: () -> Unit = {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    onLoginSuccess()  // navigates away — permission dialog appears on top of the next screen
+}
+```
+
+The system dialog fires as an overlay on the destination screen. If the user denies it, `SyncNotifier.show()` silently skips future notifications — no crash, no retry loop.
+
+---
+
+## Sincronización Screen
+
+**Package:** `ui/screen/sincronizacion/`  
+**Route:** `SincronizacionRoute` (from `AppRoutes.kt`)  
+**Entry point:** `SyncBarIcon` in the MercadosScreen top bar — tap to navigate.
+
+### Three states
+
+| State | Condition | Icon | Dot badge |
+|-------|-----------|------|-----------|
+| `SYNCED` | `sync_operations` table is empty | `CloudDone` (onSurface) | none |
+| `PENDING` | Table has rows, all `retryCount == 0` | `CloudUpload` (onSurface) | blue |
+| `ERROR` | Any row has `retryCount > 0` | `CloudOff` (amberText) | amber |
+
+### How `syncIconState` is derived
+
+`SincronizacionViewModel` and `MercadosViewModel` both observe `syncOperationDao.observeAll()`:
+
+```kotlin
+val iconState = when {
+    allOps.isEmpty()              -> SyncIconState.SYNCED
+    allOps.any { it.retryCount > 0 } -> SyncIconState.ERROR
+    else                          -> SyncIconState.PENDING
+}
+```
+
+The same state drives both the `SyncBarIcon` badge in the top bar and the full Sincronización screen layout.
+
+### Retry button
+
+The ERROR state shows a "Reintentar envío" button in `SyncBanner`. It calls `SincronizacionViewModel.onRetry()`, which calls `QueueProcessor.triggerFlush()`. `triggerFlush()` checks `networkMonitor.isOnline` and, if true, calls `flush()` in the app's `CoroutineScope`. If any ops are still failing, `retryCount` remains > 0 and the screen stays in ERROR state. Once all ops succeed, the table empties and the screen transitions to SYNCED.
+
+### `lastSuccessfulFlushAt`
+
+`QueueProcessor` exposes a `StateFlow<Long?>` that is set to `System.currentTimeMillis()` at the end of every `flush()` call where `!anyFailed` and the queue was not empty. The SYNCED state chip reads this to show "Última sincronización · hace X min".
+
+---
+
 ## Wiring Summary
 
 ```
 PedidosApp.onCreate()
-  ├── dataSynchronizer.start()    ← registers connectivity-restore listener (clears staleness map)
-  ├── queueProcessor.start()     ← two flush triggers (connectivity + new entry)
-  └── SyncWorker.schedule()      ← WorkManager periodic 15-min background flush
+  ├── syncNotifier.createChannel()  ← registers the notification channel (idempotent)
+  ├── dataSynchronizer.start()      ← registers connectivity-restore listener (clears staleness map)
+  ├── queueProcessor.start()        ← two flush triggers (connectivity + new entry) + schedules WM job on each enqueue
+  └── SyncWorker.schedule()         ← safety net: ensures a WM job exists to push any rows that survived a previous force-stop (rows are only deleted after a successful Supabase push, never before)
 
 Repository.getXxx() [any primary read Flow method]
   └── dataSynchronizer.triggerSyncIfStale(entityType, threshold)
         └── if stale + online → background coroutine → syncer.sync() → Room updated → Flow emits
 
+MercadosScreen (top bar)
+  └── SyncBarIcon(state = state.syncIconState, onClick = onSyncClick)
+        └── onSyncClick → navController.navigate(SincronizacionRoute)
+
 AppNavigation
-  └── LaunchedEffect(Unit)
-        └── errorHandler.errors.collect → Toast.makeText(...)
+  ├── LaunchedEffect(Unit)
+  │     └── errorHandler.errors.collect → Toast.makeText(...)
+  └── HomeRoute → HomeScreen(onSyncClick = { navController.navigate(SincronizacionRoute) })
 ```
 
 ---
