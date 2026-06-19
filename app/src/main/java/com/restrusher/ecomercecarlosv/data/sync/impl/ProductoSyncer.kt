@@ -25,7 +25,11 @@ class ProductoSyncer @Inject constructor(
                 }.decodeList<ProductoDto>()
             }
             dtos.forEach { dto ->
-                dao.insert(ProductoMapper.fromDto(dto))
+                if (dto.isDeleted) {
+                    dao.deleteById(dto.id)
+                } else {
+                    dao.insert(ProductoMapper.fromDto(dto))
+                }
             }
             Log.d(TAG, "${if (since > 0L) "delta" else "full"} sync: ${dtos.size} productos")
             SyncResult.Success
@@ -39,6 +43,7 @@ class ProductoSyncer @Inject constructor(
         var offset = 0L
         while (true) {
             val page = supabase.from("productos").select {
+                filter { eq("is_deleted", false) }
                 range(offset, offset + BATCH_SIZE - 1)
             }.decodeList<ProductoDto>()
             addAll(page)

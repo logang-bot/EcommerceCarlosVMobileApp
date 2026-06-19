@@ -42,7 +42,7 @@ class MercadoRepositoryImpl @Inject constructor(
 
     override suspend fun delete(id: String) {
         val label = dao.getById(id)?.name ?: ""
-        dao.deleteById(id)
+        dao.softDeleteById(id)
         enqueue(SyncOp.DELETE, id, label)
     }
 

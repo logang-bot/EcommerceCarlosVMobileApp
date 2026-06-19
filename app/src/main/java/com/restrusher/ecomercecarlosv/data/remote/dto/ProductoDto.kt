@@ -13,4 +13,5 @@ data class ProductoDto(
     @SerialName("is_active") val isActive: Boolean = true,
     @SerialName("created_at") val createdAt: Long,
     @SerialName("updated_at") val updatedAt: Long = 0L,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
 )

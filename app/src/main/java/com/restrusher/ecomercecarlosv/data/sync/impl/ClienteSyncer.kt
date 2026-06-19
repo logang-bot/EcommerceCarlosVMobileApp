@@ -25,9 +25,13 @@ class ClienteSyncer @Inject constructor(
                 }.decodeList<ClienteDto>()
             }
             dtos.forEach { dto ->
-                val existing = dao.getById(dto.id)
-                val entity = ClienteMapper.fromDto(dto, existing)
-                if (dao.insert(entity) == -1L) dao.update(entity)
+                if (dto.isDeleted) {
+                    dao.deleteById(dto.id)
+                } else {
+                    val existing = dao.getById(dto.id)
+                    val entity = ClienteMapper.fromDto(dto, existing)
+                    if (dao.insert(entity) == -1L) dao.update(entity)
+                }
             }
             Log.d(TAG, "${if (since > 0L) "delta" else "full"} sync: ${dtos.size} clientes")
             SyncResult.Success
@@ -41,6 +45,7 @@ class ClienteSyncer @Inject constructor(
         var offset = 0L
         while (true) {
             val page = supabase.from("clientes").select {
+                filter { eq("is_deleted", false) }
                 range(offset, offset + BATCH_SIZE - 1)
             }.decodeList<ClienteDto>()
             addAll(page)

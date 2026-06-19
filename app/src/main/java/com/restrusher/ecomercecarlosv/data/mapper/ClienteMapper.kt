@@ -57,6 +57,7 @@ object ClienteMapper {
         blacklistIsManualAmount = existing?.blacklistIsManualAmount ?: false,
         createdAt = dto.createdAt,
         updatedAt = dto.updatedAt,
+        isDeleted = dto.isDeleted,
     )
 
     fun toDto(entity: ClienteEntity) = ClienteDto(
@@ -71,5 +72,6 @@ object ClienteMapper {
         blacklistReason = entity.blacklistReason,
         blacklistedAt = entity.blacklistedAt,
         createdAt = entity.createdAt,
+        isDeleted = entity.isDeleted,
     )
 }

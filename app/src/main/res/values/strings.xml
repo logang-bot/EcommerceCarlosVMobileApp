@@ -597,6 +597,34 @@
     <string name="sinc_time_hours">hace %1$d h</string>
     <string name="sinc_time_days">hace %1$d d</string>
 
+    <!-- Depuración / Mantenimiento -->
+    <string name="perfil_section_mantenimiento">Mantenimiento</string>
+    <string name="perfil_mantenimiento_title">Depuración de datos</string>
+    <string name="perfil_mantenimiento_subtitle">Exportar y eliminar pedidos antiguos</string>
+    <string name="depuracion_title">Depuración</string>
+    <string name="depuracion_warning_title">Acción permanente</string>
+    <string name="depuracion_warning_body">Los registros eliminados no se pueden recuperar</string>
+    <string name="depuracion_section_que">Qué depurar</string>
+    <string name="depuracion_section_formato">Formato de respaldo</string>
+    <string name="depuracion_registros_label">Registros</string>
+    <string name="depuracion_registros_value">Pedidos</string>
+    <string name="depuracion_cutoff_label">Anteriores a</string>
+    <string name="depuracion_count_pill">%1$d pedidos encontrados</string>
+    <string name="depuracion_cta">Exportar y eliminar</string>
+    <string name="depuracion_phase1_label">Generando respaldo…</string>
+    <string name="depuracion_phase2_label">Eliminando registros…</string>
+    <string name="depuracion_error_title">No se pudo generar el respaldo</string>
+    <string name="depuracion_error_body">No se eliminó ningún registro. Tu base de datos está intacta.</string>
+    <string name="depuracion_error_safe_pill">0 pedidos eliminados</string>
+    <string name="depuracion_retry">Reintentar</string>
+    <string name="depuracion_done_title">Depuración completada</string>
+    <string name="depuracion_done_body">%1$d pedidos exportados y eliminados</string>
+    <string name="depuracion_done_cta">Listo</string>
+    <string name="depuracion_confirm_title">¿Eliminar %1$d pedidos?</string>
+    <string name="depuracion_confirm_body">Primero se descargará el respaldo. Luego el borrado es permanente y no se puede deshacer.</string>
+    <string name="depuracion_confirm_type_hint">Escribe ELIMINAR para confirmar</string>
+    <string name="depuracion_confirm_cta">Eliminar</string>
+
     <!-- Sync notifications -->
     <string name="sync_channel_name">Sincronización</string>
     <string name="sync_channel_description">Notificaciones sobre el envío de datos al servidor</string>

@@ -35,4 +35,5 @@ data class ClienteEntity(
     val blacklistIsManualAmount: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long = 0L,
+    val isDeleted: Boolean = false,
 )

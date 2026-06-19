@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **16**. Supabase integration: Phase 10 (delta sync).
+Room version: **17**. Supabase integration: Phase 10 (delta sync) + Phase 11 (soft-delete).
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v16)
+## Current tables (Room v17)
 
 ### `users`
 
@@ -46,8 +46,9 @@ Shared resource. All users can read and write.
 | `longitude` | `Double?` | `float8` | ✓ | Extracted from `mapsUrl` on save |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 | `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger on every UPDATE. **Used as delta-sync cursor.** *(added v16)* |
+| `isDeleted` | `Boolean` | `boolean` | — | Default `false`; set to `true` on soft-delete *(added v17)* |
 
-**DAO operations:** `getAll()` flow (ordered `name ASC`) · `getById()` (suspend) · `getByIdFlow()` (Flow — reactive) · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()`
+**DAO operations:** `getAll()` flow (ordered `name ASC`) · `getById()` (suspend) · `getByIdFlow()` (Flow — reactive) · `insert(IGNORE)` returning `Long` · `update()` · `softDeleteById()` · `deleteById()`
 
 **Supabase notes:** Consider a `geography(Point)` column as an alternative to separate lat/lng if you want PostGIS distance queries later. Suggested indexes: `mercados(name)`, `mercados(updated_at)`.
 
@@ -74,8 +75,9 @@ Belongs to a `mercados` row. Represents an individual customer at a market stall
 | `blacklistIsManualAmount` | `Boolean` | `boolean` | — | `true` when amount was entered manually (MANUAL mode); `false` = AUTO *(added v12)* |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 | `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
+| `isDeleted` | `Boolean` | `boolean` | — | Default `false`; set to `true` on soft-delete *(added v17)* |
 
-**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, name ASC) · `getAll()` flow (non-blacklisted) · `getBlacklisted()` flow (blacklisted only, `blacklistedAt DESC`) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `deleteById()` · `blacklist(id, reason, balance, at, isManualAmount)` · `unblacklist(id)` (resets all blacklist fields incl. `blacklistIsManualAmount`)
+**DAO operations:** `getByMercado(mercadoId)` flow (non-blacklisted, non-deleted, name ASC) · `getAll()` flow (non-blacklisted, non-deleted) · `getAllIncludingBlacklisted()` flow (non-deleted) · `getBlacklisted()` flow (blacklisted only, non-deleted, `blacklistedAt DESC`) · `getByIdFlow(id)` (non-deleted Flow) · `getById()` · `insert(IGNORE)` returning `Long` · `update()` · `softDeleteById()` · `deleteById()` · `blacklist(id, reason, balance, at, isManualAmount)` · `unblacklist(id)` (resets all blacklist fields incl. `blacklistIsManualAmount`)
 
 **Indexes:** `clientes(mercadoId)`, `clientes(name)`, `clientes(isBlacklisted)`, `clientes(updated_at)`.
 
@@ -94,11 +96,12 @@ Global product catalogue, shared across all users.
 | `description` | `String?` | `text` | ✓ | Variant, size, or note |
 | `price` | `Double` | `float8` | — | Current price |
 | `photoUrl` | `String?` | `text` | ✓ | Supabase Storage URL |
-| `isActive` | `Boolean` | `boolean` | — | Default `true`; soft-delete |
+| `isActive` | `Boolean` | `boolean` | — | Default `true`; catalogue visibility toggle |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 | `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
+| `isDeleted` | `Boolean` | `boolean` | — | Default `false`; set to `true` on soft-delete *(added v17)* |
 
-**DAO operations:** `getAll()` flow (active only, name ASC) · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()`
+**DAO operations:** `getAll()` flow (active AND non-deleted, name ASC) · `getById()` (non-deleted) · `insert(REPLACE)` · `update()` · `softDeleteById()` · `deleteById()`
 
 > `ProductoDao` safely keeps `REPLACE` — `productos` has no inbound FK CASCADE references.
 
@@ -132,8 +135,9 @@ A delivery order. Belongs to a `clientes` row.
 | `paid_at` | `bigint` | ✓ | Epoch ms; set on every payment (partial or full) — always reflects the most recent payment date |
 | `is_saldo_extra` | `boolean` | — | `true` for manual balance entries (Saldo Extra) — no line items; default `false` *(added v10)* |
 | `updated_at` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
+| `is_deleted` | `boolean` | — | Default `false`; set to `true` on soft-delete *(added v17)* |
 
-**DAO operations:** `getByCliente(clienteId)` flow · `getByClienteWithLines(clienteId)` flow (`@Transaction`, returns `PedidoWithLines`) · `getByIdFlow(id)` flow · `getById(id)` · `getAllUnpaid()` flow · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `deleteById(id)`
+**DAO operations:** `getByCliente(clienteId)` flow (non-deleted) · `getByClienteWithLines(clienteId)` flow (non-deleted, `@Transaction`) · `getByIdFlow(id)` flow (non-deleted) · `getById(id)` (non-deleted) · `getAllUnpaid()` flow (non-deleted) · `getAll()` flow (non-deleted) · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `softDeleteById(id)` · `deleteById(id)` · `markAllPaidForCliente(clienteId, paidAt)` (non-deleted only)
 
 **Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`, `pedidos(updated_at)`.
 
@@ -317,6 +321,19 @@ CREATE INDEX IF NOT EXISTS idx_productos_updated_at ON productos (updated_at);
 CREATE INDEX IF NOT EXISTS idx_pedidos_updated_at   ON pedidos  (updated_at);
 ```
 
+### 5. Add `is_deleted` column to each table (Phase 11)
+
+```sql
+ALTER TABLE mercados  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE clientes  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE pedidos   ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
+```
+
+The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET is_deleted = true`), so `updated_at` is bumped automatically — deleted rows appear in the next delta sync on other devices with `is_deleted = true`, which causes them to be hard-deleted from Room there.
+
 ### Room migration reference
 
 `MIGRATION_15_16` in `AppDatabase.kt` adds `updatedAt INTEGER NOT NULL DEFAULT 0` to the four Room entity tables and backfills `updatedAt = createdAt`. The Supabase column is named `updated_at` (snake_case); the DTO field is `@SerialName("updated_at") val updatedAt: Long`.
+
+`MIGRATION_16_17` in `AppDatabase.kt` adds `isDeleted INTEGER NOT NULL DEFAULT 0` to `mercados`, `clientes`, `productos`, and `pedidos`. The Supabase column is named `is_deleted` (snake_case); the DTO field is `@SerialName("is_deleted") val isDeleted: Boolean = false`.

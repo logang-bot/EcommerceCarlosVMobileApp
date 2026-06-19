@@ -95,7 +95,7 @@ class PedidoRepositoryImpl @Inject constructor(
 
     override suspend fun delete(id: String) {
         val label = pedidoDao.getById(id)?.let { "Bs. ${formatPedidoAmount(it.total)}" } ?: ""
-        pedidoDao.deleteById(id)
+        pedidoDao.softDeleteById(id)
         enqueue(SyncOp.DELETE, id, label)
     }
 

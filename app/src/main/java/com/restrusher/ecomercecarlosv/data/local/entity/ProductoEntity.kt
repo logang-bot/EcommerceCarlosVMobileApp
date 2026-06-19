@@ -17,4 +17,5 @@ data class ProductoEntity(
     val isActive: Boolean,
     val createdAt: Long,
     val updatedAt: Long = 0L,
+    val isDeleted: Boolean = false,
 )

@@ -175,6 +175,17 @@ data class ReporteUiState(
 
 ## ViewModel
 
+### Data sourcing
+
+**Both report ViewModels read exclusively from Room — no Supabase calls happen at query time.**
+
+- `ReporteViewModel` subscribes to `pedidoRepository.getAll()`, `clienteRepository.getAll()`, and `mercadoRepository.getAll()` — all `Flow<List<...>>` backed by Room DAOs. All date filtering (`paidAt in from..to`, `createdAt in from..to`) and aggregation happen in-memory inside the `combine` block after Room emits.
+- `ReporteClienteViewModel` subscribes to `clienteRepository.getByIdFlow(clienteId)` and `pedidoRepository.getByClienteWithLines(clienteId)`. Date range filtering is also applied in-memory.
+
+This means report data is always as fresh as the last successful sync. The `isLoading` flag (driven by `isSyncing && pedidos.isEmpty()`) shows a loading overlay on first open before any sync has completed, preventing the user from seeing an empty or partial report.
+
+**Edge case — annual preset (`ClientePreset.ANIO` / `ReporteClientePreset.MES` spanning many months):** all historical pedidos must already be in Room. Since the full-fetch syncer now pages through all records via `range()` (Phase 10c), this is covered as long as at least one full sync has completed. A user opening the app for the very first time and immediately running a year-wide report will see incomplete data until the initial sync finishes.
+
 `ReporteViewModel` uses a single `MutableStateFlow<ReporteInput>` to hold all user selections (mode, presets, selected client, custom dates). This combines with a nested `combine(pedidoRepository.getAll(), clienteRepository.getAll(), mercadoRepository.getAll())` triple, producing the full `ReporteUiState` reactively.
 
 **Diario computation:**
@@ -294,4 +305,4 @@ CV logo box + company name header · client section (nombre, mercado, descripci�
 
 ## Open TODOs
 
-- [ ] Phase 9: Sync reportes data from Supabase (real-time cobros/pedidos across devices)
+- [ ] Real-time cross-device report data: currently reports reflect whatever is in Room at the time of viewing. A pull-to-refresh trigger on the Reportes tab (similar to the other list screens) would let users manually force a delta sync before generating a report, ensuring the latest cobros and pedidos from other devices are included.

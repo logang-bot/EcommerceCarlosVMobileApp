@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProductoDao {
-    @Query("SELECT * FROM productos WHERE isActive = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM productos WHERE isActive = 1 AND isDeleted = 0 ORDER BY name ASC")
     fun getAll(): Flow<List<ProductoEntity>>
 
-    @Query("SELECT * FROM productos WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM productos WHERE id = :id AND isDeleted = 0 LIMIT 1")
     suspend fun getById(id: String): ProductoEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -21,6 +21,9 @@ interface ProductoDao {
 
     @Update
     suspend fun update(producto: ProductoEntity)
+
+    @Query("UPDATE productos SET isDeleted = 1 WHERE id = :id")
+    suspend fun softDeleteById(id: String)
 
     @Query("DELETE FROM productos WHERE id = :id")
     suspend fun deleteById(id: String)

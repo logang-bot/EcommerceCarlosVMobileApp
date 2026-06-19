@@ -61,7 +61,8 @@ CREATE TABLE mercados (
     latitude    float8,
     longitude   float8,
     created_at  bigint      NOT NULL,
-    updated_at  bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
+    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    is_deleted  boolean     NOT NULL DEFAULT false
 );
 
 ALTER TABLE mercados ENABLE ROW LEVEL SECURITY;
@@ -92,7 +93,8 @@ CREATE TABLE clientes (
     blacklist_balance          float8      NOT NULL DEFAULT 0.0,
     blacklist_is_manual_amount boolean     NOT NULL DEFAULT false,
     created_at                 bigint      NOT NULL,
-    updated_at                 bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
+    updated_at                 bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    is_deleted                 boolean     NOT NULL DEFAULT false
 );
 
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
@@ -118,7 +120,8 @@ CREATE TABLE productos (
     photo_url   text,
     is_active   boolean     NOT NULL DEFAULT true,
     created_at  bigint      NOT NULL,
-    updated_at  bigint      NOT NULL DEFAULT 0   -- epoch ms; auto-set by trigger on UPDATE
+    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    is_deleted  boolean     NOT NULL DEFAULT false
 );
 
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
@@ -145,7 +148,8 @@ CREATE TABLE pedidos (
     is_saldo_extra boolean     NOT NULL DEFAULT false,
     created_at     bigint      NOT NULL,
     paid_at        bigint,                                   -- epoch ms; updated on each payment
-    updated_at     bigint      NOT NULL DEFAULT 0            -- epoch ms; auto-set by trigger on UPDATE
+    updated_at     bigint      NOT NULL DEFAULT 0,           -- epoch ms; auto-set by trigger on UPDATE
+    is_deleted     boolean     NOT NULL DEFAULT false
 );
 
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;

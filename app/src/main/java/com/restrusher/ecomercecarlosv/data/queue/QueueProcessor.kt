@@ -185,8 +185,8 @@ class QueueProcessor @Inject constructor(
                 return true
             }
         }
-        supabase.from(table).delete { filter { eq("id", op.entityId) } }
-        Log.d(TAG, "delete: removed ${op.entityType}(${op.entityId}) from $table")
+        supabase.from(table).update({ set("is_deleted", true) }) { filter { eq("id", op.entityId) } }
+        Log.d(TAG, "soft-delete: marked ${op.entityType}(${op.entityId}) deleted in $table")
         return true
     }
 

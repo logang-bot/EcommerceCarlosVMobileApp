@@ -80,3 +80,6 @@ object ReporteStatusRoute
 
 @Serializable
 object SincronizacionRoute
+
+@Serializable
+object DepuracionRoute

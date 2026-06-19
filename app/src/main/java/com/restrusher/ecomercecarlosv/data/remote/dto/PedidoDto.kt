@@ -15,4 +15,5 @@ data class PedidoDto(
     @SerialName("paid_at") val paidAt: Long?,
     @SerialName("is_saldo_extra") val isSaldoExtra: Boolean = false,
     @SerialName("updated_at") val updatedAt: Long = 0L,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
 )

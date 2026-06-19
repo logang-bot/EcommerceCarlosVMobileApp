@@ -28,17 +28,23 @@ class PedidoSyncer @Inject constructor(
                     filter { gt("updated_at", since) }
                 }.decodeList<PedidoDto>()
             }
-            pedidoDtos.forEach { dto -> pedidoDao.insert(PedidoMapper.fromDto(dto)) }
+            val upsertedIds = mutableListOf<String>()
+            pedidoDtos.forEach { dto ->
+                if (dto.isDeleted) {
+                    pedidoDao.deleteById(dto.id)
+                } else {
+                    pedidoDao.insert(PedidoMapper.fromDto(dto))
+                    upsertedIds += dto.id
+                }
+            }
 
             val detalleDtos: List<DetallePedidoDto> = if (since == 0L) {
                 fetchAllDetallPages()
             } else {
-                // Re-fetch lines only for changed pedidos; delete stale lines first.
-                val changedIds = pedidoDtos.map { it.id }
-                if (changedIds.isEmpty()) return@runCatching SyncResult.Success
-                changedIds.forEach { detalleDao.deleteByPedido(it) }
+                if (upsertedIds.isEmpty()) return@runCatching SyncResult.Success
+                upsertedIds.forEach { detalleDao.deleteByPedido(it) }
                 supabase.from("detalle_pedido").select {
-                    filter { isIn("pedido_id", changedIds) }
+                    filter { isIn("pedido_id", upsertedIds) }
                 }.decodeList()
             }
             if (detalleDtos.isNotEmpty()) {
@@ -57,6 +63,7 @@ class PedidoSyncer @Inject constructor(
         var offset = 0L
         while (true) {
             val page = supabase.from("pedidos").select {
+                filter { eq("is_deleted", false) }
                 range(offset, offset + BATCH_SIZE - 1)
             }.decodeList<PedidoDto>()
             addAll(page)

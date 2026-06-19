@@ -106,7 +106,11 @@ Multiple simultaneous calls to `triggerSyncIfStale` for the same entity are safe
 | `MercadoSyncer` | `mercados` | IGNORE + UPDATE |
 | `ClienteSyncer` | `clientes` | IGNORE + UPDATE; preserves local-only fields (`primaryPhoneIndex`, `blacklistBalance`, `blacklistIsManualAmount`) from existing Room row |
 | `ProductoSyncer` | `productos` | INSERT OR REPLACE |
-| `PedidoSyncer` | `pedidos` + `detalle_pedido` | INSERT IGNORE |
+| `PedidoSyncer` | `pedidos` + `detalle_pedido` | INSERT IGNORE; two fetch methods (`fetchAllPedidoPages`, `fetchAllDetallPages`) |
+
+**Full-fetch batching** (Phase 10c): when `since == 0L` all syncers use a `while(true)` loop with `supabase.from(...).select { filter { eq("is_deleted", false) }; range(offset, offset + 999) }` and `BATCH_SIZE = 1000`. The loop breaks when `page.size < BATCH_SIZE`, accumulating results via `buildList { addAll(page) }`. This bypasses PostgREST's single-call 1 000-row cap. Delta fetches (`since > 0L`) are unaffected — they fetch all rows with `updated_at > since` including soft-deleted ones.
+
+**Soft-delete propagation** (Phase 11): delta syncs include soft-deleted rows (because `UPDATE SET is_deleted = true` bumps `updated_at` via trigger). Each syncer checks `dto.isDeleted`: if `true`, the entity is hard-deleted from Room (`dao.deleteById(dto.id)`); otherwise the normal upsert path runs. `PedidoSyncer` collects non-deleted IDs into `upsertedIds` and only fetches `detalle_pedido` for those — soft-deleted pedidos have their Room rows (and cascaded detalles) removed immediately.
 
 Each sync call has a 10-second timeout. On timeout or failure the timestamp is removed so the next navigation retries. Errors are routed to `GlobalErrorHandler`.
 
@@ -194,7 +198,7 @@ Room `Flow` queries **emit the current DB value immediately when collection star
    - Multiple `UPSERT` entries collapse into one (latest wins by `createdAt`).
 3. For each deduplicated operation:
    - **UPSERT**: read the current entity state from Room → push DTO to Supabase via `upsert()`.
-   - **DELETE**: call `supabase.from(table).delete { filter { eq("id", entityId) } }`.
+   - **DELETE**: call `supabase.from(table).update({ set("is_deleted", true) }) { filter { eq("id", entityId) } }`. This is a soft-delete — the Supabase row is not removed. The `set_updated_at_ms()` trigger fires automatically, bumping `updated_at`. Other devices pick up the deletion in their next delta sync.
 4. On success: delete all raw queue entries for that entity.
 5. On failure: increment `retryCount` for all raw entries for that entity (observability only — not used to gate retries), set `anyFailed = true`, continue to next entity.
 6. Return `anyFailed`.

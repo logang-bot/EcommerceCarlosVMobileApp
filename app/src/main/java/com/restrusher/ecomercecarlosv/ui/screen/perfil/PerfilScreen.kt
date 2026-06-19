@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -61,6 +62,7 @@ import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
@@ -118,6 +120,7 @@ fun PerfilScreen(
         },
         onGestionUsuariosClick = { navController.navigate(GestionUsuariosRoute) },
         onUmbralesClick = { navController.navigate(UmbralesRoute) },
+        onMantenimientoClick = { navController.navigate(DepuracionRoute) },
         onThemeChange = { viewModel.setTheme(it) },
         onLogout = {
             viewModel.logout {
@@ -137,6 +140,7 @@ private fun PerfilContent(
     onBiometricToggle: () -> Unit,
     onGestionUsuariosClick: () -> Unit,
     onUmbralesClick: () -> Unit = {},
+    onMantenimientoClick: () -> Unit = {},
     onThemeChange: (ThemeMode) -> Unit = {},
     onLogout: () -> Unit,
 ) {
@@ -265,6 +269,21 @@ private fun PerfilContent(
                     title = stringResource(R.string.perfil_umbrales_title),
                     subtitle = state.umbralesSummary,
                     onClick = onUmbralesClick,
+                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
+                )
+            }
+
+            // Mantenimiento (superuser only)
+            if (state.role == UserRole.SUPERUSUARIO) {
+                Spacer(Modifier.height(14.dp))
+                SectionHeader(stringResource(R.string.perfil_section_mantenimiento))
+                SettingRow(
+                    icon = Icons.Default.Delete,
+                    title = stringResource(R.string.perfil_mantenimiento_title),
+                    subtitle = stringResource(R.string.perfil_mantenimiento_subtitle),
+                    iconColor = ext.redText,
+                    iconBg = ext.redTint,
+                    onClick = onMantenimientoClick,
                     trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
                 )
             }

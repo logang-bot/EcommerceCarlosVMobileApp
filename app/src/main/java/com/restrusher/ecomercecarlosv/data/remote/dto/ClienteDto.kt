@@ -17,4 +17,5 @@ data class ClienteDto(
     @SerialName("blacklisted_at") val blacklistedAt: Long? = null,
     @SerialName("created_at") val createdAt: Long,
     @SerialName("updated_at") val updatedAt: Long = 0L,
+    @SerialName("is_deleted") val isDeleted: Boolean = false,
 )

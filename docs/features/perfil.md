@@ -19,6 +19,9 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 - **Apariencia** — in-card segment selector with three options: Claro / Oscuro / Sistema. Active option has accent background + white text/icon; inactive options are transparent. Persisted via `ThemeManager`; change takes effect instantly app-wide including system status bar and navigation bar icons.
 - **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value.
 
+### Mantenimiento *(superuser only)*
+- **Depuración de datos** (`Icons.Default.Delete`, red icon) — navigates to `DepuracionRoute`. Two-phase destructive cleanup: exports old pedidos to CSV/XLSX then hard-deletes them from Supabase. See `docs/features/depuracion.md` for full details.
+
 ### Logout
 - Red tinted button, clears session and navigates to `LoginRoute` with full backstack pop.
 

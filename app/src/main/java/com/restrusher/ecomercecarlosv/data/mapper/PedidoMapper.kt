@@ -50,6 +50,7 @@ object PedidoMapper {
         isSaldoExtra = dto.isSaldoExtra,
         itemCount = 0,
         updatedAt = dto.updatedAt,
+        isDeleted = dto.isDeleted,
     )
 
     fun toDto(entity: PedidoEntity) = PedidoDto(
@@ -62,5 +63,6 @@ object PedidoMapper {
         createdAt = entity.createdAt,
         paidAt = entity.paidAt,
         isSaldoExtra = entity.isSaldoExtra,
+        isDeleted = entity.isDeleted,
     )
 }

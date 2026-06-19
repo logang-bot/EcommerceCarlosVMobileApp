@@ -10,16 +10,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ClienteDao {
-    @Query("SELECT * FROM clientes WHERE mercadoId = :mercadoId AND isBlacklisted = 0 ORDER BY name ASC")
+    @Query("SELECT * FROM clientes WHERE mercadoId = :mercadoId AND isBlacklisted = 0 AND isDeleted = 0 ORDER BY name ASC")
     fun getByMercado(mercadoId: String): Flow<List<ClienteEntity>>
 
-    @Query("SELECT * FROM clientes WHERE isBlacklisted = 0 ORDER BY name ASC")
+    @Query("SELECT * FROM clientes WHERE isBlacklisted = 0 AND isDeleted = 0 ORDER BY name ASC")
     fun getAll(): Flow<List<ClienteEntity>>
 
-    @Query("SELECT * FROM clientes ORDER BY name ASC")
+    @Query("SELECT * FROM clientes WHERE isDeleted = 0 ORDER BY name ASC")
     fun getAllIncludingBlacklisted(): Flow<List<ClienteEntity>>
 
-    @Query("SELECT * FROM clientes WHERE isBlacklisted = 1 ORDER BY blacklistedAt DESC")
+    @Query("SELECT * FROM clientes WHERE isBlacklisted = 1 AND isDeleted = 0 ORDER BY blacklistedAt DESC")
     fun getBlacklisted(): Flow<List<ClienteEntity>>
 
     @Query("UPDATE clientes SET isBlacklisted = 1, blacklistReason = :reason, blacklistBalance = :balance, blacklistedAt = :at, blacklistIsManualAmount = :isManualAmount WHERE id = :id")
@@ -28,10 +28,10 @@ interface ClienteDao {
     @Query("UPDATE clientes SET isBlacklisted = 0, blacklistReason = NULL, blacklistBalance = 0, blacklistIsManualAmount = 0, blacklistedAt = NULL WHERE id = :id")
     suspend fun unblacklist(id: String)
 
-    @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM clientes WHERE id = :id AND isDeleted = 0 LIMIT 1")
     fun getByIdFlow(id: String): Flow<ClienteEntity?>
 
-    @Query("SELECT * FROM clientes WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM clientes WHERE id = :id AND isDeleted = 0 LIMIT 1")
     suspend fun getById(id: String): ClienteEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -39,6 +39,9 @@ interface ClienteDao {
 
     @Update
     suspend fun update(cliente: ClienteEntity)
+
+    @Query("UPDATE clientes SET isDeleted = 1 WHERE id = :id")
+    suspend fun softDeleteById(id: String)
 
     @Query("DELETE FROM clientes WHERE id = :id")
     suspend fun deleteById(id: String)

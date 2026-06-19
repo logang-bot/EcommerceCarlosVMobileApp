@@ -30,47 +30,22 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 9f | In-app theme switcher (Claro / Oscuro / Sistema) with system bar support | ✅ Done |
 | 10 | Client-side pagination (Load More button, 20/batch) + pull-to-refresh on all list screens | ✅ Done |
 | 10b | Delta sync: `updated_at` cursor, Room v16 migration, pull-to-refresh error toast | ✅ Done |
+| 10c | Remove client-side pagination (LoadMoreButton), server-side range fetch for >1000 rows | ✅ Done |
+| 11 | Soft-delete: `isDeleted` on all 4 entities, Room v17, QueueProcessor pushes UPDATE instead of DELETE, syncers hard-delete locally on delta when `is_deleted = true` | ✅ Done |
+| 12 | Depuración / Mantenimiento: Superusuario-only two-phase cleanup — export pedidos to CSV/XLSX then hard-delete from Supabase + Room | ✅ Done |
 
 ---
 
-## ✅ Phase 10 — Pagination & Pull-to-Refresh
+## ✅ Phase 10 — Pull-to-Refresh (client-side pagination later removed in Phase 10c)
 
 Applied to all four primary list screens: **Mercados**, **Clientes**, **Lista Negra**, **Catálogo**.
 
-### 📄 Client-side Pagination
+> **Note:** The client-side `LoadMoreButton` / `visibleCount` pagination added in this phase was removed in **Phase 10c**. The pull-to-refresh machinery (`PullToRefreshBox`, `_isRefreshing`, `onRefresh`, `repository.refresh()`) is still in place. The syncer's >1000-row edge case is now handled at the server level with `range()` batching (see Phase 10c).
 
-All list data is already in Room (synced from Supabase). Pagination is applied in the UI layer — no new DAO queries or DB migrations required.
+### 📄 Client-side Pagination *(removed in Phase 10c)*
 
-**Batch size:** 20 items per page (constant `PAGE_SIZE = 20`).
-
-**UiState additions** (per screen):
-- `visibleCount: Int = 20` — how many items the UI should render.
-- `isRefreshing: Boolean = false` — drives the pull-to-refresh indicator.
-- Computed props: `visibleXxx` (`.take(visibleCount)`) and `hasMore` (`.size > visibleCount`).
-
-**ViewModel additions** (per screen):
-- `_visibleCount: MutableStateFlow<Int>` — chained onto the existing state flow via `.combine()`.
-- `_isRefreshing: MutableStateFlow<Boolean>` — chained similarly.
-- `onLoadMore()` — increments `_visibleCount` by `PAGE_SIZE`.
-- `onRefresh()` — resets `_visibleCount`, sets `_isRefreshing = true`, calls `repository.refresh()` for all relevant entities (concurrently via `coroutineScope`), then clears `_isRefreshing`.
-- Sort/search changes also reset `_visibleCount` to avoid stale pages after a filter.
-
-**Screen additions**:
-- `PullToRefreshBox` (Material3 experimental, `@OptIn`) wraps the content area.
-- `LoadMoreButton` appended as a `LazyColumn` item when `state.hasMore`.
-
-**New composables:**
-
-`ui/common/LoadMoreButton.kt` — design-matched component with 4 states (`LoadMoreState` enum):
-- **IDLE** — `surface2` bg, `border2` 1dp, 13dp corners, 50dp height; `KeyboardArrowDown` icon (18dp, `text2`); "Cargar más" semibold (`onSurface`) + "· X restantes" medium (`text3`) at 14.5sp, 9dp gap; "Mostrando X de Y" caption (12sp, `text4`) 9dp below.
-- **LOADING** — same shape but disabled; spinning `Refresh` icon (900ms `infiniteRepeatable`); "Cargando…" text in `text2`.
-- **END** — two `HorizontalDivider(weight=1f)` flanking a `Check` icon (16dp, `text3`); "Fin de la lista · N registros" caption (12.5sp, `text3`, medium weight). Shown when `total > PAGE_SIZE && !hasMore`.
-- **ERROR** — red-tinted card (`redTint` bg, `redText/20%` border, 13dp corners); `Warning` icon + "No se pudieron cargar más" / "Revisa tu conexión"; optional "Reintentar" pill button (36dp height, 10dp corners, `redText/25%` border).
-- Container padding: 12dp top, 18dp sides, 8dp bottom (matching design `12px 18px 8px`).
-
-`ui/common/SkeletonRow.kt` — `SkeletonClienteRow` pulsing placeholder (alpha 0.4→0.9, 800ms Reverse) matching Cliente row layout: 46dp circle + two text bars (left) + badge and balance bars (right), all `surface3`.
-
-**Screen logic change**: `LoadMoreButton` now shown when `total > PAGE_SIZE` (not just `hasMore`), passing `IDLE` or `END` state accordingly. This reveals the "Fin de la lista" marker once the user loads past the first page.
+~~All list data is already in Room (synced from Supabase). Pagination is applied in the UI layer.~~
+~~`LoadMoreButton` / `visibleCount` / `PAGE_SIZE = 20` / `hasMore` — all deleted. See Phase 10c.~~
 
 ### 🔄 Pull-to-Refresh
 

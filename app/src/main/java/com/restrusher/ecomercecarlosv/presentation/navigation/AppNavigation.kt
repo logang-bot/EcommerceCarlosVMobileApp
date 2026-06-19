@@ -41,9 +41,11 @@ import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.AgregarListaNegraScr
 import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
+import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.SincronizacionRoute
+import com.restrusher.ecomercecarlosv.ui.screen.depuracion.DepuracionScreen
 import com.restrusher.ecomercecarlosv.ui.screen.sincronizacion.SincronizacionScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.EditarPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteClienteScreen
@@ -163,6 +165,9 @@ fun AppNavigation() {
         }
         composable<SincronizacionRoute> {
             SincronizacionScreen(navController = navController)
+        }
+        composable<DepuracionRoute> {
+            DepuracionScreen(navController = navController)
         }
     }
 }

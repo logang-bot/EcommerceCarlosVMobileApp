@@ -10,13 +10,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MercadoDao {
-    @Query("SELECT * FROM mercados ORDER BY name ASC")
+    @Query("SELECT * FROM mercados WHERE isDeleted = 0 ORDER BY name ASC")
     fun getAll(): Flow<List<MercadoEntity>>
 
-    @Query("SELECT * FROM mercados WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM mercados WHERE id = :id AND isDeleted = 0 LIMIT 1")
     suspend fun getById(id: String): MercadoEntity?
 
-    @Query("SELECT * FROM mercados WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM mercados WHERE id = :id AND isDeleted = 0 LIMIT 1")
     fun getByIdFlow(id: String): Flow<MercadoEntity?>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -24,6 +24,9 @@ interface MercadoDao {
 
     @Update
     suspend fun update(mercado: MercadoEntity)
+
+    @Query("UPDATE mercados SET isDeleted = 1 WHERE id = :id")
+    suspend fun softDeleteById(id: String)
 
     @Query("DELETE FROM mercados WHERE id = :id")
     suspend fun deleteById(id: String)
