@@ -1,9 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.cliente
 
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,20 +41,12 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -68,11 +58,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun CirclePhotoPicker(
@@ -83,20 +72,6 @@ internal fun CirclePhotoPicker(
     onClick: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
-    val context = LocalContext.current
-    var bitmap by remember(photoUri) { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(photoUri) {
-        bitmap = if (photoUri != null) {
-            withContext(Dispatchers.IO) {
-                try {
-                    context.contentResolver.openInputStream(photoUri)?.use {
-                        BitmapFactory.decodeStream(it)?.asImageBitmap()
-                    }
-                } catch (e: Exception) { null }
-            }
-        } else null
-    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
@@ -108,9 +83,9 @@ internal fun CirclePhotoPicker(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap!!,
+            if (photoUri != null) {
+                AsyncImage(
+                    model = photoUri,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

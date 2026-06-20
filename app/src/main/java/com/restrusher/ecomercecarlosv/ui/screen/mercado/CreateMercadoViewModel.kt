@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.util.extractMapsCoordinates
@@ -20,6 +21,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateMercadoViewModel @Inject constructor(
     private val mercadoRepository: MercadoRepository,
+    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -53,14 +55,16 @@ class CreateMercadoViewModel @Inject constructor(
         val s = _state.value
         if (s.name.isBlank()) { _state.value = s.copy(nameError = true); return }
         val coords = extractMapsCoordinates(s.mapsUrl)
+        val id = mercadoId ?: UUID.randomUUID().toString()
         viewModelScope.launch {
             _state.value = s.copy(isLoading = true)
+            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "mercado-photos", entityId = id)
             mercadoRepository.save(
                 Mercado(
-                    id = mercadoId ?: UUID.randomUUID().toString(),
+                    id = id,
                     name = s.name.trim(),
                     address = s.address.trim(),
-                    photoUrl = s.photoUri?.toString(),
+                    photoUrl = photoUrl,
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
                     latitude = coords?.first,
                     longitude = coords?.second,
@@ -69,5 +73,12 @@ class CreateMercadoViewModel @Inject constructor(
             )
             onSuccess()
         }
+    }
+
+    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
+        uri ?: return null
+        val uriStr = uri.toString()
+        if (uriStr.startsWith("http")) return uriStr
+        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }.getOrElse { uriStr }
     }
 }

@@ -243,10 +243,27 @@ SQL files live in `docs/sql/`. Run them in the Supabase SQL editor in this order
 
 - [ ] `docs/sql/schema.sql` — creates all tables with FK constraints and indexes
 - [ ] `docs/sql/rls.sql` — enables RLS and adds policies per table
-- [ ] `docs/sql/storage.sql` — creates `mercado-photos`, `cliente-photos`, `producto-photos` buckets + policies
+- [ ] `docs/sql/storage.sql` — creates `mercado-photos`, `cliente-photos`, `producto-photos`, `user-photos` buckets + policies
 - [ ] Fill in `local.properties` with real Supabase URLs and keys (staging + production)
 - [ ] `biometric_enabled_at` column intentionally absent from `users` table — device-local only ✅
 - [ ] Wire `SyncerRegistry` per `docs/features/mercados-supabase-todos.md` (Phase 10)
+
+## Image storage architecture
+
+`photoUrl` fields on `mercados`, `clientes`, `productos`, and `users` store **Supabase Storage public URLs** (`https://…`).
+
+**Upload flow (on save):** Each create/edit ViewModel calls `StorageService.uploadPhoto(bucket, entityId, localUri)` before writing to Room. Storage path is always `{entityId}/photo.jpg` within the entity's bucket; `upsert = true` so re-editing replaces the file without leaving orphans. If the device is offline the upload fails silently and the local `content://` URI is stored instead — the image still works on that device; cross-device display degrades gracefully until the entity is re-saved while online.
+
+**Display (everywhere):** `PhotoThumbnail` uses Coil 3 (`coil-compose` + `coil-network-okhttp`). Coil handles both local `content://` URIs and remote `https://` URLs transparently. Its built-in disk cache means each remote image is downloaded only once per device; subsequent views are served from disk without a network round-trip.
+
+**Bucket → entity mapping:**
+
+| Bucket | Entity |
+|--------|--------|
+| `mercado-photos` | `mercados` |
+| `cliente-photos` | `clientes` |
+| `producto-photos` | `productos` |
+| `user-photos` | `users` |
 
 ---
 

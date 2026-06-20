@@ -4,13 +4,11 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,7 +49,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,10 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -88,6 +84,7 @@ import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
 
 @Composable
 fun CreateMercadoScreen(
@@ -321,18 +318,6 @@ private fun MercadoAddressField(state: CreateMercadoFormState, onAddressChange: 
 @Composable
 private fun MercadoPhotoPicker(isEditing: Boolean, photoUri: Uri?, onClick: () -> Unit) {
     val ext = MaterialTheme.extendedColors
-    val context = LocalContext.current
-
-    var photoBitmap by remember(photoUri) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(photoUri) {
-        photoBitmap = if (photoUri != null) {
-            withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(photoUri)?.use {
-                    BitmapFactory.decodeStream(it)?.asImageBitmap()
-                }
-            }
-        } else null
-    }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -352,7 +337,7 @@ private fun MercadoPhotoPicker(isEditing: Boolean, photoUri: Uri?, onClick: () -
 
         val shape = RoundedCornerShape(16.dp)
 
-        if (photoBitmap != null) {
+        if (photoUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -360,11 +345,11 @@ private fun MercadoPhotoPicker(isEditing: Boolean, photoUri: Uri?, onClick: () -
                     .clip(shape)
                     .clickable { onClick() },
             ) {
-                Image(
-                    bitmap = photoBitmap!!,
+                AsyncImage(
+                    model = photoUri,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
                 )
                 Box(
                     modifier = Modifier

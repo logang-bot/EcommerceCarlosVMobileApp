@@ -9,7 +9,6 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +44,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,10 +53,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -78,7 +75,6 @@ import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
 import com.restrusher.ecomercecarlosv.ui.common.copyImageToCache
 import com.restrusher.ecomercecarlosv.ui.common.createCameraImageUri
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
-import android.graphics.BitmapFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -246,21 +242,6 @@ private fun EditarPerfilContent(
 
 @Composable
 private fun PhotoSection(modifier: Modifier = Modifier, initials: String, photoUri: Uri?, onClick: () -> Unit) {
-    val context = LocalContext.current
-    var bitmap by remember(photoUri) { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(photoUri) {
-        bitmap = if (photoUri != null) {
-            withContext(Dispatchers.IO) {
-                try {
-                    context.contentResolver.openInputStream(photoUri)?.use {
-                        BitmapFactory.decodeStream(it)?.asImageBitmap()
-                    }
-                } catch (e: Exception) { null }
-            }
-        } else null
-    }
-
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -277,9 +258,9 @@ private fun PhotoSection(modifier: Modifier = Modifier, initials: String, photoU
                     .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap!!,
+                if (photoUri != null) {
+                    AsyncImage(
+                        model = photoUri,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

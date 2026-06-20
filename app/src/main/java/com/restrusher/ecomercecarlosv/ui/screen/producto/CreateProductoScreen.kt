@@ -4,13 +4,11 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,7 +45,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,10 +53,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -80,6 +76,7 @@ import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
 
 @Composable
 fun CreateProductoScreen(
@@ -299,20 +296,6 @@ private fun CreateProductoContent(
 @Composable
 private fun SquarePhotoPicker(modifier: Modifier = Modifier, photoUri: Uri?, onClick: () -> Unit) {
     val ext = MaterialTheme.extendedColors
-    val context = LocalContext.current
-    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(photoUri) {
-        bitmap = if (photoUri != null) {
-            withContext(Dispatchers.IO) {
-                try {
-                    context.contentResolver.openInputStream(photoUri)?.use {
-                        BitmapFactory.decodeStream(it)?.asImageBitmap()
-                    }
-                } catch (e: Exception) { null }
-            }
-        } else null
-    }
 
     Box(
         contentAlignment = Alignment.Center,
@@ -323,9 +306,9 @@ private fun SquarePhotoPicker(modifier: Modifier = Modifier, photoUri: Uri?, onC
             .border(1.5.dp, ext.border2, RoundedCornerShape(22.dp))
             .clickable(onClick = onClick),
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap!!,
+        if (photoUri != null) {
+            AsyncImage(
+                model = photoUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

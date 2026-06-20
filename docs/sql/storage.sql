@@ -22,6 +22,11 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('producto-photos', 'producto-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Bucket: user-photos (public)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('user-photos', 'user-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
 
 -- ─── Storage RLS Policies ────────────────────────────────────
 -- Allow authenticated users to upload and read.
@@ -63,3 +68,16 @@ CREATE POLICY "producto_photos_update" ON storage.objects
 
 CREATE POLICY "producto_photos_delete" ON storage.objects
     FOR DELETE TO authenticated USING (bucket_id = 'producto-photos');
+
+
+CREATE POLICY "user_photos_select" ON storage.objects
+    FOR SELECT TO authenticated USING (bucket_id = 'user-photos');
+
+CREATE POLICY "user_photos_insert" ON storage.objects
+    FOR INSERT TO authenticated WITH CHECK (bucket_id = 'user-photos');
+
+CREATE POLICY "user_photos_update" ON storage.objects
+    FOR UPDATE TO authenticated USING (bucket_id = 'user-photos');
+
+CREATE POLICY "user_photos_delete" ON storage.objects
+    FOR DELETE TO authenticated USING (bucket_id = 'user-photos');

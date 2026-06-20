@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Producto
 import com.restrusher.ecomercecarlosv.domain.repository.ProductoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateProductoViewModel @Inject constructor(
     private val productoRepository: ProductoRepository,
+    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -66,20 +68,29 @@ class CreateProductoViewModel @Inject constructor(
         }
         if (hasError) return
 
+        val id = productId ?: UUID.randomUUID().toString()
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
+            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "producto-photos", entityId = id)
             productoRepository.save(
                 Producto(
-                    id = productId ?: UUID.randomUUID().toString(),
+                    id = id,
                     name = s.name.trim(),
                     description = s.description.trim().ifBlank { null },
                     price = price!!,
-                    photoUrl = s.photoUri?.toString(),
+                    photoUrl = photoUrl,
                     createdAt = System.currentTimeMillis(),
                 ),
             )
             onSuccess()
         }
+    }
+
+    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
+        uri ?: return null
+        val uriStr = uri.toString()
+        if (uriStr.startsWith("http")) return uriStr
+        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }.getOrElse { uriStr }
     }
 
     fun onDelete(onSuccess: () -> Unit) {

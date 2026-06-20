@@ -4,6 +4,11 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import coil3.ImageLoader
+import coil3.ImageLoaderFactory
+import coil3.PlatformContext
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
 import com.restrusher.ecomercecarlosv.data.queue.QueueProcessor
 import com.restrusher.ecomercecarlosv.data.queue.SyncNotifier
 import com.restrusher.ecomercecarlosv.data.queue.SyncWorker
@@ -12,7 +17,7 @@ import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
 @HiltAndroidApp
-class PedidosApp : Application(), Configuration.Provider {
+class PedidosApp : Application(), Configuration.Provider, ImageLoaderFactory {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var dataSynchronizer: DataSynchronizer
@@ -22,6 +27,12 @@ class PedidosApp : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
+            .build()
+
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory()) }
+            .crossfade(true)
             .build()
 
     override fun onCreate() {

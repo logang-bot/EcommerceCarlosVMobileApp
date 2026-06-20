@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
+    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -86,24 +88,33 @@ class CreateClienteViewModel @Inject constructor(
         if (s.description.isBlank()) { _state.value = _state.value.copy(descriptionError = true); hasError = true }
         if (hasError) return
 
+        val id = clienteId ?: UUID.randomUUID().toString()
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
             val phones = s.phones.map { it.trim() }.filter { it.isNotBlank() }
             val primaryPhoneIndex = minOf(s.primaryPhoneIndex, maxOf(phones.size - 1, 0))
+            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "cliente-photos", entityId = id)
             clienteRepository.save(
                 Cliente(
-                    id = clienteId ?: UUID.randomUUID().toString(),
+                    id = id,
                     mercadoId = mercadoId,
                     name = s.name.trim(),
                     description = s.description.trim(),
                     phones = phones,
                     primaryPhoneIndex = primaryPhoneIndex,
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
-                    photoUrl = s.photoUri?.toString(),
+                    photoUrl = photoUrl,
                     createdAt = System.currentTimeMillis(),
                 ),
             )
             onSuccess()
         }
+    }
+
+    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
+        uri ?: return null
+        val uriStr = uri.toString()
+        if (uriStr.startsWith("http")) return uriStr
+        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }.getOrElse { uriStr }
     }
 }

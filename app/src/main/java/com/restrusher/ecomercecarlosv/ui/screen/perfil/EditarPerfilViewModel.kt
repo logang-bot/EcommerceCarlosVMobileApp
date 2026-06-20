@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.data.mapper.UserMapper
+import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.di.AdminClient
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class EditarPerfilViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
+    private val storageService: StorageService,
     @AdminClient private val adminClient: SupabaseClient,
 ) : ViewModel() {
 
@@ -56,10 +58,14 @@ class EditarPerfilViewModel @Inject constructor(
         val s = _state.value
         _state.value = s.copy(isSaving = true)
         viewModelScope.launch {
-            val photoUrl = s.photoUri?.toString()
             val newName  = s.name.trim()
             val newEmail = s.email.trim()
             val newPhone = s.phone.trim().ifEmpty { null }
+            val photoUrl = s.photoUri?.let { uri ->
+                val uriStr = uri.toString()
+                if (uriStr.startsWith("http")) uriStr
+                else runCatching { storageService.uploadPhoto("user-photos", user.id, uri) }.getOrElse { uriStr }
+            }
 
             try {
                 // Update Supabase auth user (email + metadata)
