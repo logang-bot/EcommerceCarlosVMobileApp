@@ -23,8 +23,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -55,6 +57,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
 import com.restrusher.ecomercecarlosv.ui.common.SettingRow
@@ -76,6 +79,10 @@ fun UsuarioDetalleScreen(
         onDeactivate = { viewModel.onDeactivate { navController.popBackStack() } },
         onActivate = { viewModel.onActivate { navController.popBackStack() } },
         onDelete = { viewModel.onDelete { navController.popBackStack() } },
+        onChangePassword = {
+            val uid = state.user?.id ?: return@UsuarioDetalleContent
+            navController.navigate(CambiarContrasenaRoute(userId = uid, isSelf = false))
+        },
     )
 }
 
@@ -88,6 +95,7 @@ private fun UsuarioDetalleContent(
     onDeactivate: () -> Unit,
     onActivate: () -> Unit,
     onDelete: () -> Unit,
+    onChangePassword: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     val user = state.user
@@ -193,6 +201,18 @@ private fun UsuarioDetalleContent(
                 // ── Activity ──────────────────────────────────────────
                 SectionHeader(stringResource(R.string.usuario_detalle_actividad))
                 SettingRow(icon = Icons.Default.Phone, title = stringResource(R.string.usuario_detalle_ultima_sesion), subtitle = user.lastSeenLabel ?: "—")
+
+                Spacer(Modifier.height(14.dp))
+
+                // ── Seguridad ─────────────────────────────────────────
+                SectionHeader(stringResource(R.string.usuario_detalle_seguridad))
+                SettingRow(
+                    icon = Icons.Default.Lock,
+                    title = stringResource(R.string.usuario_detalle_cambiar_contrasena),
+                    subtitle = stringResource(R.string.usuario_detalle_cambiar_contrasena_subtitle, user.name.split(' ').firstOrNull { it.isNotBlank() } ?: user.name),
+                    onClick = onChangePassword,
+                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
+                )
 
                 Spacer(Modifier.height(24.dp))
 

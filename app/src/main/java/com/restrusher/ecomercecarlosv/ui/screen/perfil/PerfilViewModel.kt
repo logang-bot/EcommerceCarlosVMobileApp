@@ -74,6 +74,7 @@ class PerfilViewModel @Inject constructor(
                 val totalCount = allUsers.size
 
                 _state.value = PerfilUiState(
+                    userId               = user.id,
                     name                 = user.name,
                     email                = user.email,
                     phone                = user.phone ?: "",

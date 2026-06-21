@@ -51,6 +51,7 @@ import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.presentation.screens.CrearUsuarioRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.UsuarioDetalleRoute
+import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.RoleBadge
 import androidx.compose.ui.res.painterResource
@@ -80,94 +81,135 @@ private fun GestionUsuariosContent(
 ) {
     val ext = MaterialTheme.extendedColors
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            PedidosTopBar(
-                title = stringResource(R.string.gestion_usuarios_title),
-                subtitle = if (!state.isLoading) state.summary else null,
-                onBack = onBack,
-                actions = {
-                    IconButton(onClick = { /* TODO: search users */ }) {
-                        Icon(Icons.Default.Search, contentDescription = null)
+    LoadingOverlay(isLoading = state.isLoading) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                PedidosTopBar(
+                    title = stringResource(R.string.gestion_usuarios_title),
+                    subtitle = if (!state.isLoading) state.summary else null,
+                    onBack = onBack,
+                    actions = {
+                        IconButton(onClick = { /* TODO: search users */ }) {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        }
+                    },
+                )
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    text = { Text(stringResource(R.string.gestion_usuarios_crear)) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    onClick = onInviteClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                )
+            },
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                item {
+                    // Superuser scope banner
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(ext.bananaTint)
+                            .border(1.dp, ext.banana.copy(alpha = 0.22f), RoundedCornerShape(13.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_admin_panel),
+                            contentDescription = null,
+                            tint = ext.bananaText,
+                            modifier = Modifier
+                                .size(19.dp)
+                                .padding(top = 1.dp)
+                        )
+                        val scopePre = stringResource(R.string.gestion_scope_pre)
+                        val scopeBold = stringResource(R.string.gestion_scope_bold)
+                        val scopePost = stringResource(R.string.gestion_scope_post)
+                        Text(
+                            text = buildAnnotatedString {
+                                append(scopePre)
+                                append(" ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                    append(
+                                        scopeBold
+                                    )
+                                }
+                                append(" ")
+                                append(scopePost)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ext.text2,
+                        )
                     }
-                },
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.gestion_usuarios_crear)) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                onClick = onInviteClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-        ) {
-            item {
-                // Superuser scope banner
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(ext.bananaTint)
-                        .border(1.dp, ext.banana.copy(alpha = 0.22f), RoundedCornerShape(13.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(11.dp),
-                ) {
-                    Icon(painterResource(R.drawable.ic_admin_panel), contentDescription = null, tint = ext.bananaText, modifier = Modifier.size(19.dp).padding(top = 1.dp))
-                    val scopePre = stringResource(R.string.gestion_scope_pre)
-                    val scopeBold = stringResource(R.string.gestion_scope_bold)
-                    val scopePost = stringResource(R.string.gestion_scope_post)
-                    Text(
-                        text = buildAnnotatedString {
-                            append(scopePre)
-                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(scopeBold) }
-                            append(scopePost)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ext.text2,
-                    )
                 }
-            }
 
-            if (state.superUsuarios.isNotEmpty()) {
-                item {
-                    SectionLabel(stringResource(R.string.gestion_usuarios_section_super, state.superUsuarios.size))
+                if (state.superUsuarios.isNotEmpty()) {
+                    item {
+                        SectionLabel(
+                            stringResource(
+                                R.string.gestion_usuarios_section_super,
+                                state.superUsuarios.size
+                            )
+                        )
+                    }
+                    items(state.superUsuarios, key = { it.id }) { user ->
+                        UserRow(user = user, onClick = { onUserClick(user.id) })
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 79.dp),
+                            color = ext.border
+                        )
+                    }
                 }
-                items(state.superUsuarios, key = { it.id }) { user ->
-                    UserRow(user = user, onClick = { onUserClick(user.id) })
-                    HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
-                }
-            }
 
-            if (state.usuarios.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(18.dp))
-                    SectionLabel(stringResource(R.string.gestion_usuarios_section_user, state.usuarios.size))
+                if (state.usuarios.isNotEmpty()) {
+                    item {
+                        Spacer(Modifier.height(18.dp))
+                        SectionLabel(
+                            stringResource(
+                                R.string.gestion_usuarios_section_user,
+                                state.usuarios.size
+                            )
+                        )
+                    }
+                    items(state.usuarios, key = { it.id }) { user ->
+                        UserRow(user = user, onClick = { onUserClick(user.id) })
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 79.dp),
+                            color = ext.border
+                        )
+                    }
                 }
-                items(state.usuarios, key = { it.id }) { user ->
-                    UserRow(user = user, onClick = { onUserClick(user.id) })
-                    HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
-                }
-            }
 
-            if (state.invitados.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(18.dp))
-                    SectionLabel(stringResource(R.string.gestion_usuarios_section_invitado, state.invitados.size))
+                if (state.invitados.isNotEmpty()) {
+                    item {
+                        Spacer(Modifier.height(18.dp))
+                        SectionLabel(
+                            stringResource(
+                                R.string.gestion_usuarios_section_invitado,
+                                state.invitados.size
+                            )
+                        )
+                    }
+                    items(state.invitados, key = { it.id }) { user ->
+                        UserRow(user = user, onClick = { onUserClick(user.id) })
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 79.dp),
+                            color = ext.border
+                        )
+                    }
                 }
-                items(state.invitados, key = { it.id }) { user ->
-                    UserRow(user = user, onClick = { onUserClick(user.id) })
-                    HorizontalDivider(modifier = Modifier.padding(start = 79.dp), color = ext.border)
-                }
-            }
 
-            item { Spacer(Modifier.height(96.dp)) } // FAB clearance
+                item { Spacer(Modifier.height(96.dp)) } // FAB clearance
+            }
         }
     }
 }
@@ -260,15 +302,60 @@ private fun GestionDarkPreview() {
         GestionUsuariosContent(
             state = GestionUsuariosUiState(
                 superUsuarios = listOf(
-                    UserUiModel("1", "Carlos Villarroel", "carlos@cv.ve", UserRole.SUPERUSUARIO, "CV", true, true, "Ahora"),
-                    UserUiModel("2", "Rosa Villarroel", "rosa@cv.ve", UserRole.SUPERUSUARIO, "RV", true, false, "Hace 2 h"),
+                    UserUiModel(
+                        "1",
+                        "Carlos Villarroel",
+                        "carlos@cv.ve",
+                        UserRole.SUPERUSUARIO,
+                        "CV",
+                        true,
+                        true,
+                        "Ahora"
+                    ),
+                    UserUiModel(
+                        "2",
+                        "Rosa Villarroel",
+                        "rosa@cv.ve",
+                        UserRole.SUPERUSUARIO,
+                        "RV",
+                        true,
+                        false,
+                        "Hace 2 h"
+                    ),
                 ),
                 usuarios = listOf(
-                    UserUiModel("3", "Daniel Ortega", "daniel@cv.ve", UserRole.USUARIO, "DO", true, false, "Ayer"),
-                    UserUiModel("4", "Keila Bravo", "keila@cv.ve", UserRole.USUARIO, "KB", false, false, null),
+                    UserUiModel(
+                        "3",
+                        "Daniel Ortega",
+                        "daniel@cv.ve",
+                        UserRole.USUARIO,
+                        "DO",
+                        true,
+                        false,
+                        "Ayer"
+                    ),
+                    UserUiModel(
+                        "4",
+                        "Keila Bravo",
+                        "keila@cv.ve",
+                        UserRole.USUARIO,
+                        "KB",
+                        false,
+                        false,
+                        null
+                    ),
                 ),
                 invitados = listOf(
-                    UserUiModel("5", "Néstor Lugo", "nestor@cv.ve", UserRole.INVITADO, "NL", true, false, "Hace 5 h"),
+                    UserUiModel(
+                        "5",
+                        "Néstor Lugo",
+                        "nestor@cv.ve",
+                        UserRole.INVITADO,
+                        "NL",
+                        true,
+                        false,
+                        "Hace 5 h"
+                    ),
                 ),
                 isLoading = false,
             ),

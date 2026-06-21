@@ -16,4 +16,7 @@ interface UserRepository {
     /** Fetches the user row from Supabase by [userId], saves it to Room, and returns it.
      *  Returns null if the remote row doesn't exist yet. */
     suspend fun syncFromRemote(userId: String): AppUser?
+
+    /** Fetches all users from Supabase and upserts them into Room. */
+    suspend fun syncAllFromRemote()
 }

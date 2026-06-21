@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -21,7 +23,8 @@ fun PhotoThumbnail(
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (photoUrl != null) {
             val painter = rememberAsyncImagePainter(model = Uri.parse(photoUrl))
-            if (painter.state is AsyncImagePainter.State.Success) {
+            val painterState by painter.state.collectAsState()
+            if (painterState is AsyncImagePainter.State.Success) {
                 Image(
                     painter = painter,
                     contentDescription = null,

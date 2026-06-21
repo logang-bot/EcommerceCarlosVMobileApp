@@ -4,6 +4,7 @@ import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 
 data class PerfilUiState(
+    val userId: String = "",
     val name: String = "",
     val email: String = "",
     val phone: String = "",

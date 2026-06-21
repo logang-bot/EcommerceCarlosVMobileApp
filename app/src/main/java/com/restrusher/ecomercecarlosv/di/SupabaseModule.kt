@@ -8,6 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.MemoryCodeVerifierCache
+import io.github.jan.supabase.auth.minimalSettings
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
@@ -28,6 +30,7 @@ object SupabaseModule {
         ) {
             install(Auth) {
                 this.sessionManager = sessionManager
+                this.codeVerifierCache = MemoryCodeVerifierCache()
                 autoLoadFromStorage = true
                 autoSaveToStorage = true
             }
@@ -49,7 +52,7 @@ object SupabaseModule {
             supabaseKey = BuildConfig.SUPABASE_SECRET_KEY,
         ) {
             install(Auth) {
-                autoLoadFromStorage = false
+                minimalSettings()
             }
             install(Postgrest)
         }

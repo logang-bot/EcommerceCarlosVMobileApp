@@ -41,6 +41,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.AgregarListaNegraScr
 import com.restrusher.ecomercecarlosv.ui.screen.lista_negra.ListaNegraScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
+import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
@@ -54,6 +55,7 @@ import com.restrusher.ecomercecarlosv.ui.screen.producto.CreateProductoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.home.HomeScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.CreateMercadoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.mercado.DetalleMercadoScreen
+import com.restrusher.ecomercecarlosv.ui.screen.perfil.CambiarContrasenaScreen
 import com.restrusher.ecomercecarlosv.ui.screen.perfil.EditarPerfilScreen
 import com.restrusher.ecomercecarlosv.ui.screen.perfil.PerfilScreen
 import com.restrusher.ecomercecarlosv.ui.screen.perfil.UmbralesScreen
@@ -168,6 +170,9 @@ fun AppNavigation() {
         }
         composable<DepuracionRoute> {
             DepuracionScreen(navController = navController)
+        }
+        composable<CambiarContrasenaRoute> {
+            CambiarContrasenaScreen(navController = navController)
         }
     }
 }

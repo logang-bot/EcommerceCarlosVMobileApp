@@ -166,7 +166,12 @@ class DataSynchronizer @Inject constructor(
         _syncingEntities.update { it + entityType }
         return try {
             Log.d(TAG, "${if (previous > 0L) "delta" else "full"} sync: $entityType (since=$previous)")
-            val result = withTimeoutOrNull(SYNC_TIMEOUT_MS) { syncer.sync(since = previous) }
+            var result = withTimeoutOrNull(SYNC_TIMEOUT_MS) { syncer.sync(since = previous) }
+            if (result == null || result is SyncResult.Failure) {
+                // Silent retry once before surfacing a toast — covers transient network blips.
+                Log.w(TAG, "sync first attempt failed for $entityType, retrying once")
+                result = withTimeoutOrNull(SYNC_TIMEOUT_MS) { syncer.sync(since = previous) }
+            }
             when {
                 result == null -> {
                     lastSyncedAt[entityType] = previous

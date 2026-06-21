@@ -44,6 +44,21 @@ class UserRepositoryImpl @Inject constructor(
     override suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?) =
         dao.updateProfile(id, name, email, phone, photoUrl)
 
+    override suspend fun syncAllFromRemote() {
+        val dtos = runCatching {
+            supabase.from("users").select().decodeList<UserDto>()
+        }.onFailure { e ->
+            Log.e(TAG, "syncAllFromRemote: failed", e)
+        }.getOrNull() ?: return
+
+        dtos.forEach { dto ->
+            val localBiometric = dao.getById(dto.id)?.biometricEnabledAt
+            val entity = UserMapper.toEntity(UserMapper.toDomain(dto).copy(biometricEnabledAt = localBiometric))
+            dao.insert(entity)
+        }
+        Log.d(TAG, "syncAllFromRemote: upserted ${dtos.size} users")
+    }
+
     override suspend fun syncFromRemote(userId: String): AppUser? {
         val dto = runCatching {
             supabase.from("users")

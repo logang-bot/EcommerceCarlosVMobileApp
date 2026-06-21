@@ -62,6 +62,7 @@ import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
@@ -121,6 +122,7 @@ fun PerfilScreen(
         onGestionUsuariosClick = { navController.navigate(GestionUsuariosRoute) },
         onUmbralesClick = { navController.navigate(UmbralesRoute) },
         onMantenimientoClick = { navController.navigate(DepuracionRoute) },
+        onChangePassword = { navController.navigate(CambiarContrasenaRoute(userId = state.userId, isSelf = true)) },
         onThemeChange = { viewModel.setTheme(it) },
         onLogout = {
             viewModel.logout {
@@ -141,6 +143,7 @@ private fun PerfilContent(
     onGestionUsuariosClick: () -> Unit,
     onUmbralesClick: () -> Unit = {},
     onMantenimientoClick: () -> Unit = {},
+    onChangePassword: () -> Unit = {},
     onThemeChange: (ThemeMode) -> Unit = {},
     onLogout: () -> Unit,
 ) {
@@ -226,13 +229,15 @@ private fun PerfilContent(
                 onToggle = onBiometricToggle,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
-            Spacer(Modifier.height(10.dp))
-            SettingRow(
-                icon = Icons.Default.Lock,
-                title = stringResource(R.string.perfil_cambiar_contrasena),
-                onClick = { /* TODO: Change password flow — Phase 9 */ },
-                trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
-            )
+            if (state.role == UserRole.SUPERUSUARIO) {
+                Spacer(Modifier.height(10.dp))
+                SettingRow(
+                    icon = Icons.Default.Lock,
+                    title = stringResource(R.string.perfil_cambiar_contrasena),
+                    onClick = onChangePassword,
+                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
+                )
+            }
 
             // Equipo (superuser only)
             if (state.role == UserRole.SUPERUSUARIO) {

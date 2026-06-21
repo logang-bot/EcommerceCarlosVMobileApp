@@ -201,6 +201,7 @@
     <string name="common_confirmar">Confirmar</string>
     <string name="common_buscar">Buscar</string>
     <string name="common_cerrar">Cerrar</string>
+    <string name="common_listo">Listo</string>
 
     <!-- Roles -->
     <string name="role_super">Super usuario</string>
@@ -632,4 +633,24 @@
     <string name="sync_notification_success_title">Datos sincronizados</string>
     <string name="sync_notification_failure_title">Error al sincronizar</string>
     <string name="sync_notification_failure_body">No se pudieron enviar algunos cambios. Se reintentará automáticamente.</string>
+
+    <!-- Cambiar Contraseña -->
+    <string name="cambiar_contrasena_title">Cambiar contraseña</string>
+    <string name="cambiar_contrasena_scope_banner">Estableces una contraseña nueva para este usuario. Comunícasela de forma segura.</string>
+    <string name="cambiar_contrasena_actual">Contraseña actual</string>
+    <string name="cambiar_contrasena_nueva">Nueva contraseña</string>
+    <string name="cambiar_contrasena_confirmar">Confirmar nueva contraseña</string>
+    <string name="cambiar_contrasena_no_coincide">Las contraseñas no coinciden</string>
+    <string name="cambiar_contrasena_req_longitud">Al menos 8 caracteres</string>
+    <string name="cambiar_contrasena_req_numero">Incluye un número</string>
+    <string name="cambiar_contrasena_req_mayuscula">Mayúscula y minúscula</string>
+    <string name="cambiar_contrasena_guardar">Guardar contraseña</string>
+    <string name="cambiar_contrasena_actualizar">Actualizar contraseña</string>
+    <string name="cambiar_contrasena_exito_title">Contraseña actualizada</string>
+    <string name="cambiar_contrasena_exito_self">Tu contraseña ha sido actualizada correctamente.</string>
+    <string name="cambiar_contrasena_exito_other">La contraseña ha sido actualizada. Comunícasela al usuario de forma segura.</string>
+    <!-- Usuario Detalle: Seguridad -->
+    <string name="usuario_detalle_seguridad">Seguridad</string>
+    <string name="usuario_detalle_cambiar_contrasena">Cambiar contraseña</string>
+    <string name="usuario_detalle_cambiar_contrasena_subtitle">Establece una contraseña nueva para %s</string>
 </resources>

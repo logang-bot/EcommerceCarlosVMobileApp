@@ -100,7 +100,7 @@ internal fun ClienteHeader(cliente: Cliente) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            ClienteAvatar(name = cliente.name, size = 76.dp)
+            ClienteAvatar(name = cliente.name, photoUrl = cliente.photoUrl, size = 76.dp)
             if (cliente.isBlacklisted) {
                 Box(
                     modifier = Modifier

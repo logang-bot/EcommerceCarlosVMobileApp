@@ -5,8 +5,8 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import coil3.ImageLoader
-import coil3.ImageLoaderFactory
 import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.restrusher.ecomercecarlosv.data.queue.QueueProcessor
@@ -17,7 +17,7 @@ import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
 @HiltAndroidApp
-class PedidosApp : Application(), Configuration.Provider, ImageLoaderFactory {
+class PedidosApp : Application(), Configuration.Provider, SingletonImageLoader.Factory {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var dataSynchronizer: DataSynchronizer
