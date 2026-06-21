@@ -26,6 +26,7 @@ local.properties
 *.ap_
 *.dex
 app/release/
+app/staging/
 /captures/
 *.hprof
 

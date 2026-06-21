@@ -82,7 +82,11 @@ After this, the app's Login screen will accept those credentials and the user wi
 
 ## 5. Reset a user's password
 
-Use either method depending on whether the user has access to their email inbox.
+Three options — prefer Option C for day-to-day admin use since it requires no dashboard access.
+
+### Option C — In-app (superuser only, no dashboard required)
+
+Any `SUPERUSUARIO` can navigate to **Mi Perfil → Seguridad → Cambiar contraseña** (to change their own) or open **Gestión de Usuarios → [user] → Seguridad → Cambiar contraseña** (to reset another user's password without knowing their current one). The app calls `adminClient.auth.admin.updateUserById(userId)` with the new password.
 
 ### Option A — Dashboard (sends a recovery email)
 
@@ -120,7 +124,44 @@ The staging app installs with package name `com.restrusher.ecomercecarlosv.stagi
 
 ---
 
-## 8. ⚠️ Security note — service role key in APK
+## 8. Troubleshooting Storage uploads
+
+### Photos not uploading — `NullPointerException` at `NoArgKt.Settings`
+
+If logcat shows something like:
+
+```
+java.lang.NullPointerException: appContext must not be null
+    at com.russhwolf.settings.NoArgKt.Settings(NoArg.kt:32)
+    at io.github.jan.supabase.storage.resumable.SettingsResumableCache.<init>(...)
+```
+
+the cause is that `androidx.startup.InitializationProvider` was removed entirely from the merged `AndroidManifest.xml`. supabase-kt Storage creates a `SettingsResumableCache` (backed by `multiplatform-settings-no-arg`) the moment `storage.from(bucket)` is called. That cache needs `com.russhwolf.settings.SettingsInitializer` to have run first — which only happens if `InitializationProvider` is alive in the manifest.
+
+This app disables WorkManager auto-init so Hilt's `HiltWorkerFactory` is used instead. The correct way to do that is to keep the provider with `tools:node="merge"` and remove only the `WorkManagerInitializer` `<meta-data>` entry:
+
+```xml
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    android:exported="false"
+    tools:node="merge">
+    <meta-data
+        android:name="androidx.work.WorkManagerInitializer"
+        android:value="androidx.startup"
+        tools:node="remove" />
+</provider>
+```
+
+Do **not** use `tools:node="remove"` on the `<provider>` element itself — that silently kills every library that registers initializers through `androidx.startup`.
+
+### StorageService uses the admin (service role) client
+
+`StorageService` uploads photos using `@AdminClient` (the Supabase service role key), not the regular authenticated client. This bypasses Storage RLS INSERT policies entirely. If you tighten the service role key's permissions or move uploads to a different client, re-check the bucket RLS INSERT policies in `docs/sql/storage.sql`.
+
+---
+
+## 9. ⚠️ Security note — service role key in APK
 
 The `SUPABASE_SERVICE_ROLE_KEY` is compiled into the APK via `BuildConfig` and is readable by anyone who decompiles the APK. For this internal-use app that is acceptable, but if you ever distribute the app to untrusted users, move the admin operations (`createUser`, `updateUser`, `deleteUser`, `banUser`) to a **Supabase Edge Function** so the key never leaves the server.
 

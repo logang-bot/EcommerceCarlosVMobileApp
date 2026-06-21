@@ -158,22 +158,31 @@ private fun ClientesContent(
                 PullToRefreshBox(
                     isRefreshing = state.isRefreshing,
                     onRefresh = onRefresh,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding()),
                 ) {
                 if (state.clientes.isEmpty() && !state.isLoading) {
-                    EmptyState(
-                        modifier = Modifier.padding(innerPadding),
-                        icon = Icons.Default.Person,
-                        title = stringResource(R.string.clientes_empty_title),
-                        subtitle = stringResource(R.string.clientes_empty_subtitle),
-                        hint = if (state.canWrite) stringResource(R.string.clientes_empty_hint) else null,
-                        onActionClick = if (state.canWrite) onCreateClick else null,
-                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = innerPadding.calculateBottomPadding()),
+                    ) {
+                        item {
+                            EmptyState(
+                                modifier = Modifier.fillParentMaxSize(),
+                                icon = Icons.Default.Person,
+                                title = stringResource(R.string.clientes_empty_title),
+                                subtitle = stringResource(R.string.clientes_empty_subtitle),
+                                hint = if (state.canWrite) stringResource(R.string.clientes_empty_hint) else null,
+                                onActionClick = if (state.canWrite) onCreateClick else null,
+                            )
+                        }
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            top = innerPadding.calculateTopPadding() + 8.dp,
+                            top = 8.dp,
                             bottom = innerPadding.calculateBottomPadding() + 16.dp,
                         ),
                     ) {

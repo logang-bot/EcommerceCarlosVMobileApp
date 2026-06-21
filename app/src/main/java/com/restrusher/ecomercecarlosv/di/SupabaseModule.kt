@@ -55,5 +55,6 @@ object SupabaseModule {
                 minimalSettings()
             }
             install(Postgrest)
+            install(Storage)
         }
 }

@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.mercado
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -78,7 +79,12 @@ class CreateMercadoViewModel @Inject constructor(
     private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
         uri ?: return null
         val uriStr = uri.toString()
+        Log.d(TAG, "resolvePhotoUrl: uri=$uriStr")
         if (uriStr.startsWith("http")) return uriStr
-        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }.getOrElse { uriStr }
+        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
+            .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}", it) }
+            .getOrNull()
     }
+
+    companion object { private const val TAG = "CreateMercadoVM" }
 }

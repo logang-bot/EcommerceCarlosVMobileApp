@@ -20,11 +20,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.EcomerceCarlosV">
 
-        <!-- Disable default WorkManager init so Hilt's HiltWorkerFactory is used instead -->
+        <!-- Disable only the WorkManager auto-init so Hilt's HiltWorkerFactory is used instead.
+             Use tools:node="remove" on the meta-data entry only — removing the whole
+             InitializationProvider would kill other androidx.startup initializers (e.g.
+             multiplatform-settings SettingsInitializer). -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
-            tools:node="remove" />
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <provider
             android:name="androidx.core.content.FileProvider"

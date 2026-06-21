@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.producto
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -90,8 +91,12 @@ class CreateProductoViewModel @Inject constructor(
         uri ?: return null
         val uriStr = uri.toString()
         if (uriStr.startsWith("http")) return uriStr
-        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }.getOrElse { uriStr }
+        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
+            .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}") }
+            .getOrNull()
     }
+
+    companion object { private const val TAG = "CreateProductoVM" }
 
     fun onDelete(onSuccess: () -> Unit) {
         val id = productId ?: return

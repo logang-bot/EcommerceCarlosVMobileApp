@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.supabase.auth)
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.storage)
+    implementation(libs.multiplatform.settings.no.arg)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

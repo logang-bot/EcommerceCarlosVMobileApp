@@ -20,6 +20,7 @@ appcompat = "1.7.0"
 biometric = "1.1.0"
 coreSplashscreen = "1.0.1"
 supabase = "3.1.4"
+multiplatformSettings = "1.1.1"
 ktor = "3.1.2"
 datastore = "1.1.1"
 coil = "3.0.4"
@@ -58,6 +59,7 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt", version.ref = "supabase" }
 supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }
 supabase-storage = { group = "io.github.jan-tennert.supabase", name = "storage-kt", version.ref = "supabase" }
+multiplatform-settings-no-arg = { group = "com.russhwolf", name = "multiplatform-settings-no-arg", version.ref = "multiplatformSettings" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }

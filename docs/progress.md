@@ -33,6 +33,143 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 10c | Remove client-side pagination (LoadMoreButton), server-side range fetch for >1000 rows | ✅ Done |
 | 11 | Soft-delete: `isDeleted` on all 4 entities, Room v17, QueueProcessor pushes UPDATE instead of DELETE, syncers hard-delete locally on delta when `is_deleted = true` | ✅ Done |
 | 12 | Depuración / Mantenimiento: Superusuario-only two-phase cleanup — export pedidos to CSV/XLSX then hard-delete from Supabase + Room | ✅ Done |
+| 13 | Cambiar contraseña (superuser-only) — self via Perfil + others via UsuarioDetalleScreen | ✅ Done |
+
+---
+
+## ✅ Phase 13 — Cambiar contraseña (superuser-only)
+
+Admin password change flow wired to Supabase Auth. Full details in `docs/features/perfil.md → Cambiar contraseña screen`.
+
+### Two entry points
+
+- **PerfilScreen → Seguridad → Cambiar contraseña** (`isSelf = true`): The logged-in superuser changes their own password. Requires entering the current password (verified via `supabase.auth.signInWith(Email)`) before `supabase.auth.updateUser { password = ... }`.
+- **UsuarioDetalleScreen → Seguridad → Cambiar contraseña** (`isSelf = false`): Superuser resets another user's password without needing their current password. Uses `adminClient.auth.admin.updateUserById(userId) { password = ... }`.
+
+### New files
+
+| File | Description |
+|------|-------------|
+| `ui/screen/perfil/CambiarContrasenaScreen.kt` | Full screen with PwTargetCard, scope banner, password fields with eye toggles, requirements checklist, success overlay, bottom bar |
+| `ui/screen/perfil/CambiarContrasenaViewModel.kt` | `@HiltViewModel`; dispatches to self or admin API based on `isSelf`; reads route args via `SavedStateHandle.toRoute<CambiarContrasenaRoute>()` |
+| `ui/screen/perfil/CambiarContrasenaUiState.kt` | Data class with inline validation computed properties (`meetsLength`, `meetsNumber`, `meetsCasing`, `passwordMismatch`, `isValid`) |
+
+### Modified files
+
+| File | Change |
+|------|--------|
+| `presentation/screens/AppRoutes.kt` | Added `CambiarContrasenaRoute(userId: String, isSelf: Boolean)` |
+| `presentation/navigation/AppNavigation.kt` | Added `composable<CambiarContrasenaRoute>` entry |
+| `ui/screen/perfil/PerfilScreen.kt` | `Cambiar contraseña` row gated to `SUPERUSUARIO`; navigates to `CambiarContrasenaRoute(userId, isSelf = true)` |
+| `ui/screen/perfil/PerfilViewModel.kt` | Added `userId` field to `PerfilUiState` (threaded from `sessionManager.currentUser`) |
+| `ui/screen/usuario/UsuarioDetalleScreen.kt` | New "Seguridad" section with `Cambiar contraseña` row; navigates to `CambiarContrasenaRoute(userId, isSelf = false)` |
+| `res/values/strings.xml` | Added `cambiar_contrasena_*` and `usuario_detalle_seguridad` / `usuario_detalle_cambiar_contrasena*` strings |
+
+---
+
+## ✅ Resolved post-Phase 13
+
+### 📸 StorageService — photo upload silently failing (no image after create)
+
+After creating a mercado, cliente, or producto with a photo, no image appeared in the list or detail screens. The Supabase Storage bucket showed no new objects.
+
+**Root cause**: `AndroidManifest.xml` had `tools:node="remove"` on the entire `androidx.startup.InitializationProvider` (added in Phase 9c to disable WorkManager auto-init). Removing the whole provider kills every `androidx.startup` initializer registered by any library — including `com.russhwolf.settings.SettingsInitializer` from `multiplatform-settings-no-arg`. That initializer is responsible for capturing the application `Context` so the no-arg `Settings()` constructor works on Android. supabase-kt Storage uses `Settings()` (via `SettingsResumableCache`) the moment `storage.from(bucket)` is called, so without the initializer every upload NPE'd immediately.
+
+The NPE was previously swallowed by `.getOrElse { uriStr }` (which fell back to storing the local `content://` URI). After that fallback was removed in favor of `.getOrNull()` (see "Resolved post-Phase 12 → Cross-device photo not showing"), the failure became visible as `photoUrl = null`.
+
+**Fix — `AndroidManifest.xml`**: Changed `tools:node="remove"` on the provider to `tools:node="merge"`, and moved the removal down to only the `WorkManagerInitializer` `<meta-data>` entry. The `InitializationProvider` now survives in the merged manifest, all third-party initializers run normally, and only WorkManager's auto-init is suppressed so Hilt's factory takes over.
+
+```xml
+<!-- Before (kills ALL androidx.startup initializers): -->
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    tools:node="remove" />
+
+<!-- After (removes only WorkManager auto-init): -->
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    android:exported="false"
+    tools:node="merge">
+    <meta-data
+        android:name="androidx.work.WorkManagerInitializer"
+        android:value="androidx.startup"
+        tools:node="remove" />
+</provider>
+```
+
+**Fix — `StorageService`**: Switched from the regular `SupabaseClient` to `@AdminClient` (service role key). The admin client bypasses Storage RLS INSERT policies entirely, so uploads work regardless of how the bucket policies are configured.
+
+**Fix — `SupabaseModule`**: Added `install(Storage)` to `provideAdminSupabaseClient()` so the admin client has the Storage plugin available.
+
+**Fix — `gradle/libs.versions.toml` + `app/build.gradle.kts`**: Added `multiplatform-settings-no-arg:1.1.1` as an explicit dependency. supabase-kt pulls it transitively, but declaring it explicitly ensures the Android AAR variant (with its manifest) is always resolved and appears in the merged manifest for verification.
+
+### 🪵 Upload failure logging in create ViewModels
+
+`resolvePhotoUrl` in all three create ViewModels previously swallowed upload exceptions silently. Added structured logging so failures surface immediately in Logcat:
+
+- `Log.d(TAG, "resolvePhotoUrl: uri=$uriStr")` — emitted at the start of every `resolvePhotoUrl` call so the URI is visible before any network call.
+- `.onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}", it) }` — logs the full exception with stack trace.
+
+**Modified files**: `CreateMercadoViewModel.kt` (tag `"CreateMercadoVM"`), `CreateClienteViewModel.kt` (tag `"CreateClienteVM"`), `CreateProductoViewModel.kt` (tag `"CreateProductoVM"`).
+
+### Modified files (all fixes)
+
+| File | Change |
+|------|--------|
+| `app/src/main/AndroidManifest.xml` | `InitializationProvider` kept with `tools:node="merge"`; only `WorkManagerInitializer` meta-data entry removed |
+| `di/SupabaseModule.kt` | `install(Storage)` added to `provideAdminSupabaseClient()` |
+| `data/remote/StorageService.kt` | Injection changed from regular `SupabaseClient` to `@AdminClient`; `require(bytes.isNotEmpty())` guard added |
+| `gradle/libs.versions.toml` | `multiplatformSettings = "1.1.1"` + `multiplatform-settings-no-arg` library entry added |
+| `app/build.gradle.kts` | `implementation(libs.multiplatform.settings.no.arg)` added |
+| `ui/screen/mercado/CreateMercadoViewModel.kt` | `Log.d`/`Log.e` added to `resolvePhotoUrl` |
+| `ui/screen/cliente/CreateClienteViewModel.kt` | `Log.e` added to `resolvePhotoUrl` |
+| `ui/screen/producto/CreateProductoViewModel.kt` | `Log.e` added to `resolvePhotoUrl` |
+
+---
+
+## ✅ Resolved post-Phase 12
+
+### 🖼️ DetalleClienteScreen — cliente photo not displayed
+
+`DetalleClienteHeader` called `ClienteAvatar(name = cliente.name, size = 76.dp)` without passing `photoUrl`. Photo was loaded into Room/Supabase but never reached the avatar composable.
+
+**Fix** (`DetalleClienteHeader.kt`): `ClienteAvatar(name = cliente.name, photoUrl = cliente.photoUrl, size = 76.dp)`.
+
+---
+
+### 🌐 Cross-device photo not showing
+
+When `StorageService.uploadPhoto()` failed silently, `resolvePhotoUrl` in the three create/edit ViewModels used `.getOrElse { uriStr }`, which stored the local `content://` URI in Room and Supabase. That URI is scoped to the originating device's MediaStore and is unreachable on any other device.
+
+**Fix** (all three ViewModels — `CreateClienteViewModel`, `CreateMercadoViewModel`, `CreateProductoViewModel`): changed `.getOrElse { uriStr }` to `.getOrNull()`. Upload failure now results in `photoUrl = null` (honest and consistent across devices) rather than a dangling device-local URI.
+
+**Root cause of upload failures**: the Supabase Storage bucket must be set to **Public** in the Supabase dashboard, and the RLS policy for INSERT must allow authenticated users without a restrictive path filter. See `docs/sql/storage.sql` and `docs/supabase-setup.md`.
+
+---
+
+### 🔄 Transient "Failed to sync: CLIENTES" toast on first login
+
+After login, `DataSynchronizer.resetStaleness()` clears all `lastSyncedAt` timestamps, causing all entity types to trigger a full cold-fetch burst simultaneously. Under low connectivity the first attempt could time out or fail before the network fully settled — but `lastSyncedAt` is restored to the previous value on failure, so the next navigation retried automatically (self-healing).
+
+**Fix** (`DataSynchronizer.kt`): added a silent single retry before emitting the error toast. If the first `withTimeoutOrNull` call returns `null` or `SyncResult.Failure`, the syncer runs once more before surfacing the error to the user.
+
+---
+
+### 🔄 Pull-to-refresh indicator hidden behind top bar (MercadosScreen)
+
+`PullToRefreshBox` renders its indicator at `y = 0` of its own layout. When the box filled the full scaffold content area (which starts at `y = 0` below the status bar, before the top app bar), the indicator appeared under the top bar.
+
+**Fix** (`MercadosScreen.kt`): added `.padding(top = innerPadding.calculateTopPadding())` to the `PullToRefreshBox` modifier and removed the duplicate top padding from the inner `LazyColumn` content padding.
+
+---
+
+### 🔄 Pull-to-refresh not working in empty state (ClientesScreen)
+
+`PullToRefreshBox` detects the pull gesture via `NestedScrollConnection`. A static `Column` (the previous empty state container) does not participate in nested scrolling, so no pull gesture was ever forwarded.
+
+**Fix** (`ClientesScreen.kt`): wrapped the empty state in a `LazyColumn` with the `EmptyState` composable as an `item { ... }` using `Modifier.fillParentMaxSize()`. `LazyColumn` provides the required scrollable surface so the pull gesture is detected even when there is only one item. Applied the same `padding(top = innerPadding.calculateTopPadding())` fix to the `PullToRefreshBox` modifier as in MercadosScreen.
 
 ---
 

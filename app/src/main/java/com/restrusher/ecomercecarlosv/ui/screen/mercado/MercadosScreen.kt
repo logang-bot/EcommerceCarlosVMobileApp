@@ -195,11 +195,13 @@ private fun MercadosContent(
                 PullToRefreshBox(
                     isRefreshing = state.isRefreshing,
                     onRefresh = onRefresh,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding()),
                 ) {
                 if (state.mercados.isEmpty() && !state.isLoading) {
                     EmptyState(
-                        modifier = Modifier.padding(innerPadding),
+                        modifier = Modifier.fillMaxSize(),
                         icon = Icons.Default.GridView,
                         title = stringResource(R.string.mercados_empty_title),
                         subtitle = stringResource(R.string.mercados_empty_subtitle),
@@ -210,7 +212,7 @@ private fun MercadosContent(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            top = innerPadding.calculateTopPadding() + 4.dp,
+                            top = 4.dp,
                             bottom = innerPadding.calculateBottomPadding() + 16.dp,
                         ),
                     ) {
