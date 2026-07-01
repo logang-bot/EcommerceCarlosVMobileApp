@@ -118,7 +118,7 @@ class CreateClienteViewModel @Inject constructor(
         if (uriStr.startsWith("http")) return uriStr
         return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
             .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}") }
-            .getOrNull()
+            .getOrElse { uriStr } // offline: keep local URI so image is visible; QueueProcessor will upload later
     }
 
     companion object { private const val TAG = "CreateClienteVM" }

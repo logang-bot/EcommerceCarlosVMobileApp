@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.data.queue
 
+import android.net.Uri
 import android.util.Log
 import androidx.work.WorkManager
 import com.restrusher.ecomercecarlosv.data.error.GlobalErrorHandler
@@ -18,6 +19,7 @@ import com.restrusher.ecomercecarlosv.data.mapper.MercadoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.PedidoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.ProductoMapper
 import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
+import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.error.AppError
 import io.github.jan.supabase.SupabaseClient
@@ -42,6 +44,7 @@ class QueueProcessor @Inject constructor(
     private val detalleDao: DetallePedidoDao,
     private val networkMonitor: NetworkMonitor,
     private val supabase: SupabaseClient,
+    private val storageService: StorageService,
     private val errorHandler: GlobalErrorHandler,
     private val workManager: WorkManager,
     @ApplicationScope private val appScope: CoroutineScope,
@@ -146,15 +149,33 @@ class QueueProcessor @Inject constructor(
         when (op.entityType) {
             EntityType.MERCADO -> {
                 val entity = mercadoDao.getById(op.entityId) ?: return true // deleted locally
-                supabase.from("mercados").upsert(MercadoMapper.toDto(entity))
+                val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
+                    val remoteUrl = storageService.uploadPhoto("mercado-photos", entity.id, Uri.parse(entity.photoUrl))
+                    entity.copy(photoUrl = remoteUrl).also { mercadoDao.update(it) }
+                } else {
+                    entity
+                }
+                supabase.from("mercados").upsert(MercadoMapper.toDto(finalEntity))
             }
             EntityType.CLIENTE -> {
                 val entity = clienteDao.getById(op.entityId) ?: return true
-                supabase.from("clientes").upsert(ClienteMapper.toDto(entity))
+                val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
+                    val remoteUrl = storageService.uploadPhoto("cliente-photos", entity.id, Uri.parse(entity.photoUrl))
+                    entity.copy(photoUrl = remoteUrl).also { clienteDao.update(it) }
+                } else {
+                    entity
+                }
+                supabase.from("clientes").upsert(ClienteMapper.toDto(finalEntity))
             }
             EntityType.PRODUCTO -> {
                 val entity = productoDao.getById(op.entityId) ?: return true
-                supabase.from("productos").upsert(ProductoMapper.toDto(entity))
+                val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
+                    val remoteUrl = storageService.uploadPhoto("producto-photos", entity.id, Uri.parse(entity.photoUrl))
+                    entity.copy(photoUrl = remoteUrl).also { productoDao.update(it) }
+                } else {
+                    entity
+                }
+                supabase.from("productos").upsert(ProductoMapper.toDto(finalEntity))
             }
             EntityType.PEDIDO -> {
                 val entity = pedidoDao.getById(op.entityId) ?: return true
