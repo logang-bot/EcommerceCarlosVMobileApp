@@ -136,10 +136,13 @@ Room write (instant — UI reflects the change immediately)
   ↓
 SyncOperationEntity enqueued in sync_operations table
   ↓
-QueueProcessor picks it up and pushes to Supabase (background)
+QueueProcessor picks it up (background):
+  · For MERCADO/CLIENTE/PRODUCTO with content:// photoUrl → uploads to Storage first,
+    updates Room with https:// URL, then pushes DTO to Supabase
+  · For all other ops → pushes DTO to Supabase directly
 ```
 
-The user never waits for the network. The UI is always driven by Room.
+The user never waits for the network. The UI is always driven by Room. Photos are stored as local `content://` URIs in Room until `QueueProcessor` uploads them — Coil renders local URIs instantly.
 
 ### Room table: `sync_operations` (Room v15)
 
@@ -202,6 +205,12 @@ Room `Flow` queries **emit the current DB value immediately when collection star
 4. On success: delete all raw queue entries for that entity.
 5. On failure: increment `retryCount` for all raw entries for that entity (observability only — not used to gate retries), set `anyFailed = true`, continue to next entity.
 6. Return `anyFailed`.
+
+**MERCADO / CLIENTE / PRODUCTO UPSERT — photo upload**: before pushing the entity DTO to Supabase, `QueueProcessor` checks `entity.photoUrl?.startsWith("content://")`. If `true`, it calls `storageService.uploadPhoto(bucket, entityId, Uri.parse(photoUrl))`, updates the Room entity with the resulting `https://` URL, then proceeds with the Supabase upsert. If the upload throws (network failure), the outer `runCatching` catches it and `anyFailed = true`, leaving the op in the queue for the next retry cycle.
+
+This makes the photo upload path fully offline-first: the UI writes the local `content://` URI to Room immediately (no blocking network call on save), and the upload happens here in the background. On reconnect, any entity with a pending `content://` photoUrl is automatically uploaded as part of normal queue processing.
+
+Buckets used: `"mercado-photos"`, `"cliente-photos"`, `"producto-photos"`.
 
 **PEDIDO UPSERT** also pushes the current `detalle_pedido` rows: it deletes all remote detalles for the pedido and re-inserts the current Room set. This ensures line-item edits are always consistent.
 

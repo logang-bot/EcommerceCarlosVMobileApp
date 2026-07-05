@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
@@ -61,9 +62,14 @@ fun SyncBarIcon(state: SyncIconState, onClick: () -> Unit) {
             modifier = Modifier.size(21.dp),
         )
         if (dotColor != null) {
+            // Manual overlay: badge center ≈ icon top-right corner.
+            // Icon is 21dp centered in 40dp → top-right at (30.5dp, 9.5dp).
+            // TopEnd aligns dot right edge to container right (dot center at 36dp, 4dp),
+            // then offset(-6dp, +6dp) shifts it to (30dp, 10dp) — imperceptibly close.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .offset(x = (-6).dp, y = 6.dp)
                     .size(8.dp)
                     .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
                     .background(dotColor, CircleShape),

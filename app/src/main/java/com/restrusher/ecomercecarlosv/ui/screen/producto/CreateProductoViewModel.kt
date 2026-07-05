@@ -1,12 +1,10 @@
 package com.restrusher.ecomercecarlosv.ui.screen.producto
 
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Producto
 import com.restrusher.ecomercecarlosv.domain.repository.ProductoRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
@@ -21,7 +19,6 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateProductoViewModel @Inject constructor(
     private val productoRepository: ProductoRepository,
-    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -72,31 +69,19 @@ class CreateProductoViewModel @Inject constructor(
         val id = productId ?: UUID.randomUUID().toString()
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "producto-photos", entityId = id)
             productoRepository.save(
                 Producto(
                     id = id,
                     name = s.name.trim(),
                     description = s.description.trim().ifBlank { null },
                     price = price!!,
-                    photoUrl = photoUrl,
+                    photoUrl = s.photoUri?.toString(),
                     createdAt = System.currentTimeMillis(),
                 ),
             )
             onSuccess()
         }
     }
-
-    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
-        uri ?: return null
-        val uriStr = uri.toString()
-        if (uriStr.startsWith("http")) return uriStr
-        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
-            .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}") }
-            .getOrElse { uriStr } // offline: keep local URI so image is visible; QueueProcessor will upload later
-    }
-
-    companion object { private const val TAG = "CreateProductoVM" }
 
     fun onDelete(onSuccess: () -> Unit) {
         val id = productId ?: return

@@ -1,12 +1,10 @@
 package com.restrusher.ecomercecarlosv.ui.screen.mercado
 
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.util.extractMapsCoordinates
@@ -22,7 +20,6 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateMercadoViewModel @Inject constructor(
     private val mercadoRepository: MercadoRepository,
-    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -59,13 +56,12 @@ class CreateMercadoViewModel @Inject constructor(
         val id = mercadoId ?: UUID.randomUUID().toString()
         viewModelScope.launch {
             _state.value = s.copy(isLoading = true)
-            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "mercado-photos", entityId = id)
             mercadoRepository.save(
                 Mercado(
                     id = id,
                     name = s.name.trim(),
                     address = s.address.trim(),
-                    photoUrl = photoUrl,
+                    photoUrl = s.photoUri?.toString(),
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
                     latitude = coords?.first,
                     longitude = coords?.second,
@@ -75,16 +71,4 @@ class CreateMercadoViewModel @Inject constructor(
             onSuccess()
         }
     }
-
-    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
-        uri ?: return null
-        val uriStr = uri.toString()
-        Log.d(TAG, "resolvePhotoUrl: uri=$uriStr")
-        if (uriStr.startsWith("http")) return uriStr
-        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
-            .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}", it) }
-            .getOrElse { uriStr } // offline: keep local URI so image is visible; QueueProcessor will upload later
-    }
-
-    companion object { private const val TAG = "CreateMercadoVM" }
 }

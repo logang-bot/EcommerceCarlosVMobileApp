@@ -1,12 +1,10 @@
 package com.restrusher.ecomercecarlosv.ui.screen.cliente
 
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateClienteRoute
@@ -21,7 +19,6 @@ import javax.inject.Inject
 @HiltViewModel
 class CreateClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
-    private val storageService: StorageService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -94,7 +91,6 @@ class CreateClienteViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true)
             val phones = s.phones.map { it.trim() }.filter { it.isNotBlank() }
             val primaryPhoneIndex = minOf(s.primaryPhoneIndex, maxOf(phones.size - 1, 0))
-            val photoUrl = resolvePhotoUrl(s.photoUri, bucket = "cliente-photos", entityId = id)
             clienteRepository.save(
                 Cliente(
                     id = id,
@@ -104,22 +100,11 @@ class CreateClienteViewModel @Inject constructor(
                     phones = phones,
                     primaryPhoneIndex = primaryPhoneIndex,
                     mapsUrl = s.mapsUrl.trim().ifBlank { null },
-                    photoUrl = photoUrl,
+                    photoUrl = s.photoUri?.toString(),
                     createdAt = System.currentTimeMillis(),
                 ),
             )
             onSuccess()
         }
     }
-
-    private suspend fun resolvePhotoUrl(uri: Uri?, bucket: String, entityId: String): String? {
-        uri ?: return null
-        val uriStr = uri.toString()
-        if (uriStr.startsWith("http")) return uriStr
-        return runCatching { storageService.uploadPhoto(bucket, entityId, uri) }
-            .onFailure { Log.e(TAG, "Photo upload failed [$bucket/$entityId]: ${it.javaClass.simpleName}: ${it.message}") }
-            .getOrElse { uriStr } // offline: keep local URI so image is visible; QueueProcessor will upload later
-    }
-
-    companion object { private const val TAG = "CreateClienteVM" }
 }

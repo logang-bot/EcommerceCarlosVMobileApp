@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +36,7 @@ import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 @Composable
 fun RefreshErrorToast(
     onRetry: () -> Unit,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -44,7 +47,7 @@ fun RefreshErrorToast(
             .clip(shape)
             .background(ext.surface2)
             .border(1.dp, ext.border2, shape)
-            .padding(start = 16.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+            .padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -82,6 +85,14 @@ fun RefreshErrorToast(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = null,
+                tint = ext.text3,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
@@ -92,6 +103,7 @@ private fun RefreshErrorToastPreview() {
     EcomerceCarlosVTheme {
         RefreshErrorToast(
             onRetry = {},
+            onDismiss = {},
             modifier = Modifier.padding(16.dp),
         )
     }

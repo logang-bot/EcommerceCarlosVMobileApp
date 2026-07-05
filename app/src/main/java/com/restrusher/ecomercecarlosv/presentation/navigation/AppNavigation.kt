@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -73,8 +74,12 @@ fun AppNavigation() {
 
     // Auto-login: when startup session check completes with a restored session,
     // skip the Login screen and go straight to Home.
+    // Guard: only navigate if still on Login — after process death the NavController restores
+    // a deeper back stack (e.g. CreateMercadoRoute) and we must NOT pop it.
     LaunchedEffect(isLoaded) {
-        if (isLoaded && currentUser != null) {
+        if (isLoaded && currentUser != null &&
+            navController.currentDestination?.hasRoute<LoginRoute>() == true
+        ) {
             navController.navigate(HomeRoute) {
                 popUpTo(LoginRoute) { inclusive = true }
             }

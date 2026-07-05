@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,7 +122,7 @@ private fun CreateMercadoContent(
     var showPhotoSheet by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionPermanentlyDeclined by remember { mutableStateOf(false) }
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->

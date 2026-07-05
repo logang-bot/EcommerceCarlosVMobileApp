@@ -110,6 +110,15 @@ private fun ClientesContent(
     val ext = MaterialTheme.extendedColors
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            if (state.refreshFailed) {
+                RefreshErrorToast(
+                    onRetry = onRefresh,
+                    onDismiss = onRefreshErrorDismissed,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        },
         topBar = {
             Column {
                 PedidosTopBar(
@@ -203,18 +212,6 @@ private fun ClientesContent(
                     }
                 }
             }
-            }
-            if (state.refreshFailed) {
-                RefreshErrorToast(
-                    onRetry = onRefresh,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = innerPadding.calculateBottomPadding() + 12.dp,
-                        ),
-                )
             }
         }
     }

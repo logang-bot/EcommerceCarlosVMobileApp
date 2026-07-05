@@ -67,6 +67,72 @@ Admin password change flow wired to Supabase Auth. Full details in `docs/feature
 
 ---
 
+## ✅ Resolved post-Phase 13b
+
+### ⚡ Create/Edit ViewModels blocking the UI on save (6 s freeze)
+
+`CreateMercadoViewModel`, `CreateClienteViewModel`, `CreateProductoViewModel` all called `resolvePhotoUrl()` from `onSave()`. That method called `storageService.uploadPhoto()` — a real Supabase Storage network request — **before** writing to Room. When online the upload took ~6 seconds, blocking navigation entirely.
+
+**Fix** (all three ViewModels): removed `StorageService` from the constructor and deleted `resolvePhotoUrl()`. `onSave()` now stores `s.photoUri?.toString()` directly — a Room write that completes in ~1 ms — and calls `onSuccess()` immediately. Since every `repository.save()` already enqueues a `SyncOp.UPSERT`, `QueueProcessor` handles the photo upload + Supabase push in the background without any UI involvement.
+
+Side-effect: edit operations are now properly offline-first too. Previously a failed upload would crash the save flow; now edits always write to Room first and sync when online.
+
+**Modified files**: `ui/screen/mercado/CreateMercadoViewModel.kt`, `ui/screen/cliente/CreateClienteViewModel.kt`, `ui/screen/producto/CreateProductoViewModel.kt`.
+
+---
+
+### 📸 Offline image not shown after create; post-reconnect upload missing
+
+When creating a mercado/cliente/producto offline the photo was not visible after save, and after reconnecting the photo was never uploaded to Supabase Storage.
+
+**Root cause**: `resolvePhotoUrl()` called `.getOrNull()` on upload failure → stored `null` as `photoUrl`. No image shown. When the entity was later synced by `QueueProcessor`, it pushed the `null` photoUrl to Supabase and never attempted a Storage upload.
+
+**Fix — ViewModels**: `resolvePhotoUrl` removed entirely (see above). `s.photoUri?.toString()` is stored, so a local `content://` URI is saved to Room on offline creates. Coil renders the local image immediately.
+
+**Fix — `QueueProcessor.kt`**: Added `StorageService` injection. In the `upsert()` branch for `MERCADO`, `CLIENTE`, and `PRODUCTO`: if `entity.photoUrl?.startsWith("content://") == true`, the processor uploads the photo to Supabase Storage first, updates the Room entity with the resulting `https://` URL, then pushes the entity DTO to Supabase. If the upload throws (network failure), the outer `runCatching` catches it and the op remains in the queue for retry.
+
+**Modified files**: `data/queue/QueueProcessor.kt` (+ `StorageService` constructor param + `content://` detection + upload in upsert branches for MERCADO / CLIENTE / PRODUCTO).
+
+---
+
+### 📱 Camera causes automatic navigation back when creating mercado/cliente
+
+Tapping the camera shutter in `TakePicture` caused the Create screen to disappear and the mercado/cliente to never be created.
+
+**Root cause**: Android killed the app process while the camera was in the foreground (low memory). On camera return the Activity was recreated, `AppViewModel` re-initialized, `isLoaded` flipped false→true, and `AppNavigation`'s `LaunchedEffect(isLoaded)` unconditionally ran `navController.navigate(HomeRoute) { popUpTo(LoginRoute) }`, popping the entire back stack.
+
+**Fix — `AppNavigation.kt`**: added `navController.currentDestination?.hasRoute<LoginRoute>() == true` guard so the auto-login navigation only fires when the back stack actually shows the Login screen.
+
+**Fix — `CreateMercadoScreen.kt`, `CreateClienteScreen.kt`**: changed `pendingCameraUri` from `remember { mutableStateOf<Uri?>(null) }` to `rememberSaveable { ... }` so the pending URI survives process death / Activity recreation.
+
+**Modified files**: `presentation/navigation/AppNavigation.kt`, `ui/screen/mercado/CreateMercadoScreen.kt`, `ui/screen/cliente/CreateClienteScreen.kt`.
+
+---
+
+### 🍞 Pull-to-refresh error toast behind FAB + missing dismiss button
+
+`RefreshErrorToast` was rendered inside the Scaffold content `Box`, placing it behind the FAB in Z-order. It also had no way to dismiss it.
+
+**Fix — `RefreshErrorToast.kt`**: added `onDismiss: () -> Unit` parameter and an `IconButton` with a `Close` icon at the end of the Row.
+
+**Fix — all four list screens** (`MercadosScreen`, `ClientesScreen`, `CatalogoScreen`, `ListaNegraScreen`): moved the `RefreshErrorToast` call from inside the content `Box` to the Scaffold's `snackbarHost` parameter. Material3 Scaffold renders the snackbar host above the FAB in Z-order, matching the expected visual hierarchy.
+
+**Modified files**: `ui/common/RefreshErrorToast.kt`, `ui/screen/mercado/MercadosScreen.kt`, `ui/screen/cliente/ClientesScreen.kt`, `ui/screen/producto/CatalogoScreen.kt`, `ui/screen/lista_negra/ListaNegraScreen.kt`.
+
+---
+
+### 🔵 Sync badge position misaligned
+
+The pending-ops badge dot on `SyncBarIcon` was placed too far from the cloud icon's top-right corner.
+
+**Root cause**: `BadgedBox` from Material3 treats any badge taller than 6 dp as a "large badge" and applies `(-6 dp, -6 dp)` inward offsets designed for text-content badges. Our 8 dp dot was hitting this path and being pushed well away from the corner.
+
+**Fix — `SyncBarIcon.kt`**: replaced `BadgedBox` with a direct `Box` overlay. The dot is positioned with `Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 6.dp)`, which places its center at ≈ (30 dp, 10 dp) in the 40 dp container — imperceptibly close to the 21 dp icon's top-right corner at (30.5 dp, 9.5 dp).
+
+**Modified files**: `ui/common/SyncBarIcon.kt`.
+
+---
+
 ## ✅ Resolved post-Phase 13
 
 ### 📸 StorageService — photo upload silently failing (no image after create)
