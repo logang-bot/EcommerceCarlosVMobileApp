@@ -56,10 +56,8 @@ class DetalleClienteViewModel @Inject constructor(
         val (showSheet, filters, user) = triple2
         val unpaidRegular = pedidos.filter { !it.isSaldoExtra && it.status != PedidoStatus.PAID }
         val unpaidExtra = pedidos.filter { it.isSaldoExtra && it.status != PedidoStatus.PAID }
-        val balance = pedidos.filter {
-            it.status == PedidoStatus.PARTIAL ||
-                (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
-        }.sumOf { it.pending }
+        val pedidosBalance = unpaidRegular.sumOf { it.pending }
+        val extraBalance = unpaidExtra.sumOf { it.pending }
         val statusBalance = pedidos.filter {
             it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra
         }.sumOf { it.pending }
@@ -69,10 +67,10 @@ class DetalleClienteViewModel @Inject constructor(
             cliente = cliente,
             pedidos = filteredPedidos,
             allPedidosCount = pedidos.size,
-            balance = balance,
-            pedidosBalance = unpaidRegular.sumOf { it.pending },
+            balance = pedidosBalance + extraBalance,
+            pedidosBalance = pedidosBalance,
             unpaidPedidosCount = unpaidRegular.size,
-            extraBalance = unpaidExtra.sumOf { it.pending },
+            extraBalance = extraBalance,
             unpaidExtraCount = unpaidExtra.size,
             status = computeStatus(statusBalance, pedidos, umbrales),
             isLoading = isLoading,

@@ -8,10 +8,12 @@
 
 Third tab of the bottom navigation bar. Two modes switchable via a segmented toggle:
 
-- **Diario** — daily stats for any date range: hero "Cobrado hoy" card, two stat cards (Pedidos creados / Pendiente del día), and a movements list (cobros + new pedidos).
-- **Por cliente** — client-specific stats for any date range: client selector, three stat cards (Facturado / Pagado / Saldo), and an historial list of all pedidos/saldo-extra in the range.
+- **Diario** — pedidos created in a date range: a "Facturado hoy" hero card (total + pedido count), a Pagado/Por pagar two-card row below it, and a flat list of every pedido in the range (client name, mercado, time, total/pending, status).
+- **Por cliente** — a single client's pedidos for any date range: client selector, two summary cards (Pedidos count / Saldo extra amount), a "Historial" list of the client's regular pedidos — each with its product line items shown as a sublist — and, only when the client has saldo-extra entries, a separate "Saldo extra" section at the end.
 
-Report export via the top-bar `Description` icon (Reportes tab) and the "Generar PDF" button (Reporte de Pedidos screen). Reports are saved as `.html` files directly to the device's **Downloads** folder — visible in any file manager. A `Toast` confirms success or reports the error.
+Both modes were rebuilt around **pedidos as the unit of the report** (previously Diario tracked a mixed cobro/pedido event timeline, and Por cliente mixed saldo-extra into the main list) — see "Diario mode" and "Por cliente mode" below for the full before/after.
+
+Report export via a pill-shaped "PDF" button in the Reportes tab's top bar (Diario and Por cliente) and the "Generar PDF" button (Reporte de Pedidos screen). Reports are saved as `.html` files directly to the device's **Downloads** folder — visible in any file manager. A `Toast` confirms success or reports the error.
 
 ---
 
@@ -54,25 +56,34 @@ Shown below the chip bar when `PERSONALIZADO` is active. Two `DateField` composa
 
 ### Diario mode
 
-- **`CobradoHeroCard`**: full-width, 20dp corners, `Brush.verticalGradient` from `green.copy(α=0.16)` to `green.copy(α=0.05)`, `green.copy(α=0.22)` border. Title `greenText`, 38sp Bold Monospace amount, `text3` cobro count subtitle.
-- **`ReporteStatCard`**: shared card composable. 16dp corners, `surface2` bg + `border` inset. Contains: a 34×34dp icon container (10dp corners, `iconBgColor` bg, 18dp icon in `valueColor`), then 22sp SemiBold Monospace value (letterSpacing −0.5sp), then 12.5sp `text2` label.
-- **`DiarioStatCards`**: two equal `ReporteStatCard`s — "Pedidos creados" (`accentTint` icon bg, `primary` value, `ShoppingCart` icon) + "Pendiente del día" (`amberTint` icon bg, `amberText` value, `AttachMoney` icon).
-- **`MovimientosSection`**: `MOVIMIENTOS DE HOY` section label + list of `MovimientoRow`s or "Sin movimientos en este período" text.
-- **`MovimientoRow`**: 8dp `CircleShape` dot (`greenText` for COBRO, `primary` for PEDIDO) + name + "Cobro/Pedido · mercado · HH:mm" subtitle + right-aligned amount (green for COBRO).
+Rebuilt to match the "Reportes · Diario" screen in the team's Claude Design mockup project (`Pedidos y Cuentas - Mockups.html`, `DCArtboard id="reporte"`).
+
+- **`FacturadoHeroCard`**: full-width, 18dp corners, `surface2` bg + `border` inset. Header row: 32×32dp `accentTint` icon tile (`ShoppingCart`, `primary` tint), "Facturado hoy" label (`text2`), right-aligned "N pedidos" count (`text3`). Below: 34sp Bold Monospace total (`onSurface`, explicit 38sp `lineHeight`, letterSpacing −1sp).
+- **`PagadoPorPagarRow`** (+ private `MoneyMiniCard`): two cards side by side under the hero — "Pagado" (green tint, `Check` icon) and "Por pagar" (amber tint, `AttachMoney` icon). Each: icon+label row, then 21sp Bold Monospace value below it (explicit 24sp `lineHeight`).
+- **`ReporteStatCard`**: shared card primitive (also used by Por cliente mode's `PedidosSaldoExtraCards`). 16dp corners, `surface2` bg + `border` inset, 34×34dp icon tile, 22sp SemiBold Monospace value (explicit 25sp `lineHeight` — guards the same wrap-overlap bug fixed on `DetalleClienteScreen`'s balance card), 12.5sp `text2` label.
+- **Pedidos list**: reuses `HistorialSectionHeader` ("Pedidos" + "N pedidos" action) and `HistorialRow` — the same components Por cliente mode uses. Each `diarioPedidos` entry is one pedido: `title` = client name, `subtitle` = "d MMM, HH:mm · mercado". Flat rows separated by `HorizontalDivider` (no enclosing card).
+
+**Data model**: `diarioPedidos: List<HistorialItem>` — one row per pedido created in the selected range (`createdAt in [from,to] && !isSaldoExtra`), each carrying its own `total`/`paid`/`pending`. `diarioFacturado`/`diarioPagado`/`diarioPendiente` are the range sums, computed once in the ViewModel and reused by the hero/mini cards and by the PDF's "Resumen" cards.
+
+> **Superseded**: `CobradoHeroCard` (single "Cobrado hoy" figure), `DiarioStatCards` (Pedidos creados / Pendiente del día counts), and `MovimientosSection`/`MovimientoRow` (a mixed cobro+pedido *event* timeline backed by `MovimientoItem`/`MovimientoType`, since removed) have all been deleted. The old model could show a cobro event and a pedido-creation event for the same pedido as two separate rows; the new model shows one row per pedido, matching both the client's ask ("show pedidos") and the PDF export.
 
 ### Por cliente mode
 
 - **`ClienteSelectorCard`**: `surface2` card with 44dp `ClienteAvatar` + name + mercado name + "Cambiar" pill (accentSoft bg). Tapping "Cambiar" opens `ClienteSelectorSheet`.
 - **`ClienteSelectorSheet`**: `ModalBottomSheet` with a scrollable list of all non-blacklisted clients sorted by name. Tapping a row selects it and closes the sheet. Selected row has `accentSoft` bg + `Check` icon.
-- **`ClienteStatCards`**: three equal cards — Facturado (`accentSoft`/`primary`) + Pagado (`greenTint`/`greenText`) + Saldo (`amberTint`/`amberText`).
-- **`HistorialSectionHeader`** + **`HistorialRow`**: 36dp rounded tile (green Check for PAID, accent Receipt for PENDING/PARTIAL, amber Assessment for saldoExtra) + title (formatted date or "Saldo extra") + status subtext (pending amount in amber or "Pagado" in green) + total amount (right) + "Total"/"Extra" label below.
+- **`PedidosSaldoExtraCards`**: two equal `ReporteStatCard`s — "Pedidos" (plain count, no currency, `primary`/`accentTint`, `Receipt` icon) and "Saldo extra" (`Bs. X.XX` = Σpending over `saldoExtras`, `amberText`/`amberTint`, `AttachMoney` icon). Replaces an earlier 3-card Facturado/Pagado/Saldo money breakdown — per client feedback this screen should foreground pedidos + product quantities, not a financial summary; "Saldo extra" is intentionally the *only* money figure shown here.
+- **`HistorialSectionHeader`** + **`HistorialRow`**: shared with Diario mode. 36dp rounded tile (green `Check` for fully paid, accent `Receipt` for pending/partial, amber `Assessment` for saldo-extra) + title (formatted date, or "Saldo extra") + status subtext (pending amount in amber or "Pagado" in green) + total amount (right) + "Total"/"Extra" label below.
+  - **Product sublist**: when `item.lines` is non-empty, a per-product list renders below the row — a `Column` with one `×qty productName` line per `PedidoLineItem`, indented 48dp to align under the title (not a single truncated comma-joined string). Only regular pedidos carry `lines`; saldo-extra entries never do.
+- **Historial / Saldo extra split**: `state.historial` holds only the client's regular (non-saldo-extra) pedidos for the range. Saldo-extra pedidos live in a separate `state.saldoExtras` list, rendered as its own "Saldo extra" section (header + rows) *after* the Historial list — previously they were interleaved into a single list, distinguished only by an amber icon and a "Saldo extra" title.
+
+**Data model**: `HistorialItem` gained `subtitle: String` (Diario uses it for "date · mercado"; Por cliente's regular rows leave it blank, saldo-extra rows use it for "date · notes") and `lines: List<PedidoLineItem>` (product line items, populated from `Pedido.lines` for regular pedidos only). `facturado`/`pagado`/`saldo` are computed from the *billable* (non-saldo-extra) subset — this was already correct before this round of work and remains the source for the PDF's "Resumen" cards; only the on-screen 3-card money breakdown was removed in favor of `PedidosSaldoExtraCards`.
 
 ### Report export — status screen + save/share
 
-Tapping the export icon (Reportes tab) or "Generar PDF" (ReporteClienteScreen) no longer directly downloads the file. Instead:
+Tapping the pill-shaped "PDF" button (Reportes tab top bar — `RoundedCornerShape(percent = 50)`, primary bg, `Description` icon + "PDF" text) or "Generar PDF" (ReporteClienteScreen) no longer directly downloads the file. Instead:
 
-1. HTML is built via `buildReporteHtml` / `buildReporteClienteHtml`.
-2. A `PendingExport(html, fileName, itemCount, isMovimientosVariant)` is stored in `ReporteExportHolder` (singleton).
+1. HTML is built via `buildReporteHtml` / `buildReporteClienteHtml`. `buildReporteHtml` additionally reads `R.drawable.img_logo` once (`LocalContext` + `remember`), base64-encodes it, and passes it down as `logoDataUri` — both `buildDiarioHtml` and `buildPorClienteHtml` embed it as `<img src="data:image/png;base64,...">` in the header, top-left. This is necessary (not just cosmetic) because the exported file is a standalone `.html` shared/opened outside the app, so it can't reference the app's local drawable by path.
+2. A `PendingExport(html, fileName, itemCount, isMovimientosVariant)` is stored in `ReporteExportHolder` (singleton). For the Reportes tab, `isMovimientosVariant` is always `false` now — both Diario and Por cliente are pedido-based, so there's no "movimientos" variant left to distinguish (previously Diario passed its pedido count under the "movimientos" wording by mistake; see `GeneratingBody`'s step label below).
 3. Navigation goes to `ReporteStatusRoute` → `ReporteStatusScreen`.
 
 #### `ReporteStatusScreen` — generating state
@@ -111,6 +122,8 @@ Shown if the cache write fails (IOException or any unexpected exception):
 - Bottom bar: **Volver** (`OutlinedButton`, pops back) + **Reintentar** (`Button`, increments `retryKey` → re-runs `LaunchedEffect(retryKey)`).
 - The `pending` data is held in `remember { }` (not cleared from holder on error), so retries work without re-navigating.
 
+> Fixed bug: the "no se perdió nada" reassurance card at the bottom of this screen (`ReporteErrorBody.kt`) used a raw `MaterialTheme.colorScheme.surface` background — pure white in light theme, indistinguishable from the near-white page background, effectively rendering as an unstyled white smear glued against the surrounding content. Its sibling card just above it already used `ext.surface2` correctly; the error card now matches.
+
 #### `ReporteSaver.kt` (unchanged)
 
 `saveReportToDownloads(context, html, fileName)` writes to the device Downloads folder:
@@ -131,8 +144,8 @@ object ReporteExportHolder { var pending: PendingExport? = null }
 - Reportes tab (Por cliente mode): `Reporte_PorCliente_20260613_1432.html`
 - Generar reporte screen: `Reporte_{SafeClientName}_20260613_1432.html` (spaces → `_`, non-alphanumeric stripped)
 
-- **Diario HTML** (`buildDiarioHtml`): header with date range, 3 summary cards (Cobrado/Pedidos creados/Pendiente), movements table (Cliente / Tipo chip / Monto).
-- **Cliente HTML** (`buildClienteHtml`): header with client name + date range, 3 summary cards (Facturado/Pagado/Saldo), historial table (Pedido / Estado chip / Total / Pendiente).
+- **Diario HTML** (`buildDiarioHtml`): logo + header with date range, 3 summary cards ("Total pedidos" / Pagado / Pendiente), pedidos table (Cliente / Total / Pagado / Pendiente) with a bold totals row (`.tot`).
+- **Por cliente HTML** (`buildPorClienteHtml`): logo + header with client name + date range, 3 summary cards (Facturado/Pagado/Saldo), Historial table (Pedido / Detalle as a bulleted `<ul><li>` product list / Total / Pagado / Saldo / Estado chip) with a totals row, and — only when `state.saldoExtras` is non-empty — a separate "Saldo extra" table (Detalle+subtitle / Total / Pagado / Saldo) with its own totals row.
 
 ---
 
@@ -142,34 +155,33 @@ object ReporteExportHolder { var pending: PendingExport? = null }
 enum class ReporteMode { DIARIO, POR_CLIENTE }
 enum class DiarioPreset { HOY, AYER, SEMANA, PERSONALIZADO }
 enum class ClientePreset { MES, TRIMESTRE, ANIO, PERSONALIZADO }
-enum class MovimientoType { COBRO, PEDIDO }
 
-data class MovimientoItem(
-    val pedidoId: String, val clienteName: String, val mercadoName: String,
-    val type: MovimientoType, val amount: Double, val timestamp: Long,
-)
 data class HistorialItem(
     val pedidoId: String, val title: String, val date: Long,
     val total: Double, val paid: Double, val pending: Double, val isSaldoExtra: Boolean,
+    val subtitle: String = "", val lines: List<PedidoLineItem> = emptyList(),
 )
 data class ClienteOption(val id: String, val name: String, val photoUrl: String?, val mercadoName: String)
 data class ReporteUiState(
     val mode: ReporteMode,
     // Diario
     val diarioPreset, diarioFromMs, diarioToMs,
-    val cobradoTotal, cobroCount, pedidosCreadosCount, pendienteDelDia,
-    val movimientos: List<MovimientoItem>,
+    val diarioFacturado, diarioPagado, diarioPendiente,
+    val diarioPedidos: List<HistorialItem>,
     // Por cliente
     val clientePreset, clienteFromMs, clienteToMs,
     val selectedClienteId, selectedClienteName, selectedClientePhotoUrl, selectedMercadoName,
     val facturado, pagado, saldo,
     val historial: List<HistorialItem>,
+    val saldoExtras: List<HistorialItem>,
     // Shared
     val customDiarioFrom/To, customClienteFrom/To,
     val allClientes: List<ClienteOption>,
     val isLoading: Boolean,
 )
 ```
+
+> `MovimientoItem`/`MovimientoType` (and the `cobradoTotal`/`cobroCount`/`pedidosCreadosCount`/`pendienteDelDia`/`movimientos` fields they backed) were removed entirely — Diario is pedido-based now, sharing `HistorialItem` with Por cliente mode instead of tracking a separate event timeline.
 
 ---
 
@@ -189,14 +201,18 @@ This means report data is always as fresh as the last successful sync. The `isLo
 `ReporteViewModel` uses a single `MutableStateFlow<ReporteInput>` to hold all user selections (mode, presets, selected client, custom dates). This combines with a nested `combine(pedidoRepository.getAll(), clienteRepository.getAll(), mercadoRepository.getAll())` triple, producing the full `ReporteUiState` reactively.
 
 **Diario computation:**
-- `cobros` = pedidos where `paidAt in [from,to]` and `paid > 0`
 - `createdInRange` = pedidos where `createdAt in [from,to]` and `!isSaldoExtra`
-- Movements = cobros (as COBRO) + non-cobro createdInRange items (as PEDIDO), sorted by timestamp DESC
+- `diarioPedidos` = `createdInRange` mapped 1:1 to `HistorialItem` (`title` = client name, `subtitle` = "d MMM, HH:mm · mercado"), sorted by `createdAt` DESC
+- `diarioFacturado`/`diarioPagado`/`diarioPendiente` = Σtotal / Σpaid / Σpending over `createdInRange`
+
+> Previously computed two overlapping event sets (`cobros` by `paidAt`, `createdInRange` by `createdAt`) and merged them into a COBRO/PEDIDO timeline — a pedido paid today but created earlier could appear as two rows. Replaced with a single per-pedido pass.
 
 **Por cliente computation:**
 - Filter all pedidos for `selectedClienteId` where `createdAt in [from,to]`
-- `billable` = non-saldoExtra subset; `facturado`=Σtotal, `pagado`=Σpaid, `saldo`=Σpending
-- Historial sorted by `createdAt DESC`
+- Partition into `billable` (non-saldoExtra) and `extras` (saldoExtra)
+- `facturado`=Σtotal, `pagado`=Σpaid, `saldo`=Σpending — over `billable` only (unchanged)
+- `historial` = `billable` mapped to `HistorialItem` (`title` = formatted date, `lines` = `p.lines`), sorted `createdAt` DESC
+- `saldoExtras` = `extras` mapped to `HistorialItem` (`title` = "Saldo extra", `subtitle` = "date · notes"), sorted `createdAt` DESC
 
 **Date helpers:** `startOfDay(offset)`, `endOfDay(offset)`, `startOfMonth()`, `startOfQuarter()` (first day of current Q), `startOfYear()` — all via `Calendar.getInstance()`.
 
@@ -223,9 +239,9 @@ Added to `PedidoRepository` interface and `PedidoRepositoryImpl`. **No DB migrat
 
 | File | Description |
 |------|-------------|
-| `ui/screen/reporte/ReporteUiState.kt` | Enums + data classes for Reporte tab (`ReporteMode`, `DiarioPreset`, `ClientePreset`, `MovimientoItem`, `HistorialItem`, `ClienteOption`, `ReporteUiState`) |
-| `ui/screen/reporte/ReporteViewModel.kt` | Mode/preset state machine + reactive stats computation |
-| `ui/screen/reporte/ReporteScreen.kt` | Reporte tab entry + Scaffold/LazyColumn orchestration (DatePickerDialogs, ClienteSelectorSheet) |
+| `ui/screen/reporte/ReporteUiState.kt` | Enums + data classes for Reporte tab (`ReporteMode`, `DiarioPreset`, `ClientePreset`, `HistorialItem`, `ClienteOption`, `ReporteUiState`) |
+| `ui/screen/reporte/ReporteViewModel.kt` | Mode/preset state machine + reactive pedido aggregation (Diario: pedidos in range; Por cliente: client's pedidos split into `historial` + `saldoExtras`) |
+| `ui/screen/reporte/ReporteScreen.kt` | Reporte tab entry + Scaffold/LazyColumn orchestration (DatePickerDialogs, ClienteSelectorSheet); reads `img_logo` once and base64-encodes it for PDF export |
 | `ui/screen/reporte/ReporteClienteUiState.kt` | State + `ReporteClientePreset` enum for per-client report |
 | `ui/screen/reporte/ReporteClienteViewModel.kt` | Date range computation, pedido filtering, warning threshold |
 | `ui/screen/reporte/ReporteClienteScreen.kt` | Per-client report entry + Scaffold/Column orchestration (DatePickerDialogs) |
@@ -236,8 +252,8 @@ Added to `PedidoRepository` interface and `PedidoRepositoryImpl`. **No DB migrat
 |------|-------------|
 | `ui/screen/reporte/components/ReporteModeToggle.kt` | `ReporteModeToggle` + `ModeButton` (pill mode selector) |
 | `ui/screen/reporte/components/ReporteDateChips.kt` | `DiarioDateChips`, `ClienteDateChips`, `DateChip`, `CustomDateRow`, `DateField` |
-| `ui/screen/reporte/components/ReporteDiarioContent.kt` | `CobradoHeroCard`, `DiarioStatCards`, `ReporteStatCard`, `MovimientoRow`, section headers |
-| `ui/screen/reporte/components/ReportePorClienteContent.kt` | `ClienteSelectorCard`, `ClienteSelectorSheet`, `ClienteStatCards`, `HistorialRow`, section headers |
+| `ui/screen/reporte/components/ReporteDiarioContent.kt` | `ReporteStatCard` (shared primitive), `FacturadoHeroCard`, `PagadoPorPagarRow` (+ private `MoneyMiniCard`) |
+| `ui/screen/reporte/components/ReportePorClienteContent.kt` | `ClienteSelectorCard`, `ClienteSelectorSheet`, `PedidosSaldoExtraCards`, `HistorialSectionHeader` (title + optional trailing count), `HistorialRow` (with per-product sublist) |
 
 ### Components — Generar reporte screen
 

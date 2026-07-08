@@ -2,21 +2,27 @@ package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,14 +34,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
+import android.util.Base64
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.PedidoLineItem
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -43,20 +54,17 @@ import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ClienteDateChips
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ClienteSelectorCard
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ClienteSelectorSheet
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ClienteStatCards
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.CobradoHeroCard
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.CustomDateRow
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.DiarioDateChips
+import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.FacturadoHeroCard
+import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.PagadoPorPagarRow
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ReporteResolvedDateBar
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.formatClienteBarText
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.formatDiarioBarText
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.DiarioStatCards
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.EmptyHistorial
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.EmptyMovimientos
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.HistorialRow
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.HistorialSectionHeader
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.MovimientoRow
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.MovimientosSectionHeader
+import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.PedidosSaldoExtraCards
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.components.ReporteModeToggle
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.html.buildReporteHtml
@@ -74,16 +82,24 @@ fun ReporteScreen(
     viewModel: ReporteViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val logoDataUri = remember {
+        val bytes = context.resources.openRawResource(R.drawable.img_logo).use { it.readBytes() }
+        "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
 
     val onExportarPdf: () -> Unit = {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-        val isMovimientos = state.mode == ReporteMode.POR_CLIENTE
         val modeTag = if (state.mode == ReporteMode.DIARIO) "Diario" else "PorCliente"
         val fileName = "Reporte_${modeTag}_$stamp.html"
         val label = SimpleDateFormat("d 'de' MMMM 'de' yyyy", Locale("es")).format(Date())
-        val html = buildReporteHtml(state, label)
-        val itemCount = if (state.mode == ReporteMode.DIARIO) state.movimientos.size else state.historial.size
-        ReporteExportHolder.pending = PendingExport(html, fileName, itemCount, isMovimientos)
+        val html = buildReporteHtml(state, label, logoDataUri)
+        val itemCount = if (state.mode == ReporteMode.DIARIO) {
+            state.diarioPedidos.size
+        } else {
+            state.historial.size + state.saldoExtras.size
+        }
+        ReporteExportHolder.pending = PendingExport(html, fileName, itemCount, isMovimientosVariant = false)
         navController?.navigate(ReporteStatusRoute)
     }
 
@@ -180,8 +196,22 @@ private fun ReporteContent(
             PedidosTopBar(
                 title = stringResource(R.string.nav_reporte),
                 actions = {
-                    IconButton(onClick = onExportarPdf) {
-                        Icon(Icons.Default.Description, contentDescription = null)
+                    Button(
+                        onClick = onExportarPdf,
+                        modifier = Modifier
+                            .height(38.dp)
+                            .padding(end = 12.dp),
+                        shape = RoundedCornerShape(percent = 50),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
+                    ) {
+                        Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            text = stringResource(R.string.reporte_pdf_chip),
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 },
             )
@@ -219,19 +249,30 @@ private fun ReporteContent(
                         )
                     }
                     Spacer(Modifier.height(16.dp))
-                    CobradoHeroCard(state = state)
+                    FacturadoHeroCard(
+                        total = state.diarioFacturado,
+                        pedidosCount = state.diarioPedidos.size,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
                     Spacer(Modifier.height(12.dp))
-                    DiarioStatCards(state = state)
+                    PagadoPorPagarRow(
+                        pagado = state.diarioPagado,
+                        porPagar = state.diarioPendiente,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
                     Spacer(Modifier.height(20.dp))
-                    MovimientosSectionHeader()
+                    HistorialSectionHeader(
+                        title = stringResource(R.string.reporte_seccion_pedidos),
+                        action = stringResource(R.string.reporte_pedidos_count, state.diarioPedidos.size),
+                    )
                 }
-                if (state.movimientos.isEmpty()) {
-                    item { EmptyMovimientos() }
+                if (state.diarioPedidos.isEmpty()) {
+                    item { EmptyHistorial() }
                 } else {
-                    items(state.movimientos, key = { "${it.pedidoId}_${it.type}" }) { mov ->
-                        MovimientoRow(item = mov)
+                    items(state.diarioPedidos, key = { it.pedidoId }) { item ->
+                        HistorialRow(item = item)
                         HorizontalDivider(
-                            modifier = Modifier.padding(start = 54.dp, end = 20.dp),
+                            modifier = Modifier.padding(start = 72.dp, end = 20.dp),
                             color = MaterialTheme.extendedColors.border,
                         )
                     }
@@ -269,9 +310,15 @@ private fun ReporteContent(
                             onCambiar = { showClienteSheet = true },
                         )
                         Spacer(Modifier.height(12.dp))
-                        ClienteStatCards(state = state)
+                        PedidosSaldoExtraCards(
+                            pedidosCount = state.historial.size,
+                            saldoExtra = state.saldoExtras.sumOf { it.pending },
+                        )
                         Spacer(Modifier.height(20.dp))
-                        HistorialSectionHeader()
+                        HistorialSectionHeader(
+                            title = stringResource(R.string.reporte_historial),
+                            action = stringResource(R.string.reporte_pedidos_count, state.historial.size),
+                        )
                     }
                 }
                 if (state.allClientes.isNotEmpty()) {
@@ -279,6 +326,22 @@ private fun ReporteContent(
                         item { EmptyHistorial() }
                     } else {
                         items(state.historial, key = { it.pedidoId }) { item ->
+                            HistorialRow(item = item)
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 72.dp, end = 20.dp),
+                                color = MaterialTheme.extendedColors.border,
+                            )
+                        }
+                    }
+                    if (state.saldoExtras.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(20.dp))
+                            HistorialSectionHeader(
+                                title = stringResource(R.string.pedidos_row_saldo_extra),
+                                action = stringResource(R.string.reporte_pedidos_count, state.saldoExtras.size),
+                            )
+                        }
+                        items(state.saldoExtras, key = { it.pedidoId }) { item ->
                             HistorialRow(item = item)
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 72.dp, end = 20.dp),
@@ -299,13 +362,12 @@ private fun ReporteContent(
 private val previewDiarioState = ReporteUiState(
     mode = ReporteMode.DIARIO,
     diarioPreset = DiarioPreset.HOY,
-    cobradoTotal = 617.50,
-    cobroCount = 9,
-    pedidosCreadosCount = 14,
-    pendienteDelDia = 238.0,
-    movimientos = listOf(
-        MovimientoItem("1", "Doris Salazar", "Mercado Central", MovimientoType.COBRO, 85.50, System.currentTimeMillis()),
-        MovimientoItem("2", "María González", "Mercado Central", MovimientoType.PEDIDO, 47.50, System.currentTimeMillis()),
+    diarioFacturado = 855.50,
+    diarioPagado = 617.50,
+    diarioPendiente = 238.0,
+    diarioPedidos = listOf(
+        HistorialItem("1", "Doris Salazar", System.currentTimeMillis(), 85.50, 85.50, 0.0, false, subtitle = "7 Jul, 14:32 · Mercado Central"),
+        HistorialItem("2", "María González", System.currentTimeMillis(), 47.50, 0.0, 47.50, false, subtitle = "7 Jul, 11:05 · Mercado Central"),
     ),
     isLoading = false,
 )
@@ -320,8 +382,20 @@ private val previewClienteState = ReporteUiState(
     saldo = 120.0,
     allClientes = listOf(ClienteOption("1", "Ana Rodríguez", null, "Mercado Central")),
     historial = listOf(
-        HistorialItem("1", "12 Jun 2026", System.currentTimeMillis(), 88.0, 0.0, 88.0, false),
-        HistorialItem("2", "08 Jun 2026", System.currentTimeMillis(), 110.0, 110.0, 0.0, false),
+        HistorialItem(
+            "1", "12 Jun 2026", System.currentTimeMillis(), 88.0, 0.0, 88.0, false,
+            lines = listOf(PedidoLineItem("Tomate perita", 5), PedidoLineItem("Cebolla blanca", 4)),
+        ),
+        HistorialItem(
+            "2", "08 Jun 2026", System.currentTimeMillis(), 110.0, 110.0, 0.0, false,
+            lines = listOf(PedidoLineItem("Harina PAN 1kg", 12)),
+        ),
+    ),
+    saldoExtras = listOf(
+        HistorialItem(
+            "3", "Saldo extra", System.currentTimeMillis(), 45.0, 0.0, 45.0, true,
+            subtitle = "15 May 2026 · Envases retornables",
+        ),
     ),
     isLoading = false,
 )

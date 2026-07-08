@@ -65,7 +65,7 @@ Key screens to show as thumbnails:
 Group features by business need, not by screen:
 
 **"Saber quién te debe"**
-- Status badges: Al día (verde), Advertencia (ámbar), Crítico (rojo)
+- Status badges: Al día (verde), Cobrar (ámbar), Crítico (rojo)
 - Total balance per customer always visible
 - Lista Negra for high-risk customers
 
@@ -114,7 +114,7 @@ Run this flow on a real device or emulator. Use realistic fake data (Spanish nam
 
 ### Demo Setup (before the meeting)
 1. Have at least 2 Mercados created
-2. Each mercado should have 4–6 clientes with varied status (at least one Crítico, one Advertencia)
+2. Each mercado should have 4–6 clientes with varied status (at least one Crítico, one Cobrar)
 3. One cliente should have 3–4 pedidos (mix of PAID, PARTIAL, PENDING)
 4. Have 5–8 products in the catalogue with photos
 5. One client on the Lista Negra
@@ -202,7 +202,7 @@ Run this flow on a real device or emulator. Use realistic fake data (Spanish nam
 3. **Roles** — multi-user with access control (important for business owners with employees)
 4. **Speed** — creating a pedido with the product grid is faster than writing it down
 5. **Reports** — shareable HTML reports that look professional (good for sending to accountant or client)
-6. **Status system** — Al día / Advertencia / Crítico gives instant visual triage without reading numbers
+6. **Status system** — Al día / Cobrar / Crítico gives instant visual triage without reading numbers
 
 ---
 

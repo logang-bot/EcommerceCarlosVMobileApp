@@ -79,9 +79,10 @@ INVITADO users see the full client list, balances, status badges, and pedido his
 - Tappable phone chip shows the **primary phone** (`phones.getOrElse(primaryPhoneIndex) { phones.firstOrNull() }`). Tap → `Intent(ACTION_DIAL, "tel:$phone")` — opens the device dialer.
 - Location chip → `Intent(ACTION_VIEW, Uri.parse(mapsUrl))` — no lat/lng stored
 - `BalanceBlock`: unified card that adapts to three states:
-  - **Normal / AUTO blacklisted**: status-based `Brush.linearGradient`, label "Saldo pendiente total", 32sp monospace, `ClienteStatusBadge` on right
+  - **Normal / AUTO blacklisted**: status-based `Brush.linearGradient`, label "Saldo total" (was "Saldo pendiente total"), 32sp monospace, `ClienteStatusBadge` on right
   - **MANUAL blacklisted**: red gradient (`rgba(240,90,80,0.16→0.04)`), label "Saldo en Lista Negra", 29sp `redText` monospace, red circular "⊘ Manual" badge on right
 - `BalanceCaption`: small info row (info icon + "Monto ingresado al vetar — reemplaza el desglose de abajo.") shown only in MANUAL blacklisted state
+- Both the balance amount text and the extra-balance caption row set an explicit `lineHeight` (guards against the wrapped/overlapping-line bug on narrow screens where the default line box was smaller than the font). The extra-balance caption's info icon uses `Alignment.Top` (not `CenterVertically`), so it lines up with the top of multi-line caption text instead of its vertical center.
 - `BalanceBreakdown`: breakdown cards shown below the main block in all states:
   - Side-by-side "Pedidos" (blue, `Receipt` icon) + "Saldo extra" (amber, `Tag` icon) cards; both shown as `inactive=true` (gray bg, strikethrough amount, "Congelado" subtitle) when MANUAL
   - Full-width "Lista Negra" (red, `Block` icon) card with `badge="Auto"` only when AUTO blacklisted (`isBlacklisted && !isManualAmount`)
@@ -191,26 +192,30 @@ Each composable gets its own label above (13sp, `FontWeight.Medium`, `text2`) vi
 
 Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combine`). Thresholds are configurable by superusers from **Mi Perfil → Ajustes → Umbrales de estado**.
 
-**Display balance** (`balance` field, shown in `BalanceBlock`) = sum of `pending` for:
-- `status == PARTIAL` (any kind), OR
-- `status == PENDING && isSaldoExtra == true`
+**Display balance** (`balance` field, shown in `BalanceBlock`) = `pedidosBalance + extraBalance`, i.e. the sum of the two breakdown cards below it:
+- `pedidosBalance` = sum of `pending` for regular (non-saldo-extra) pedidos with `status != PAID` (PENDING or PARTIAL)
+- `extraBalance` = sum of `pending` for saldo-extra pedidos with `status != PAID`
 
-> Regular `PENDING` pedidos are excluded — they represent unconfirmed orders, not real debt.
+> Fixed bug: `balance` used to be computed independently as `Σpending` for `status == PARTIAL` (any kind) OR `status == PENDING && isSaldoExtra`, which silently excluded regular `PENDING` pedidos — a client with only a brand-new, untouched pedido showed "Saldo Total: Bs. 0" while the "Pedidos" breakdown card below correctly showed its amount. `balance` is now just `pedidosBalance + extraBalance`, guaranteeing the total always matches the sum of the two cards under it.
 
 **Status balance** (`statusBalance`, used only for status computation) = sum of `pending` for:
 - `status == PARTIAL && !isSaldoExtra`
 
 > Saldo-extra entries are excluded from the status calculation. A client with only saldo-extra debt is shown as `AL_DIA` in the row badge and gradient — the saldo amount is still visible in the display balance but does not drive the warning/critical color.
+>
+> **Verified** (already correct, no change needed): `statusBalance` is pedidos-only in both `DetalleClienteViewModel.computeStatus` and `ClientesViewModel.computeStatus` — saldo-extra pedidos never affect the status badge/gradient/color in either place.
 
 **Status rules** (evaluated against `statusBalance`):
 
-| Status | Condition | Color |
-|--------|-----------|-------|
-| `AL_DIA` | `statusBalance == 0` | green |
-| `CRITICO` | `statusBalance > montoMaximo` OR any `PARTIAL && !isSaldoExtra` pedido has `createdAt` older than `diasMaximos` days | red |
-| `ADVERTENCIA` | `statusBalance > 0` and neither CRITICO condition applies | amber |
+| Status (enum) | Display label | Condition | Color |
+|--------|-------|-----------|-------|
+| `AL_DIA` | "Al día" | `statusBalance == 0` | green |
+| `CRITICO` | "Crítico" | `statusBalance > montoMaximo` OR any `PARTIAL && !isSaldoExtra` pedido has `createdAt` older than `diasMaximos` days | red |
+| `ADVERTENCIA` | "Cobrar" | `statusBalance > 0` and neither CRITICO condition applies | amber |
 
 > The days check only applies to regular (non-saldo-extra) PARTIAL pedidos.
+>
+> The `ADVERTENCIA` enum constant's display label was renamed from "Advertencia" to **"Cobrar"** (`R.string.status_advertencia`) to match the Claude Design source (`kit.jsx`'s `STATUS.warn.label`). The enum name itself is unchanged. Two duplicate string sets that had drifted apart in wording were consolidated into the single canonical `status_al_dia`/`status_advertencia`/`status_critico` trio (previously `BusquedaScreen.kt` had its own `cliente_status_*` copies and `UmbralesScreen.kt` had `umbrales_status_*` copies — both deleted, both screens now read the shared strings) so the label can't drift out of sync again.
 
 **Threshold defaults**: `montoMaximo = 200.0 Bs`, `diasMaximos = 30 days`.
 

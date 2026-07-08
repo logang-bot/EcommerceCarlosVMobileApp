@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,10 +41,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.PedidoLineItem
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ClienteOption
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.HistorialItem
-import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteUiState
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.PedidosExtendedColors
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
@@ -157,33 +156,29 @@ fun ClienteSelectorSheet(
 }
 
 @Composable
-fun ClienteStatCards(state: ReporteUiState) {
+fun PedidosSaldoExtraCards(
+    pedidosCount: Int,
+    saldoExtra: Double,
+    modifier: Modifier = Modifier,
+) {
     val ext = MaterialTheme.extendedColors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ReporteStatCard(
-            label = stringResource(R.string.reporte_facturado),
-            value = "Bs. ${"%.2f".format(state.facturado)}",
+            label = stringResource(R.string.reporte_seccion_pedidos),
+            value = pedidosCount.toString(),
             valueColor = MaterialTheme.colorScheme.primary,
             iconBgColor = ext.accentTint,
-            icon = Icons.Default.ShoppingCart,
+            icon = Icons.Default.Receipt,
             modifier = Modifier.weight(1f),
         )
         ReporteStatCard(
-            label = stringResource(R.string.reporte_pagado),
-            value = "Bs. ${"%.2f".format(state.pagado)}",
-            valueColor = ext.greenText,
-            iconBgColor = ext.greenTint,
-            icon = Icons.Default.Check,
-            modifier = Modifier.weight(1f),
-        )
-        ReporteStatCard(
-            label = stringResource(R.string.reporte_saldo),
-            value = "Bs. ${"%.2f".format(state.saldo)}",
+            label = stringResource(R.string.pedidos_row_saldo_extra),
+            value = "Bs. ${"%.2f".format(saldoExtra)}",
             valueColor = ext.amberText,
             iconBgColor = ext.amberTint,
             icon = Icons.Default.AttachMoney,
@@ -193,15 +188,30 @@ fun ClienteStatCards(state: ReporteUiState) {
 }
 
 @Composable
-fun HistorialSectionHeader() {
-    Text(
-        text = stringResource(R.string.reporte_historial).uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.extendedColors.text3,
-        letterSpacing = 0.5.sp,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
-    )
+fun HistorialSectionHeader(title: String, action: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.extendedColors.text3,
+            letterSpacing = 0.5.sp,
+        )
+        if (action != null) {
+            Text(
+                text = action,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
 }
 
 @Composable
@@ -218,51 +228,84 @@ fun EmptyHistorial() {
 fun HistorialRow(item: HistorialItem) {
     val ext = MaterialTheme.extendedColors
     val (iconVec, iconBg, iconTint) = historialIconSpec(item, ext)
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(iconBg),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(iconVec, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(iconBg),
+            ) {
+                Icon(iconVec, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (item.subtitle.isNotBlank()) {
+                    Spacer(Modifier.height(1.dp))
+                    Text(
+                        text = item.subtitle,
+                        fontSize = 11.5.sp,
+                        color = ext.text3,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = if (item.pending > 0) "Bs. ${"%.2f".format(item.pending)} pendiente" else "Pagado",
+                    fontSize = 12.sp,
+                    color = if (item.pending > 0) ext.amberText else ext.greenText,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "Bs. ${"%.2f".format(item.total)}",
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    letterSpacing = (-0.3).sp,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = if (item.isSaldoExtra) "Extra" else "Total",
+                    fontSize = 11.sp,
+                    color = ext.text3,
+                )
+            }
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = if (item.pending > 0) "Bs. ${"%.2f".format(item.pending)} pendiente" else "Pagado",
-                fontSize = 12.sp,
-                color = if (item.pending > 0) ext.amberText else ext.greenText,
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = "Bs. ${"%.2f".format(item.total)}",
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                letterSpacing = (-0.3).sp,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = if (item.isSaldoExtra) "Extra" else "Total",
-                fontSize = 11.sp,
-                color = ext.text3,
-            )
+        if (item.lines.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier.padding(start = 48.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                item.lines.forEach { line ->
+                    Text(
+                        text = "×${line.quantity} ${line.productName}",
+                        fontSize = 11.5.sp,
+                        color = ext.text4,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
@@ -279,18 +322,16 @@ private fun historialIconSpec(item: HistorialItem, ext: PedidosExtendedColors): 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
 private val previewHistorial = listOf(
-    HistorialItem("1", "12 Jun 2026", 0L, 120.0, 120.0, 0.0, false),
-    HistorialItem("2", "10 Jun 2026", 0L, 85.0, 30.0, 55.0, false),
+    HistorialItem(
+        "1", "12 Jun 2026", 0L, 120.0, 120.0, 0.0, false,
+        lines = listOf(PedidoLineItem("Tomate perita", 5), PedidoLineItem("Cebolla blanca", 4), PedidoLineItem("Pimentón rojo", 5)),
+    ),
+    HistorialItem("2", "10 Jun 2026", 0L, 85.0, 30.0, 55.0, false, lines = listOf(PedidoLineItem("Harina PAN 1kg", 12))),
     HistorialItem("3", "Saldo extra", 0L, 45.0, 0.0, 45.0, true),
-)
-
-private val previewClienteState = ReporteUiState(
-    facturado = 980.0,
-    pagado = 650.0,
-    saldo = 330.0,
-    selectedClienteName = "Ana Rodríguez",
-    selectedMercadoName = "Mercado Central",
-    isLoading = false,
+    HistorialItem(
+        "4", "Ana Rodríguez", 0L, 60.0, 60.0, 0.0, false, subtitle = "7 Jul, 14:32 · Mercado Central",
+        lines = listOf(PedidoLineItem("Café Madrid 250g", 4)),
+    ),
 )
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
@@ -308,9 +349,9 @@ private fun ClienteSelectorCardPreview() {
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
 @Composable
-private fun ClienteStatCardsPreview() {
+private fun PedidosSaldoExtraCardsPreview() {
     EcomerceCarlosVTheme {
-        ClienteStatCards(state = previewClienteState)
+        PedidosSaldoExtraCards(pedidosCount = 8, saldoExtra = 45.0)
     }
 }
 

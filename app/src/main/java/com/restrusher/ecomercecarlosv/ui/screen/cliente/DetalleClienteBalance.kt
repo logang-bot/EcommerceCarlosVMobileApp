@@ -90,6 +90,7 @@ internal fun BalanceBlock(
                 Text(
                     text = formatBalance(balance),
                     fontSize = if (isManualBlacklisted) 29.sp else 32.sp,
+                    lineHeight = if (isManualBlacklisted) 34.sp else 37.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = (-1).sp,
@@ -112,18 +113,21 @@ internal fun BalanceBlock(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(
                     Icons.Default.Info,
                     contentDescription = null,
                     tint = ext.text4,
-                    modifier = Modifier.size(13.dp),
+                    modifier = Modifier
+                        .padding(top = 1.dp)
+                        .size(15.dp),
                 )
                 Text(
                     text = stringResource(R.string.detalle_cliente_balance_extra_caption),
                     fontSize = 11.5.sp,
+                    lineHeight = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = ext.text3,
                 )

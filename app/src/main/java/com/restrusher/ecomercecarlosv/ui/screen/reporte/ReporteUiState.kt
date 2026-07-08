@@ -1,21 +1,12 @@
 package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
+import com.restrusher.ecomercecarlosv.domain.model.PedidoLineItem
+
 enum class ReporteMode { DIARIO, POR_CLIENTE }
 
 enum class DiarioPreset { HOY, AYER, SEMANA, PERSONALIZADO }
 
 enum class ClientePreset { MES, TRIMESTRE, ANIO, PERSONALIZADO }
-
-enum class MovimientoType { COBRO, PEDIDO }
-
-data class MovimientoItem(
-    val pedidoId: String,
-    val clienteName: String,
-    val mercadoName: String,
-    val type: MovimientoType,
-    val amount: Double,
-    val timestamp: Long,
-)
 
 data class HistorialItem(
     val pedidoId: String,
@@ -25,6 +16,8 @@ data class HistorialItem(
     val paid: Double,
     val pending: Double,
     val isSaldoExtra: Boolean,
+    val subtitle: String = "",
+    val lines: List<PedidoLineItem> = emptyList(),
 )
 
 data class ClienteOption(
@@ -40,11 +33,10 @@ data class ReporteUiState(
     val diarioPreset: DiarioPreset = DiarioPreset.HOY,
     val diarioFromMs: Long = 0L,
     val diarioToMs: Long = 0L,
-    val cobradoTotal: Double = 0.0,
-    val cobroCount: Int = 0,
-    val pedidosCreadosCount: Int = 0,
-    val pendienteDelDia: Double = 0.0,
-    val movimientos: List<MovimientoItem> = emptyList(),
+    val diarioFacturado: Double = 0.0,
+    val diarioPagado: Double = 0.0,
+    val diarioPendiente: Double = 0.0,
+    val diarioPedidos: List<HistorialItem> = emptyList(),
     // Por cliente
     val clientePreset: ClientePreset = ClientePreset.MES,
     val clienteFromMs: Long = 0L,
@@ -57,6 +49,7 @@ data class ReporteUiState(
     val pagado: Double = 0.0,
     val saldo: Double = 0.0,
     val historial: List<HistorialItem> = emptyList(),
+    val saldoExtras: List<HistorialItem> = emptyList(),
     // Shared
     val customDiarioFrom: Long? = null,
     val customDiarioTo: Long? = null,

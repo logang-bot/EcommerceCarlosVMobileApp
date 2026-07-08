@@ -91,7 +91,7 @@ internal fun FailedBody(
         }
         Spacer(Modifier.height(12.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            modifier = Modifier.fillMaxWidth().background(ex.surface2, RoundedCornerShape(12.dp))
                 .border(1.dp, ex.border, RoundedCornerShape(12.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {

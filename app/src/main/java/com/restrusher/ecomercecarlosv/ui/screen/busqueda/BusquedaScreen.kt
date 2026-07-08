@@ -249,9 +249,9 @@ private fun ClienteResultRow(result: ClienteSearchResult, onClick: () -> Unit) {
             ) {
                 Text(
                     text = when (result.status) {
-                        ClientStatus.CRITICO -> stringResource(R.string.cliente_status_critico)
-                        ClientStatus.ADVERTENCIA -> stringResource(R.string.cliente_status_advertencia)
-                        ClientStatus.AL_DIA -> stringResource(R.string.cliente_status_al_dia)
+                        ClientStatus.CRITICO -> stringResource(R.string.status_critico)
+                        ClientStatus.ADVERTENCIA -> stringResource(R.string.status_advertencia)
+                        ClientStatus.AL_DIA -> stringResource(R.string.status_al_dia)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = statusColor,

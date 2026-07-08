@@ -118,7 +118,7 @@
 
     <!-- Status badges -->
     <string name="status_al_dia">Al día</string>
-    <string name="status_advertencia">Advertencia</string>
+    <string name="status_advertencia">Cobrar</string>
     <string name="status_critico">Crítico</string>
 
     <!-- Lista Negra -->
@@ -143,10 +143,6 @@
 
     <!-- Reporte Diario -->
     <string name="reporte_diario_title">Reporte diario</string>
-    <string name="reporte_cobrado_hoy">Cobrado hoy</string>
-    <string name="reporte_movimientos">Movimientos de hoy</string>
-    <string name="reporte_pedidos_creados">Pedidos creados</string>
-    <string name="reporte_pendiente_dia">Pendiente del día</string>
     <!-- Reporte tab -->
     <string name="reporte_mode_diario">Diario</string>
     <string name="reporte_mode_por_cliente">Por cliente</string>
@@ -157,12 +153,12 @@
     <string name="reporte_preset_trimestre">Trimestre</string>
     <string name="reporte_preset_anio">Año</string>
     <string name="reporte_preset_personalizado">Personalizado</string>
-    <string name="reporte_cobros_count">%1$d cobros</string>
-    <string name="reporte_facturado">Facturado</string>
+    <string name="reporte_facturado_hoy">Facturado hoy</string>
     <string name="reporte_pagado">Pagado</string>
-    <string name="reporte_saldo">Saldo</string>
+    <string name="reporte_por_pagar">Por pagar</string>
+    <string name="reporte_pedidos_count">%1$d pedidos</string>
+    <string name="reporte_pdf_chip">PDF</string>
     <string name="reporte_historial">Historial</string>
-    <string name="reporte_sin_movimientos">Sin movimientos en este período</string>
     <string name="reporte_sin_historial">Sin transacciones en este período</string>
     <string name="reporte_selector_cliente">Seleccionar cliente</string>
     <string name="reporte_cambiar_cliente">Cambiar</string>
@@ -178,9 +174,6 @@
     <string name="busqueda_section_clientes">Clientes</string>
     <string name="busqueda_section_mercados">Mercados</string>
     <string name="busqueda_mercado_clientes">%1$d clientes activos</string>
-    <string name="cliente_status_critico">Crítico</string>
-    <string name="cliente_status_advertencia">Advertencia</string>
-    <string name="cliente_status_al_dia">Al día</string>
 
     <!-- Permissions -->
     <string name="permission_required">Permiso requerido</string>
@@ -290,9 +283,6 @@
     <!-- Umbrales de estado -->
     <string name="umbrales_title">Umbrales de estado</string>
     <string name="umbrales_header">El estado se decide sobre todo por <b>cuánto tiempo lleva sin pagarse</b> la deuda — no por el monto. Configura cuándo un cliente pasa a <b>Crítico</b>; lo demás se calcula solo.</string>
-    <string name="umbrales_status_al_dia">Al día</string>
-    <string name="umbrales_status_advertencia">Advertencia</string>
-    <string name="umbrales_status_critico">Crítico</string>
     <string name="umbrales_al_dia_desc">El cliente no debe nada: su balance es Bs. 0.</string>
     <string name="umbrales_advertencia_desc">Debe dinero, pero todavía no llega a Crítico. Cualquier saldo mayor a Bs. 0 empieza aquí.</string>
     <string name="umbrales_critico_desc">Se marca en rojo cuando ocurre cualquiera de estas dos cosas:</string>
@@ -353,7 +343,7 @@
     <!-- Detalle Cliente -->
     <string name="detalle_cliente_title">Detalle del cliente</string>
     <string name="detalle_cliente_ubicacion">Ubicación</string>
-    <string name="detalle_cliente_saldo_total">Saldo pendiente total</string>
+    <string name="detalle_cliente_saldo_total">Saldo total</string>
     <string name="detalle_cliente_lista_negra_title">En Lista Negra</string>
     <string name="detalle_cliente_lista_negra_subtitle">Vetado desde el %s · no se pueden crear pedidos nuevos.</string>
     <string name="detalle_cliente_monto_vetado_label">Monto vetado</string>

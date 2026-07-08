@@ -39,6 +39,7 @@ class ReporteViewModel @Inject constructor(
 
     private val _input = MutableStateFlow(ReporteInput())
     private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("es"))
+    private val diarioItemDateFormat = SimpleDateFormat("d MMM, HH:mm", Locale("es"))
 
     val uiState = combine(
         _input,
@@ -88,32 +89,25 @@ class ReporteViewModel @Inject constructor(
     ): ReporteUiState {
         val (from, to) = diarioRange(input.diarioPreset, input.customDiarioFrom, input.customDiarioTo)
 
-        val cobros = allPedidos.filter { it.paidAt != null && it.paidAt in from..to && it.paid > 0 }
         val createdInRange = allPedidos.filter { it.createdAt in from..to && !it.isSaldoExtra }
-        val cobrosIds = cobros.map { it.id }.toSet()
 
-        val movimientosCobros = cobros.map { p ->
-            val cliente = clienteIndex[p.clienteId]
-            MovimientoItem(
-                pedidoId = p.id,
-                clienteName = cliente?.name.orEmpty(),
-                mercadoName = mercadoIndex[cliente?.mercadoId.orEmpty()]?.name.orEmpty(),
-                type = MovimientoType.COBRO,
-                amount = p.paid,
-                timestamp = p.paidAt!!,
-            )
-        }
-        val movimientosPedidos = createdInRange
-            .filter { it.id !in cobrosIds }
+        val diarioPedidos = createdInRange
+            .sortedByDescending { it.createdAt }
             .map { p ->
                 val cliente = clienteIndex[p.clienteId]
-                MovimientoItem(
+                val mercadoName = mercadoIndex[cliente?.mercadoId.orEmpty()]?.name.orEmpty()
+                HistorialItem(
                     pedidoId = p.id,
-                    clienteName = cliente?.name.orEmpty(),
-                    mercadoName = mercadoIndex[cliente?.mercadoId.orEmpty()]?.name.orEmpty(),
-                    type = MovimientoType.PEDIDO,
-                    amount = p.total,
-                    timestamp = p.createdAt,
+                    title = cliente?.name.orEmpty().ifBlank { "—" },
+                    subtitle = buildString {
+                        append(diarioItemDateFormat.format(Date(p.createdAt)))
+                        if (mercadoName.isNotBlank()) append(" · $mercadoName")
+                    },
+                    date = p.createdAt,
+                    total = p.total,
+                    paid = p.paid,
+                    pending = p.pending,
+                    isSaldoExtra = false,
                 )
             }
 
@@ -122,11 +116,10 @@ class ReporteViewModel @Inject constructor(
             diarioPreset = input.diarioPreset,
             diarioFromMs = from,
             diarioToMs = to,
-            cobradoTotal = cobros.sumOf { it.paid },
-            cobroCount = cobros.size,
-            pedidosCreadosCount = createdInRange.size,
-            pendienteDelDia = createdInRange.sumOf { it.pending },
-            movimientos = (movimientosCobros + movimientosPedidos).sortedByDescending { it.timestamp },
+            diarioFacturado = createdInRange.sumOf { it.total },
+            diarioPagado = createdInRange.sumOf { it.paid },
+            diarioPendiente = createdInRange.sumOf { it.pending },
+            diarioPedidos = diarioPedidos,
             customDiarioFrom = input.customDiarioFrom,
             customDiarioTo = input.customDiarioTo,
             allClientes = allClienteOptions,
@@ -148,16 +141,33 @@ class ReporteViewModel @Inject constructor(
             allPedidos.filter { it.clienteId == selectedId && it.createdAt in from..to }
         } else emptyList()
 
-        val billable = clientePedidos.filter { !it.isSaldoExtra }
-        val historial = clientePedidos.sortedByDescending { it.createdAt }.map { p ->
+        val (extras, billable) = clientePedidos.partition { it.isSaldoExtra }
+
+        val historial = billable.sortedByDescending { it.createdAt }.map { p ->
             HistorialItem(
                 pedidoId = p.id,
-                title = if (p.isSaldoExtra) "Saldo extra" else dateFormat.format(Date(p.createdAt)),
+                title = dateFormat.format(Date(p.createdAt)),
                 date = p.createdAt,
                 total = p.total,
                 paid = p.paid,
                 pending = p.pending,
-                isSaldoExtra = p.isSaldoExtra,
+                isSaldoExtra = false,
+                lines = p.lines,
+            )
+        }
+        val saldoExtras = extras.sortedByDescending { it.createdAt }.map { p ->
+            HistorialItem(
+                pedidoId = p.id,
+                title = "Saldo extra",
+                subtitle = buildString {
+                    append(dateFormat.format(Date(p.createdAt)))
+                    if (!p.notes.isNullOrBlank()) append(" · ${p.notes}")
+                },
+                date = p.createdAt,
+                total = p.total,
+                paid = p.paid,
+                pending = p.pending,
+                isSaldoExtra = true,
             )
         }
 
@@ -176,6 +186,7 @@ class ReporteViewModel @Inject constructor(
             pagado = billable.sumOf { it.paid },
             saldo = billable.sumOf { it.pending },
             historial = historial,
+            saldoExtras = saldoExtras,
             customClienteFrom = input.customClienteFrom,
             customClienteTo = input.customClienteTo,
             allClientes = allClienteOptions,
