@@ -929,6 +929,16 @@ Full "Reporte de pedidos" screen accessible from the "Generar reporte" menu item
 
 ---
 
+### 🧹 DepuracionScreen split + count-freshness fix; PerfilScreen Ajustes/Mantenimiento split
+
+**Bug fix**: `CleanupRepositoryImpl.countPedidosOlderThan` read the local Room `pedidos` table directly, without ever triggering a sync — unlike every other pedido-reading path (`PedidoRepositoryImpl.getAll()`/`getByCliente()`, which call `DataSynchronizer.triggerSyncIfStale`). Opening Perfil → Mantenimiento before visiting any other pedido screen in the session left the local table empty, so the count pill showed `0` for any cutoff. Fixed by injecting `PedidoRepository` into `CleanupRepositoryImpl` and calling `.refresh()` before counting. See `docs/features/depuracion.md → Count freshness`.
+
+**DepuracionScreen split** (was a single 880-line file) — now `DepuracionScreen.kt` (`DepuracionScreen` ViewModel wiring + `DepuracionContent` state-driven phase dispatch, previewable) plus one file per phase: `DepuracionConfigContent.kt`, `DepuracionProgressContent.kt`, `DepuracionErrorContent.kt`, `DepuracionDoneContent.kt`, `DepuracionConfirmDialog.kt`, `DepuracionDatePickerDialog.kt`, `PhaseSteps.kt`. Mirrors the `ui/screen/reporte/` split pattern; every phase file has its own light/dark previews.
+
+**PerfilScreen split** — `AjustesSection.kt` (Apariencia card + Umbrales row) and `MantenimientoSection.kt` (Depuración row) extracted with their own previews, since they sat below the fold in `PerfilContent`'s single long scrolling preview. `PerfilDarkPreview` (superuser variant) also given `heightDp = 1500` so the full scroll content renders without clipping.
+
+---
+
 ## Build config snapshots
 
 | Tool | Version |

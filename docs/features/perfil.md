@@ -2,6 +2,15 @@
 
 Screen accessible from the Home bottom bar. Shows identity info, security settings, team management (superusers), and appearance settings (all users).
 
+## Files
+
+| File | Purpose |
+|------|---------|
+| `ui/screen/perfil/PerfilScreen.kt` | `PerfilScreen` (ViewModel + biometric prompt wiring) + `PerfilContent` (state-driven, previewable); Cuenta/Seguridad/Equipo/Logout inline; `SectionHeader` (internal, shared by the section files below) |
+| `ui/screen/perfil/AjustesSection.kt` | Apariencia card (theme selector) + Umbrales de estado row; own light/dark previews |
+| `ui/screen/perfil/MantenimientoSection.kt` | Depuración de datos row; own light/dark previews |
+| `ui/screen/perfil/BiometricCard.kt` | Biometric enroll/disable card |
+
 ## Sections
 
 ### Cuenta
@@ -15,11 +24,11 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 ### Equipo *(superuser only)*
 - **Gestión de usuarios** — navigates to `GestionUsuariosRoute`. Subtitle shows total users + superuser count.
 
-### Ajustes *(all users)*
+### Ajustes *(all users)* — `AjustesSection.kt`
 - **Apariencia** — in-card segment selector with three options: Claro / Oscuro / Sistema. Active option has accent background + white text/icon; inactive options are transparent. Persisted via `ThemeManager`; change takes effect instantly app-wide including system status bar and navigation bar icons.
-- **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value.
+- **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only, `showUmbrales` param)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value.
 
-### Mantenimiento *(superuser only)*
+### Mantenimiento *(superuser only)* — `MantenimientoSection.kt`
 - **Depuración de datos** (`Icons.Default.Delete`, red icon) — navigates to `DepuracionRoute`. Two-phase destructive cleanup: exports old pedidos to CSV/XLSX then hard-deletes them from Supabase. See `docs/features/depuracion.md` for full details.
 
 ### Logout

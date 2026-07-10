@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.remote.dto.PedidoDto
 import com.restrusher.ecomercecarlosv.domain.repository.CleanupRepository
+import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -23,11 +24,16 @@ import javax.inject.Inject
 class CleanupRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val pedidoDao: PedidoDao,
+    private val pedidoRepository: PedidoRepository,
     private val supabase: SupabaseClient,
 ) : CleanupRepository {
 
-    override suspend fun countPedidosOlderThan(cutoffMs: Long): Int =
-        pedidoDao.countByCreatedAtBefore(cutoffMs)
+    override suspend fun countPedidosOlderThan(cutoffMs: Long): Int {
+        // The local table may be empty/stale if the user opens this screen before any other
+        // pedido-reading screen triggered a sync, so refresh before counting.
+        pedidoRepository.refresh()
+        return pedidoDao.countByCreatedAtBefore(cutoffMs)
+    }
 
     override suspend fun exportPedidosToFile(
         cutoffMs: Long,

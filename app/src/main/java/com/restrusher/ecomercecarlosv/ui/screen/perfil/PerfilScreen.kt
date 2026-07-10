@@ -7,7 +7,6 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,16 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.SettingsBrightness
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,8 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -261,36 +253,18 @@ private fun PerfilContent(
 
             // Ajustes (all users)
             Spacer(Modifier.height(14.dp))
-            SectionHeader(stringResource(R.string.perfil_section_ajustes))
-            AppearanceCard(
+            AjustesSection(
                 themeMode = state.themeMode,
-                onSelect = onThemeChange,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                onThemeChange = onThemeChange,
+                showUmbrales = state.role == UserRole.SUPERUSUARIO,
+                umbralesSummary = state.umbralesSummary,
+                onUmbralesClick = onUmbralesClick,
             )
-            if (state.role == UserRole.SUPERUSUARIO) {
-                Spacer(Modifier.height(10.dp))
-                SettingRow(
-                    icon = Icons.Default.BarChart,
-                    title = stringResource(R.string.perfil_umbrales_title),
-                    subtitle = state.umbralesSummary,
-                    onClick = onUmbralesClick,
-                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
-                )
-            }
 
             // Mantenimiento (superuser only)
             if (state.role == UserRole.SUPERUSUARIO) {
                 Spacer(Modifier.height(14.dp))
-                SectionHeader(stringResource(R.string.perfil_section_mantenimiento))
-                SettingRow(
-                    icon = Icons.Default.Delete,
-                    title = stringResource(R.string.perfil_mantenimiento_title),
-                    subtitle = stringResource(R.string.perfil_mantenimiento_subtitle),
-                    iconColor = ext.redText,
-                    iconBg = ext.redTint,
-                    onClick = onMantenimientoClick,
-                    trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
-                )
+                MantenimientoSection(onMantenimientoClick = onMantenimientoClick)
             }
 
             // Logout
@@ -318,131 +292,7 @@ private fun PerfilContent(
 }
 
 @Composable
-private fun AppearanceCard(
-    themeMode: ThemeMode,
-    onSelect: (ThemeMode) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val ext = MaterialTheme.extendedColors
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(1.dp, ext.border, RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(ext.surface2)
-            .padding(bottom = 12.dp),
-    ) {
-        // Header row
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(13.dp),
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(ext.surface3),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DarkMode,
-                    contentDescription = null,
-                    tint = ext.text2,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Column {
-                Text(
-                    text = stringResource(R.string.perfil_apariencia_title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.perfil_apariencia_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ext.text3,
-                )
-            }
-        }
-
-        // Segment selector
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 12.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(13.dp))
-                .background(ext.surface3)
-                .padding(5.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            ThemeOption(
-                icon = Icons.Default.WbSunny,
-                label = stringResource(R.string.perfil_theme_light),
-                selected = themeMode == ThemeMode.LIGHT,
-                onClick = { onSelect(ThemeMode.LIGHT) },
-                modifier = Modifier.weight(1f),
-            )
-            ThemeOption(
-                icon = Icons.Default.DarkMode,
-                label = stringResource(R.string.perfil_theme_dark),
-                selected = themeMode == ThemeMode.DARK,
-                onClick = { onSelect(ThemeMode.DARK) },
-                modifier = Modifier.weight(1f),
-            )
-            ThemeOption(
-                icon = Icons.Default.SettingsBrightness,
-                label = stringResource(R.string.perfil_theme_system),
-                selected = themeMode == ThemeMode.SYSTEM,
-                onClick = { onSelect(ThemeMode.SYSTEM) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ThemeOption(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val onAccent = MaterialTheme.colorScheme.onPrimary
-    val ext = MaterialTheme.extendedColors
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = modifier
-            .height(62.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (selected) accent else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (selected) onAccent else ext.text2,
-            modifier = Modifier.size(19.dp),
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) onAccent else ext.text2,
-            fontSize = 12.5.sp,
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
+internal fun SectionHeader(title: String) {
     Text(
         text = title.uppercase(),
         style = MaterialTheme.typography.labelSmall,
@@ -462,7 +312,7 @@ private fun Context.findFragmentActivity(): FragmentActivity? {
     return null
 }
 
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true, heightDp = 1500)
 @Composable
 private fun PerfilDarkPreview() {
     EcomerceCarlosVTheme(themeMode = ThemeMode.DARK) {

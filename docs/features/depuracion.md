@@ -25,7 +25,7 @@ The feature enforces that Phase 2 (delete) only runs if Phase 1 (export) succeed
 
 ## Screens
 
-All implemented in a single `DepuracionScreen.kt` composable that renders different content based on `DepuracionPhase`.
+`DepuracionScreen.kt` holds a thin `DepuracionScreen` (wires `DepuracionViewModel`) and a state-driven `DepuracionContent` (previewable, no ViewModel) that dispatches to one composable per `DepuracionPhase`. Each phase composable lives in its own file under `ui/screen/depuracion/`, following the same split used in `ui/screen/reporte/`.
 
 ### Config (`DepuracionPhase.CONFIG`)
 
@@ -92,10 +92,19 @@ ERROR ──(retry)──► EXPORTING (from start)
 |------|---------|
 | `ui/screen/depuracion/DepuracionUiState.kt` | State class + `ExportFormat` enum + `DepuracionPhase` enum |
 | `ui/screen/depuracion/DepuracionViewModel.kt` | Hilt ViewModel; `loadCount()`, `startDepuracion()`, date/format/confirm handlers |
-| `ui/screen/depuracion/DepuracionScreen.kt` | All 6 screen states in one composable; `PhaseSteps`, `ConfigRow`, `FormatChip`, `SectionLabel` private helpers |
+| `ui/screen/depuracion/DepuracionScreen.kt` | `DepuracionScreen` (ViewModel wiring) + `DepuracionContent` (state-driven phase dispatch + dialog invocation, with previews for CONFIG/DONE) |
+| `ui/screen/depuracion/DepuracionConfigContent.kt` | `DepuracionPhase.CONFIG` UI; private `ConfigRow`, `FormatChip`, `SectionLabel`, `formatDateMs` |
+| `ui/screen/depuracion/DepuracionProgressContent.kt` | `DepuracionPhase.EXPORTING` / `DELETING` UI (shared composable, `isExporting` flag) |
+| `ui/screen/depuracion/DepuracionErrorContent.kt` | `DepuracionPhase.ERROR` UI |
+| `ui/screen/depuracion/DepuracionDoneContent.kt` | `DepuracionPhase.DONE` UI; private `formatFileSize` |
+| `ui/screen/depuracion/DepuracionConfirmDialog.kt` | "Type ELIMINAR to confirm" `AlertDialog` |
+| `ui/screen/depuracion/DepuracionDatePickerDialog.kt` | Cutoff date `DatePickerDialog` wrapper |
+| `ui/screen/depuracion/PhaseSteps.kt` | `PhaseSteps` + `StepCircle` — shared 2-step progress indicator used by every phase composable |
 | `domain/repository/CleanupRepository.kt` | Interface: `countPedidosOlderThan`, `exportPedidosToFile`, `deletePedidosFromCloud` |
 | `data/repository/impl/CleanupRepositoryImpl.kt` | Impl; Supabase range-fetch, CSV + XLSX writers, Room cleanup |
 | `di/RepositoryModule.kt` | `@Binds CleanupRepository → CleanupRepositoryImpl` |
+
+Every phase/dialog file has its own light + dark `@Preview`, so each can be inspected in Android Studio without scrolling through the full multi-phase flow.
 
 ---
 
@@ -127,6 +136,12 @@ suspend fun countByCreatedAtBefore(cutoff: Long): Int
 @Query("DELETE FROM pedidos WHERE createdAt < :cutoff")
 suspend fun deleteByCreatedAtBefore(cutoff: Long)
 ```
+
+No `isDeleted` filter on purpose: depuración is a storage-cleanup sweep, not a user-facing list, so already-soft-deleted old pedidos should still be counted/purged along with active ones.
+
+### Count freshness
+
+`countPedidosOlderThan` reads the local Room `pedidos` table, but unlike `PedidoRepositoryImpl.getAll()` / `getByCliente()` (which call `DataSynchronizer.triggerSyncIfStale` before reading), `CleanupRepositoryImpl` used to read straight from `PedidoDao` with no sync trigger at all. If a superusuario opened Perfil → Mantenimiento before visiting any other pedido-reading screen in that session, the local table could be empty and the count pill would show `0` for every cutoff, effectively disabling the feature. Fixed by injecting `PedidoRepository` into `CleanupRepositoryImpl` and calling `pedidoRepository.refresh()` (a `DataSynchronizer.forceSync`, cheap after the first sync since it uses the delta cursor) before counting.
 
 ### Export logic (`CleanupRepositoryImpl`)
 
