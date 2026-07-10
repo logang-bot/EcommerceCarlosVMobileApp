@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.domain.model.Pago
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
@@ -77,36 +79,47 @@ fun TotalBlock(pedido: Pedido) {
 }
 
 @Composable
-fun PagosSection(pedido: Pedido) {
-    val ext = MaterialTheme.extendedColors
-    val dateFormatter = SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("es"))
-    Column(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
+fun PagosSection(pagos: List<Pago>, modifier: Modifier = Modifier) {
+    val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.forLanguageTag("es")) }
+    Column(modifier = modifier.padding(top = 4.dp, bottom = 8.dp)) {
         DetalleSectionLabel(stringResource(R.string.detalle_pedido_pagos_section))
-        val date = dateFormatter.format(Date(pedido.paidAt ?: pedido.createdAt))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .background(ext.greenTint, RoundedCornerShape(9.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = ext.greenText, modifier = Modifier.size(16.dp))
-            }
-            Text(date, modifier = Modifier.weight(1f), fontSize = 13.5.sp, color = ext.text2)
-            Text(
-                text = "+ Bs. ${"%.2f".format(pedido.paid)}",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = ext.greenText,
-            )
+        pagos.sortedByDescending { it.paidAt }.forEach { pago ->
+            PagoRow(pago = pago, dateFormatter = dateFormatter)
         }
+    }
+}
+
+@Composable
+private fun PagoRow(pago: Pago, dateFormatter: SimpleDateFormat, modifier: Modifier = Modifier) {
+    val ext = MaterialTheme.extendedColors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(ext.greenTint, RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Check, contentDescription = null, tint = ext.greenText, modifier = Modifier.size(16.dp))
+        }
+        Text(
+            text = dateFormatter.format(Date(pago.paidAt)),
+            modifier = Modifier.weight(1f),
+            fontSize = 13.5.sp,
+            color = ext.text2,
+        )
+        Text(
+            text = "+ Bs. ${"%.2f".format(pago.amount)}",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = ext.greenText,
+        )
     }
 }
 
@@ -119,6 +132,10 @@ private val previewPedidoPartial = Pedido(
 private val previewPedidoPaid = Pedido(
     id = "2", clienteId = "c1", status = PedidoStatus.PAID,
     total = 112.00, paid = 112.00, createdAt = 1748390400000L, paidAt = 1748736000000L,
+)
+private val previewPagos = listOf(
+    Pago(id = "p1", pedidoId = "2", amount = 50.00, paidAt = 1748390400000L),
+    Pago(id = "p2", pedidoId = "2", amount = 62.00, paidAt = 1748736000000L),
 )
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
@@ -136,11 +153,11 @@ private fun TotalBlockDarkPreview() {
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
 @Composable
 private fun PagosSectionPreview() {
-    EcomerceCarlosVTheme { PagosSection(pedido = previewPedidoPaid) }
+    EcomerceCarlosVTheme { PagosSection(pagos = previewPagos) }
 }
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun PagosSectionDarkPreview() {
-    EcomerceCarlosVTheme(darkTheme = true) { PagosSection(pedido = previewPedidoPaid) }
+    EcomerceCarlosVTheme(darkTheme = true) { PagosSection(pagos = previewPagos) }
 }

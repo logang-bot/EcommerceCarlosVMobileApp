@@ -293,7 +293,7 @@ Standalone screen reached from the "Generar reporte" menu item in `DetalleClient
 Title: "Generar reporte" / subtitle: "{nombre} · {mercado}". Back arrow (left) + close × (right, also pops).
 
 ### Body (scrollable)
-1. **Intro text** — 13.5sp, `text2` color, lineHeight 20sp.
+1. **Intro text** — 13.5sp, `text2` color, lineHeight 20sp. Copy explicitly states what the generated PDF will contain (products + quantities per pedido, plus saldo-extra movements), so the user knows this is a detailed pedido-level export before they generate it — distinct from the summary-style "Por cliente" report on the Reportes tab.
 2. **"RANGO RÁPIDO"** section label (11.5sp, semibold, uppercase, 0.5sp letterSpacing).
 3. **Preset chips row** (horizontally scrollable): Hoy / Esta semana / Este mes / Personalizado.  
    - Selected: primary bg + `onPrimary` text, 38dp height, 11dp corners.  
@@ -306,10 +306,24 @@ Title: "Generar reporte" / subtitle: "{nombre} · {mercado}". Back arrow (left) 
 7. **Preview list** (`PreviewListSection`) — "PEDIDOS DE HOY" (HOY preset) or "PEDIDOS EN EL REPORTE" + "N de total" counter. Shows up to 5 `ReportePedidoPreviewRow` items + "y N pedidos más en el PDF" footer if count > 5.
 
 ### Bottom bar (`GenerarPdfBar`)
-Full-width "Generar PDF" button (52dp, 15dp corners, primary color, Description icon). Disabled until range is valid.
+Full-width "Generar PDF" button (52dp, 15dp corners, primary color, Description icon). Disabled until range is valid. Rendered as the Scaffold's `bottomBar` (not appended to the end of the scrollable column), so it stays pinned to the bottom of the screen regardless of list length — same sticky behavior as the Reportes tab's PDF action.
 
 ### HTML export (`buildReporteClienteHtml`)
-CV logo box + company name header · client section (nombre, mercado, descripción, teléfono) · period section (range + count) · 3 stat boxes (Facturado / Pagado / Saldo pendiente) · table (Fecha / Detalle / Total / Pagado / Saldo / Estado) with totals row · footer. Saved to Downloads via `saveReportToDownloads`.
+
+Reworked to reach visual parity with the Reportes tab's reports and to be the most complete of the three (it now shows more detail per pedido than either Diario or Por cliente):
+
+- **Header** — now matches `buildDiarioHtml`/`buildPorClienteHtml` exactly: real app logo (`R.drawable.img_logo`, base64 `<img>`, 48×48) instead of the old static "CV" text badge, `#2FA24E` green accent border (was `#1E7D38`), 20px bold title ("Reporte de pedidos"), and a 15px bold `.client-meta` line for `{clienteName} · {mercadoName}` — same size/weight the Por-cliente report uses for its client line. `ReporteClienteScreen` now reads and base64-encodes the logo the same way `ReporteScreen` does, and passes it into `buildReporteClienteHtml` as a new `logoDataUri` parameter.
+- **Cliente section** — since nombre/mercado now live in the header, this section only renders Descripción/Teléfono (when present) and is omitted entirely if the client has neither.
+- **Pedidos table** — single unified list (not split into separate tables like Por cliente's Historial/Saldo-extra split):
+  - **Product detail**: each regular pedido's `Detalle` cell now renders its `PedidoLineItem`s as a bulleted `<ul><li>×qty productName</li></ul>` list (previously a single comma-joined line) — matching the Por-cliente report's product list style.
+  - **Saldo extra rows**: kept in the same table as regular pedidos (per requirement — one complete list) but visually distinguished: amber-tinted row background (`.row-extra`), a 3px amber left border on the first cell, and a small "◆ Saldo extra" tag rendered under the date. The existing amber "Saldo extra" status chip is unchanged.
+  - **Totals**: `Total facturado`/`Pagado`/`Saldo pendiente` are computed over *all* `pedidosInRange`, saldo extra included — a deliberate difference from the Por-cliente report (which excludes saldo extra from its headline totals and gives it a separate totals row). Since this report intentionally keeps everything in one list, a small note (`Incluye Bs. X.XX en saldo extra (N movimientos)`) is shown under the stat cards whenever saldo-extra entries exist, so the reader can see how much of the total is a manual adjustment without the totals hiding it.
+  - **Payment sublist**: each pedido row's `Detalle` cell now also renders a small "Pagos" sub-list — one line per real payment event (`d MMM, HH:mm — Bs. X.XX`), sourced from the new `pagos` table (see `docs/db-schema.md`). This replaces the earlier limitation where partial-payment history was dropped for lack of a per-payment ledger — that ledger now exists (built for `DetallePedidoScreen`'s `PagosSection`, see `docs/features/pedidos.md`), so the report reuses it. Rendered for both regular and saldo-extra rows uniformly (`.pay-hist`/`.pay-hist-title`/`.pay-list` CSS classes).
+- Saved to Downloads via `saveReportToDownloads`, same as before.
+
+### ViewModel: sourcing the payment sublist
+
+`ReporteClienteViewModel.uiState` combine now also subscribes to `pedidoRepository.getPagosByClienteFlow(clienteId)` (a 5th flow, joined via `PagoDao.getByClienteFlow` — `pagos INNER JOIN pedidos ON pagos.pedidoId = pedidos.id WHERE pedidos.clienteId = :clienteId`). Following this feature's established pattern, all filtering happens in-memory after Room emits: pagos are filtered down to `it.pedidoId in pedidosInRange.map{it.id}` and exposed as `ReporteClienteUiState.pagos`. `buildReporteClienteHtml` groups them by `pedidoId` once (`state.pagos.groupBy { it.pedidoId }`) and looks up each pedido's sublist while building its row.
 
 ### ViewModel logic
 - `ReporteClientePreset`: HOY (today start→end), SEMANA (Monday of current week → today end), MES (first of month → today end), PERSONALIZADO (user picks).
@@ -322,3 +336,4 @@ CV logo box + company name header · client section (nombre, mercado, descripci�
 ## Open TODOs
 
 - [ ] Real-time cross-device report data: currently reports reflect whatever is in Room at the time of viewing. A pull-to-refresh trigger on the Reportes tab (similar to the other list screens) would let users manually force a delta sync before generating a report, ensuring the latest cobros and pedidos from other devices are included.
+- [ ] Per-payment history: `pedidos` only stores a single cumulative `paid` amount and a single `paidAt` (most recent payment date) — see `docs/db-schema.md`. Showing a real list of "paid Bs. X on date Y" for partial payments would require a new `pagos`/`cobros` child table logging every individual payment event, plus updating every payment-recording flow to insert into it. Explicitly out of scope for the `ReporteClienteScreen` PDF rework — deferred until/unless payment-level history is actually needed.

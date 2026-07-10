@@ -7,6 +7,7 @@ import com.restrusher.ecomercecarlosv.data.error.GlobalErrorHandler
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
 import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PagoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
@@ -16,6 +17,7 @@ import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
 import com.restrusher.ecomercecarlosv.data.mapper.ClienteMapper
 import com.restrusher.ecomercecarlosv.data.mapper.DetallePedidoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.MercadoMapper
+import com.restrusher.ecomercecarlosv.data.mapper.PagoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.PedidoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.ProductoMapper
 import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
@@ -42,6 +44,7 @@ class QueueProcessor @Inject constructor(
     private val productoDao: ProductoDao,
     private val pedidoDao: PedidoDao,
     private val detalleDao: DetallePedidoDao,
+    private val pagoDao: PagoDao,
     private val networkMonitor: NetworkMonitor,
     private val supabase: SupabaseClient,
     private val storageService: StorageService,
@@ -187,6 +190,14 @@ class QueueProcessor @Inject constructor(
                         .delete { filter { eq("pedido_id", op.entityId) } }
                     supabase.from("detalle_pedido")
                         .upsert(detalles.map(DetallePedidoMapper::toDto))
+                }
+                // Also push the pedido's full local payment ledger (replace remote ones).
+                val pagos = pagoDao.getByPedido(op.entityId)
+                if (pagos.isNotEmpty()) {
+                    supabase.from("pagos")
+                        .delete { filter { eq("pedido_id", op.entityId) } }
+                    supabase.from("pagos")
+                        .upsert(pagos.map(PagoMapper::toDto))
                 }
             }
             else -> Log.w(TAG, "upsert: unknown entityType '${op.entityType}'")

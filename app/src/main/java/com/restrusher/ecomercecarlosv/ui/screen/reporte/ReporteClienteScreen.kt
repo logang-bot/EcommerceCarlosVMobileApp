@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
 import android.content.res.Configuration
+import android.util.Base64
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -63,6 +65,11 @@ import java.util.Locale
 fun ReporteClienteScreen(navController: NavController) {
     val viewModel = hiltViewModel<ReporteClienteViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val logoDataUri = remember {
+        val bytes = context.resources.openRawResource(R.drawable.img_logo).use { it.readBytes() }
+        "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
     ReporteClienteContent(
         state = state,
         onBack = { navController.popBackStack() },
@@ -74,7 +81,7 @@ fun ReporteClienteScreen(navController: NavController) {
             val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
             val safeName = state.clienteName.replace(" ", "_").filter { it.isLetterOrDigit() || it == '_' }
             val fileName = "Reporte_${safeName}_$stamp.html"
-            val html = buildReporteClienteHtml(state, formatPeriodLabel(state), label)
+            val html = buildReporteClienteHtml(state, formatPeriodLabel(state), label, logoDataUri)
             ReporteExportHolder.pending = PendingExport(
                 html = html,
                 fileName = fileName,

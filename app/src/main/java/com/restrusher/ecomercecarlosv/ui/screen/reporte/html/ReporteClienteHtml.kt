@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.reporte.html
 
+import com.restrusher.ecomercecarlosv.domain.model.Pago
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteClientePreset
 import com.restrusher.ecomercecarlosv.ui.screen.reporte.ReporteClienteUiState
@@ -25,20 +26,54 @@ fun buildReporteClienteHtml(
     state: ReporteClienteUiState,
     periodLabel: String,
     generatedDate: String,
+    logoDataUri: String,
 ): String {
     val df = SimpleDateFormat("dd MMM yyyy", Locale("es"))
 
     val facturado = state.pedidosInRange.sumOf { it.total }
     val pagado = state.pedidosInRange.sumOf { it.paid }
     val saldo = state.pedidosInRange.sumOf { it.pending }
+    val extraPedidos = state.pedidosInRange.filter { it.isSaldoExtra }
+    val extraTotal = extraPedidos.sumOf { it.total }
+
+    val clienteExtraInfo = buildString {
+        if (state.clienteDesc.isNotBlank()) {
+            append("<div class=\"gi\"><div class=\"lbl\">Descripción</div><div class=\"val\">${state.clienteDesc}</div></div>")
+        }
+        if (state.clientePhone.isNotBlank()) {
+            append("<div class=\"gi\"><div class=\"lbl\">Teléfono</div><div class=\"val\">${state.clientePhone}</div></div>")
+        }
+    }
+    val clienteSectionHtml = if (clienteExtraInfo.isEmpty()) "" else
+        "<h2>Cliente</h2><div class=\"info-grid\">$clienteExtraInfo</div>"
+    val extraNoteHtml = if (extraPedidos.isEmpty()) "" else
+        "<div class=\"extra-note\">Incluye Bs. ${"%.2f".format(extraTotal)} en saldo extra " +
+            "(${extraPedidos.size} movimiento${if (extraPedidos.size == 1) "" else "s"})</div>"
+
+    val pagoDf = SimpleDateFormat("d MMM, HH:mm", Locale("es"))
+    val pagosByPedido = state.pagos.groupBy { it.pedidoId }
+    fun pagoListHtml(pedidoId: String): String {
+        val pagos = pagosByPedido[pedidoId]
+        if (pagos.isNullOrEmpty()) return ""
+        val items = pagos.joinToString("") { pago: Pago ->
+            "<li>${pagoDf.format(Date(pago.paidAt))} — Bs. ${"%.2f".format(pago.amount)}</li>"
+        }
+        return "<div class='pay-hist'><div class='pay-hist-title'>Pagos</div><ul class='pay-list'>$items</ul></div>"
+    }
 
     val rows = state.pedidosInRange.joinToString("") { pedido ->
         val dateStr = df.format(Date(pedido.createdAt))
-        val detalle = when {
-            pedido.isSaldoExtra -> "Saldo extra" + if (!pedido.notes.isNullOrBlank()) " · ${pedido.notes}" else ""
-            pedido.lines.isNotEmpty() -> pedido.lines.joinToString(", ") { "×${it.quantity} ${it.productName}" }
-            else -> "—"
+        val dateCell = if (pedido.isSaldoExtra) {
+            "<td><b>$dateStr</b><div class='tag-extra'>&#9670; Saldo extra</div></td>"
+        } else {
+            "<td><b>$dateStr</b></td>"
         }
+        val detalle = when {
+            pedido.isSaldoExtra -> pedido.notes?.takeIf { it.isNotBlank() } ?: "—"
+            pedido.lines.isNotEmpty() ->
+                "<ul>" + pedido.lines.joinToString("") { "<li>×${it.quantity} ${it.productName}</li>" } + "</ul>"
+            else -> "—"
+        } + pagoListHtml(pedido.id)
         val (statusLabel, statusClass) = when {
             pedido.isSaldoExtra -> "Saldo extra" to "saldo"
             pedido.status == PedidoStatus.PENDING -> "Pendiente" to "pending"
@@ -50,8 +85,9 @@ fun buildReporteClienteHtml(
         } else {
             "<td class='amt amber'>Bs. ${"%.2f".format(pedido.pending)}</td>"
         }
-        "<tr>" +
-            "<td><b>$dateStr</b></td>" +
+        val rowClass = if (pedido.isSaldoExtra) " class='row-extra'" else ""
+        "<tr$rowClass>" +
+            dateCell +
             "<td class='det'>$detalle</td>" +
             "<td class='amt'>Bs. ${"%.2f".format(pedido.total)}</td>" +
             "<td class='amt green'>Bs. ${"%.2f".format(pedido.paid)}</td>" +
@@ -64,11 +100,12 @@ fun buildReporteClienteHtml(
 <html lang="es"><head><meta charset="UTF-8"><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;padding:28px;color:#1a1a1a;font-size:12.5px;line-height:1.45}
-.hdr{display:flex;align-items:center;gap:16px;border-bottom:2px solid #1E7D38;padding-bottom:16px;margin-bottom:20px}
-.logo{width:46px;height:46px;background:#1E7D38;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700;flex-shrink:0}
-.hdr-info h1{font-size:16px;font-weight:700;color:#1a1a1a}
-.hdr-info p{font-size:11.5px;color:#888;margin-top:2px}
-.hdr-right{margin-left:auto;text-align:right;font-size:11px;color:#aaa}
+.hdr{display:flex;align-items:center;gap:14px;border-bottom:2.5px solid #2FA24E;padding-bottom:16px;margin-bottom:20px}
+.hdr .logo{width:48px;height:48px;object-fit:contain;flex-shrink:0}
+.hdr-info{flex:1}
+.hdr-info h1{font-size:20px;font-weight:700;letter-spacing:-0.3px}
+.meta{font-size:11px;color:#888;margin-top:3px}
+.client-meta{font-size:15px;font-weight:700;color:#1a1a1a;margin-top:4px}
 h2{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#bbb;margin:18px 0 8px}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;background:#f8f8f8;border-radius:9px;padding:12px 14px}
 .gi .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#ccc;margin-bottom:1px}
@@ -88,6 +125,17 @@ th{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;co
 td{padding:8px 8px;border-bottom:1px solid #f5f5f5;vertical-align:top}
 tr:last-child td{border-bottom:none}
 .det{max-width:200px;color:#555;font-size:11.5px}
+.det ul{list-style:disc;margin:0 0 0 14px;padding:0}
+.det ul li{margin-top:2px}
+.det ul li:first-child{margin-top:0}
+.pay-hist{margin-top:6px}
+.pay-hist-title{font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;color:#aaa;margin-bottom:2px}
+.pay-list{list-style:none;margin:0;padding:0;font-size:11px;color:#555}
+.pay-list li{margin-top:1px}
+.row-extra{background:#FFFBEF}
+.row-extra td:first-child{border-left:3px solid #D97706}
+.tag-extra{font-size:10px;color:#D97706;font-weight:600;margin-top:3px;letter-spacing:.2px}
+.extra-note{font-size:10.5px;color:#D97706;margin-top:8px}
 .amt{font-family:monospace;font-weight:600;text-align:right;white-space:nowrap}
 .green{color:#16a34a}.amber{color:#D97706}.gray{color:#ccc}
 .tot td{font-weight:700;font-size:13px;background:#fafafa;border-top:1.5px solid #ddd}
@@ -100,21 +148,15 @@ tr:last-child td{border-bottom:none}
 </style></head><body>
 
 <div class="hdr">
-  <div class="logo">CV</div>
+  <img class="logo" src="$logoDataUri" alt="Logo" />
   <div class="hdr-info">
-    <h1>Comercializadora Carlos V</h1>
-    <p>Reporte de pedidos · ${state.clienteName}</p>
+    <h1>Reporte de pedidos</h1>
+    <div class="meta">Comercializadora Carlos V</div>
+    <div class="client-meta">${state.clienteName} &middot; ${state.mercadoName.ifBlank { "—" }}</div>
   </div>
-  <div class="hdr-right"><div>$generatedDate</div></div>
+  <div class="meta" style="text-align:right">$generatedDate</div>
 </div>
-
-<h2>Cliente</h2>
-<div class="info-grid">
-  <div class="gi"><div class="lbl">Nombre</div><div class="val">${state.clienteName}</div></div>
-  <div class="gi"><div class="lbl">Mercado</div><div class="val">${state.mercadoName.ifBlank { "—" }}</div></div>
-  ${if (state.clienteDesc.isNotBlank()) "<div class=\"gi\"><div class=\"lbl\">Descripción</div><div class=\"val\">${state.clienteDesc}</div></div>" else ""}
-  ${if (state.clientePhone.isNotBlank()) "<div class=\"gi\"><div class=\"lbl\">Teléfono</div><div class=\"val\">${state.clientePhone}</div></div>" else ""}
-</div>
+$clienteSectionHtml
 
 <h2>Período</h2>
 <div class="period">
@@ -128,6 +170,7 @@ tr:last-child td{border-bottom:none}
   <div class="stat p"><div class="sl">Pagado</div><div class="sv">Bs.&nbsp;${"%.2f".format(pagado)}</div></div>
   <div class="stat s"><div class="sl">Saldo pendiente</div><div class="sv">Bs.&nbsp;${"%.2f".format(saldo)}</div></div>
 </div>
+$extraNoteHtml
 
 <h2>Pedidos</h2>
 <table>

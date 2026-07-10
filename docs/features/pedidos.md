@@ -43,28 +43,37 @@ Note: `CreacionPedidoScreen` is never reachable for INVITADO because the "Nuevo 
 |------|--------|
 | `domain/model/Pedido.kt` | ✅ |
 | `domain/model/DetallePedido.kt` | ✅ |
+| `domain/model/Pago.kt` — one payment event (`id`, `pedidoId`, `amount`, `paidAt`) | ✅ |
 | `domain/model/PedidoStatus.kt` (enum: PENDING, PARTIAL, PAID) | ✅ |
 | `domain/repository/PedidoRepository.kt` | ✅ |
 | `data/local/entity/PedidoEntity.kt` | ✅ |
 | `data/local/entity/DetallePedidoEntity.kt` | ✅ |
+| `data/local/entity/PagoEntity.kt` | ✅ |
 | `data/local/dao/PedidoDao.kt` | ✅ |
 | `data/local/dao/DetallePedidoDao.kt` | ✅ |
+| `data/local/dao/PagoDao.kt` | ✅ |
 | `data/remote/dto/PedidoDto.kt` | ✅ |
 | `data/remote/dto/DetallePedidoDto.kt` | ✅ |
+| `data/remote/dto/PagoDto.kt` | ✅ |
 | `data/mapper/PedidoMapper.kt` | ✅ |
 | `data/mapper/DetallePedidoMapper.kt` | ✅ |
+| `data/mapper/PagoMapper.kt` | ✅ |
 | `data/repository/impl/PedidoRepositoryImpl.kt` | ✅ |
 | `domain/usecase/CreatePedidoUseCase.kt` | ✅ |
 | `domain/usecase/CreateSaldoExtraUseCase.kt` | ✅ |
+| `domain/usecase/RegistrarPagoUseCase.kt` — computes capped `newPaid`/status transition, builds a `Pago`, calls `PedidoRepository.registrarPago` | ✅ |
 | Room migration 8→9 (`MIGRATION_8_9`) — creates `pedidos` + `detalle_pedido` | ✅ |
 | Room migration 9→10 (`MIGRATION_9_10`) — adds `isSaldoExtra` column to `pedidos` | ✅ |
 | Room migration 10→11 (`MIGRATION_10_11`) — adds `itemCount INTEGER NOT NULL DEFAULT 0` to `pedidos` | ✅ |
+| Room migration 17→18 (`MIGRATION_17_18`) — creates `pagos` (payment ledger, see `docs/db-schema.md`) | ✅ |
 | `PedidoDao.updateDate(id, createdAt)` — `UPDATE pedidos SET createdAt = :createdAt` | ✅ |
 | `PedidoDao.updateAfterEdit(id, total, itemCount, status, paid, paidAt)` — single query updating all five fields atomically | ✅ |
 | `DetallePedidoDao.getByPedidoFlow(pedidoId)` — `Flow<List<DetallePedidoEntity>>` for reactive line-item observation | ✅ |
 | `PedidoRepository.updateDate(id, createdAt)` + `PedidoRepositoryImpl` impl | ✅ |
 | `PedidoRepository.updateLines(pedidoId, detalles, newTotal, paid, paidAt)` — atomic line + total update | ✅ |
 | `PedidoRepository.getDetallesByPedidoFlow(pedidoId)` — reactive flow counterpart to `getDetallesByPedido` | ✅ |
+| `PedidoRepository.getPagosByPedidoFlow(pedidoId)` / `getPagosByClienteFlow(clienteId)` — reactive payment-ledger reads | ✅ |
+| `PedidoRepository.registrarPago(pago, newPaid, newStatus)` — inserts the `Pago` row + updates `pedidos.paid`/`status` atomically | ✅ |
 
 ---
 
@@ -201,8 +210,8 @@ Status rules:
 
 | File | Responsibility |
 |------|---------------|
-| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet` |
-| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (4 flows); loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)`, pago sheet toggles |
+| `DetallePedidoUiState.kt` | `pedido`, `detalles`, `pagos`, `clienteName`, `isLoading`, `isSaving`, `showPagoSheet` |
+| `DetallePedidoViewModel.kt` | `@HiltViewModel`; nested `combine` (5 flows: pedido, detalles, pagos, sheet/saving/clienteName triple, current user); loads `clienteName` via `ClienteRepository`; `onMarcarPagado()`, `onRegistrarPago(amount)` both delegate to `RegistrarPagoUseCase`; pago sheet toggles |
 | `DetallePedidoScreen.kt` | Scaffold entry + content, `PedidoStatusStrip`, `SaldoExtraBody`; `Edit` pencil icon in top-bar `actions` navigates to `EditarPedidoRoute` |
 | `DetallePedidoActions.kt` | `DetallePedidoBottomBar`, `PagoParcialSheet`, `PagoParcialSheetContent` |
 | `DetallePedidoLineItem.kt` | `LineItemsSection`, `LineItemRow`, `PriceModifiedHint` |
@@ -217,7 +226,7 @@ Status rules:
 `DetallePedidoScreen` uses a `Scaffold` with:
 - `topBar` = `PedidosTopBar` (title "Pedido", subtitle = formatted date — e.g. "28 may 2026") + `Edit` `IconButton` in `actions` → navigates to `EditarPedidoRoute(pedidoId)`
 - `bottomBar` = `DetallePedidoBottomBar` — hidden when `status == PAID`; "Pago parcial" (outlined, `Add` icon) + "Marcar pagado" (`primary` bg, `Check` icon); both use `heightIn(min = 50.dp)` to avoid text clipping
-- content = scrollable `Column`: `PedidoStatusStrip` → `HorizontalDivider` → body → `HorizontalDivider` → `TotalBlock` → (if `paid > 0`) `HorizontalDivider` + `PagosSection`
+- content = scrollable `Column`: `PedidoStatusStrip` → `HorizontalDivider` → body → `HorizontalDivider` → `TotalBlock` → (if `state.pagos.isNotEmpty()`) `HorizontalDivider` + `PagosSection`
 
 **`PedidoStatusStrip`**: `Row` with `PayChip` + subtitle text.
   - Normal: `"N productos · clienteName"` (pluralStringResource)
@@ -237,7 +246,9 @@ Body adapts by pedido type:
 
 ### PagosSection
 
-Shown when `paid > 0`. Single-row simplified history (no separate `pagos` table exists): 30×30 `greenTint` tile + `Check` icon + date (`paidAt ?: createdAt`, formatted "dd MMM yyyy" in Spanish) + "+ Bs. X.XX" in `greenText` mono. A future `pagos` table would enable full per-payment history.
+`PagosSection(pagos: List<Pago>)` — real per-payment history, backed by the `pagos` table (see `docs/db-schema.md`). Shown when `state.pagos` is non-empty. Renders one `PagoRow` per `Pago`, newest first (`pagos.sortedByDescending { it.paidAt }`): 30×30 `greenTint` tile + `Check` icon + date+time (`"dd MMM yyyy, HH:mm"` in Spanish — includes the hour, since more than one partial payment can land on the same date) + "+ Bs. X.XX" in `greenText` mono.
+
+> **Superseded**: previously this section fabricated a single synthetic row from `pedido.paid`/`pedido.paidAt` (the pedido's running total and most-recent-payment date) because no per-payment table existed — a pedido paid in three installments looked identical to one paid in a single lump sum. Now every `PagoRow` is a real row from a real payment event.
 
 ### Edit icon (top-bar action)
 
@@ -257,9 +268,12 @@ Validation mirrors `PagoSheet` in Creación de Pedido:
 
 ### ViewModel payment logic
 
-`onMarcarPagado()` — sets `status = PAID`, `paid = total`, `paidAt = now`.
+Both `onMarcarPagado()` and `onRegistrarPago(amount)` delegate to `RegistrarPagoUseCase(pedido, amount)` — `onMarcarPagado()` passes `pedido.pending` as the amount, so "mark as paid" is really just "register a payment for the full remaining balance." The use case:
+- computes `newPaid = (pedido.paid + amount).coerceAtMost(pedido.total)` and the resulting status (`PAID` if `newPaid >= total`, else `PARTIAL`)
+- builds a new `Pago(id, pedidoId, amount, paidAt = now)`
+- calls `PedidoRepository.registrarPago(pago, newPaid, newStatus)`, which inserts the `Pago` row and updates `pedidos.paid`/`status`/`paidAt` in the same repository call, then enqueues one `PEDIDO` sync op (which bundles the pedido's full local payment list on push — see `docs/db-schema.md`'s `pagos` section)
 
-`onRegistrarPago(amount)` — `newPaid = (paid + amount).coerceAtMost(total)`; status becomes `PAID` if `newPaid >= total`, `PARTIAL` otherwise; `paidAt = System.currentTimeMillis()` always set (so `PagosSection` shows the payment date, not the pedido creation date).
+`PedidoRepositoryImpl.create()` applies the same logic implicitly for pedidos created with an initial payment (`CreacionPedidoScreen`): if `pedido.paid > 0` at creation time, one `Pago` row is inserted automatically so the ledger is complete from the very first payment, not just ones made after the pedido exists.
 
 ---
 
@@ -307,9 +321,11 @@ Each line:
 3. `onSave`: saves date if changed, calls `updateLines` with the chosen payment, then `onSuccess()` → `popBackStack()`
 
 `updateLines` in `PedidoRepositoryImpl`:
+- Reads the pedido's current `paid` *before* applying the update (`oldPaid`)
 - Recomputes status: `PAID` if `paid >= newTotal`, `PARTIAL` if `paid > 0`, `PENDING` otherwise
 - `detallePedidoDao.deleteByPedido` + `insertAll`
 - `pedidoDao.updateAfterEdit(id, total, itemCount, status, paid, paidAt)` — writes all five columns in one shot, so `paid` is always persisted regardless of the new status
+- `delta = paid - oldPaid`; if `delta > 0`, inserts one `pagos` row for the delta (dated `paidAt`) — see `docs/db-schema.md`'s `pagos` section for the full reasoning, including the residual "backdated correction" limitation this doesn't solve. A decrease inserts nothing.
 
 ### PagoSheet — shared payment-type selector
 
@@ -349,5 +365,6 @@ Moved to `ui/common/PagoSheet.kt` (used by both CreacionPedidoScreen and EditarP
 
 ## Open TODOs
 
-- [ ] Wire "Calcular automáticamente" in `AgregarListaNegraScreen` using real pedido balance (`pedidoRepository.getByCliente(clienteId)` is available)
-- [ ] Payment history list (chronological per pedido) — payments are currently accumulated via `updateStatus`; a separate `pagos` table would be needed to track individual payment events
+- [x] ~~Wire "Calcular automáticamente" in `AgregarListaNegraScreen` using real pedido balance~~ — already done: `AgregarListaNegraViewModel` injects `PedidoRepository`, filters `getByCliente(clienteId)` to pending pedidos, and `AgregarListaNegraUiState.autoAmount = pendingPedidos.sumOf { it.pending }` backs the AUTO mode toggle.
+- [x] ~~Payment history list (chronological per pedido)~~ — done: `pagos` table + `RegistrarPagoUseCase` + real `PagosSection` list (see `docs/db-schema.md`'s `pagos` section for the full design).
+- [x] ~~`EditarPedidoScreen`'s payment correction (`updateLines`) does not insert a `pagos` row~~ — done: `updateLines` now inserts a delta row when `paid` increases. See `docs/db-schema.md`'s `pagos` section for the residual limitation this doesn't cover (can't distinguish a real new payment from a backdated correction — both get dated today).

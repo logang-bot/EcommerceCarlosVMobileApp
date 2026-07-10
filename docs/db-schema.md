@@ -1,12 +1,12 @@
 # Database Schema
 
-Room version: **17**. Supabase integration: Phase 10 (delta sync) + Phase 11 (soft-delete).
+Room version: **18**. Supabase integration: Phase 10 (delta sync) + Phase 11 (soft-delete).
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
 ---
 
-## Current tables (Room v17)
+## Current tables (Room v18)
 
 ### `users`
 
@@ -164,6 +164,29 @@ Line items inside a `pedidos` row.
 
 ---
 
+### `pagos` *(Room v18 — payment ledger)*
+
+An immutable record of one payment event against a `pedidos` row. Introduced because `pedidos.paid`/`pedidos.paid_at` only ever store a single running total and the date of the *most recent* payment — there was no way to reconstruct "the client paid Bs. 20 on June 1 and Bs. 15 on June 10" from that alone. `pagos` fixes this by recording every payment as its own row, never updated or deleted after insert.
+
+| Column | Room type | Supabase type | Nullable | Notes |
+|--------|-----------|---------------|----------|-------|
+| `id` | `String` PK | `uuid` PK | — | |
+| `pedido_id` | `String` FK → `pedidos.id` | `uuid` FK → `pedidos.id` | — | `ON DELETE CASCADE` |
+| `amount` | `Double` | `float8` | — | Amount paid in this single event |
+| `paid_at` | `Long` | `bigint` | — | Epoch ms; includes time-of-day, since more than one payment can be made on the same date |
+
+**DAO operations:** `getByPedidoFlow(pedidoId)` flow, `getByPedido(pedidoId)` (suspend list, used by the sync push path) · `getByClienteFlow(clienteId)` flow (joins `pedidos` on `pedidoId` to scope by client, used by the report) · `insert(pago)` · `insertAll(pagos)` (sync pull) · `deleteByPedido(pedidoId)` (sync pull re-fetch)
+
+> **No `updated_at`/`is_deleted` columns, no independent sync entity.** A row is created once and never touched again, so its own `paid_at` already serves as the natural "this is new" signal, and Postgres `ON DELETE CASCADE` from `pedidos` already removes a pedido's payments if it's ever hard-deleted. Rather than invent a whole new independently-synced entity (its own `EntityType`, syncer, staleness threshold — with its own FK-ordering hazard, since a payment for a pedido not yet pulled locally would fail Room's FK constraint), `pagos` is synced **bundled with its parent pedido**, exactly like `detalle_pedido`: `PedidoSyncer` pulls a pedido's payments together with its line items, and the `QueueProcessor`'s `PEDIDO` push branch deletes-and-reinserts the pedido's full local payment list on every push. This is slightly more bandwidth than a dedicated delta-synced ledger would use, but for the handful of payments a single pedido typically accumulates it's negligible, and it inherits `detalle_pedido`'s already-proven ordering guarantees for free instead of introducing a new one.
+>
+> **Every pedido creation with an initial payment gets an initial `pagos` row automatically.** `PedidoRepositoryImpl.create()` inserts one when `pedido.paid > 0` (covers "pay in full/partially at order time" from `CreacionPedidoScreen`). Payments made later through `DetallePedidoScreen` ("Marcar pagado" / "Pago parcial") go through `RegistrarPagoUseCase`, which always inserts a `pagos` row alongside the `pedidos.paid`/`status` update.
+>
+> **`EditarPedidoScreen` edits log the delta, not the new total.** `EditarPedidoViewModel.onSave()` passes the pedido's *new* absolute `paid` value (the `PagoSheet` there is pre-filled with the current status/amount and lets the user pick a new one), not an incremental amount. `PedidoRepositoryImpl.updateLines` reads the pedido's `paid` *before* applying the update, computes `delta = newPaid - oldPaid`, and inserts a `pagos` row for `delta` only when `delta > 0` (dated with the same `paidAt` the caller already computes for the edit). A decrease (correction downward, e.g. fixing a typo of 80→50) inserts nothing — there's no "negative payment" concept in an insert-only ledger, and nothing needs undoing since the erroneous row was never created in the first place.
+>
+> **Residual limitation:** this can't distinguish "the client paid more money right now" from "I mis-entered the amount earlier and I'm correcting it, no new money changed hands today." Both look identical to `updateLines` (paid went up during a save), so both get a `pagos` row dated *today*. For a genuine new payment this is exactly right; for a backdated correction, the ledger will show two payments on two different dates when in reality there was one payment on an earlier date that got corrected later — the *total* stays accurate, but the per-payment date breakdown can be wrong. Telling these apart would require the edit UI to explicitly ask which one is meant, which hasn't been built.
+
+---
+
 ### `saldo_extra` *(implemented as flag on `pedidos` — Room v10)*
 
 Saldo Extra entries are stored directly in the `pedidos` table with `isSaldoExtra = true` and no corresponding `detalle_pedido` rows. No separate table is needed.
@@ -208,7 +231,8 @@ users (standalone — auth layer)
 mercados
 └── clientes  (FK mercadoId → mercados.id  ON DELETE CASCADE)
     ├── pedidos  (FK clienteId → clientes.id  ON DELETE CASCADE)
-    │   └── detalle_pedido  (FK pedidoId → pedidos.id  ON DELETE CASCADE)
+    │   ├── detalle_pedido  (FK pedidoId → pedidos.id  ON DELETE CASCADE)
+    │   └── pagos  (FK pedidoId → pedidos.id  ON DELETE CASCADE)
     └── saldo_extra  (stored as pedido rows with isSaldoExtra = true)
 
 productos (standalone catalogue)
@@ -354,3 +378,5 @@ The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET i
 `MIGRATION_15_16` in `AppDatabase.kt` adds `updatedAt INTEGER NOT NULL DEFAULT 0` to the four Room entity tables and backfills `updatedAt = createdAt`. The Supabase column is named `updated_at` (snake_case); the DTO field is `@SerialName("updated_at") val updatedAt: Long`.
 
 `MIGRATION_16_17` in `AppDatabase.kt` adds `isDeleted INTEGER NOT NULL DEFAULT 0` to `mercados`, `clientes`, `productos`, and `pedidos`. The Supabase column is named `is_deleted` (snake_case); the DTO field is `@SerialName("is_deleted") val isDeleted: Boolean = false`.
+
+`MIGRATION_17_18` in `AppDatabase.kt` creates the `pagos` table (`id`, `pedidoId` FK CASCADE, `amount`, `paidAt`) with an index on `pedidoId`. No backfill needed — it's a brand-new table with no historical data (past payments were never recorded individually, only as the cumulative `pedidos.paid`/`paid_at`).

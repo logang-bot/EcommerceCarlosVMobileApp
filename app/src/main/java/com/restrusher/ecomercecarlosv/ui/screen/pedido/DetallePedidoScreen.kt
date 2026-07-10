@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.restrusher.ecomercecarlosv.R
 import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
+import com.restrusher.ecomercecarlosv.domain.model.Pago
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPedidoRoute
@@ -128,9 +129,9 @@ private fun DetallePedidoContent(
                 }
                 HorizontalDivider(color = MaterialTheme.extendedColors.border)
                 TotalBlock(pedido = pedido)
-                if (pedido.paid > 0) {
+                if (state.pagos.isNotEmpty()) {
                     HorizontalDivider(color = MaterialTheme.extendedColors.border)
-                    PagosSection(pedido = pedido)
+                    PagosSection(pagos = state.pagos)
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -191,8 +192,11 @@ private val previewDetalles = listOf(
     DetallePedido("d2", "1", "p2", "Aceite Vatel 1L", 6, 4.50, 4.50),
     DetallePedido("d3", "1", "p3", "Café Madrid 250g", 4, 3.00, 5.20, "Descuento acordado"),
 )
+private val previewPagos = listOf(
+    Pago(id = "p1", pedidoId = "1", amount = 50.00, paidAt = 1748390400000L),
+)
 private val previewState = DetallePedidoUiState(
-    pedido = previewPedido, detalles = previewDetalles,
+    pedido = previewPedido, detalles = previewDetalles, pagos = previewPagos,
     clienteName = "Ana Rodríguez", isLoading = false,
 )
 

@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
 import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PagoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
@@ -14,6 +15,7 @@ import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import com.restrusher.ecomercecarlosv.data.local.entity.ClienteEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.MercadoEntity
+import com.restrusher.ecomercecarlosv.data.local.entity.PagoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.PedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.ProductoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
@@ -165,6 +167,22 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
     }
 }
 
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `pagos` (
+                `id` TEXT NOT NULL,
+                `pedidoId` TEXT NOT NULL,
+                `amount` REAL NOT NULL,
+                `paidAt` INTEGER NOT NULL,
+                PRIMARY KEY(`id`),
+                FOREIGN KEY(`pedidoId`) REFERENCES `pedidos`(`id`) ON DELETE CASCADE
+            )""",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pagos_pedidoId` ON `pagos` (`pedidoId`)")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -192,8 +210,9 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         PedidoEntity::class,
         DetallePedidoEntity::class,
         SyncOperationEntity::class,
+        PagoEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -204,4 +223,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pedidoDao(): PedidoDao
     abstract fun detallePedidoDao(): DetallePedidoDao
     abstract fun syncOperationDao(): SyncOperationDao
+    abstract fun pagoDao(): PagoDao
 }

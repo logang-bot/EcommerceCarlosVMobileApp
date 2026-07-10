@@ -1,5 +1,6 @@
 package com.restrusher.ecomercecarlosv.ui.screen.reporte
 
+import com.restrusher.ecomercecarlosv.domain.model.Pago
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 
 enum class ReporteClientePreset { HOY, SEMANA, MES, PERSONALIZADO }
@@ -15,6 +16,7 @@ data class ReporteClienteUiState(
     val customFrom: Long? = null,
     val customTo: Long? = null,
     val pedidosInRange: List<Pedido> = emptyList(),
+    val pagos: List<Pago> = emptyList(),
     val pedidosCount: Int = 0,
     val montoTotal: Double = 0.0,
     val showWarning: Boolean = false,

@@ -185,3 +185,27 @@ CREATE POLICY "detalle_pedido_delete_superusuario_usuario"
     ON detalle_pedido FOR DELETE
     TO authenticated
     USING (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'));
+
+
+-- ─── pagos ───────────────────────────────────────────────────
+
+CREATE POLICY "pagos_select_authenticated"
+    ON pagos FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "pagos_insert_superusuario_usuario"
+    ON pagos FOR INSERT
+    TO authenticated
+    WITH CHECK (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'));
+
+CREATE POLICY "pagos_update_superusuario_usuario"
+    ON pagos FOR UPDATE
+    TO authenticated
+    USING (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'))
+    WITH CHECK (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'));
+
+CREATE POLICY "pagos_delete_superusuario_usuario"
+    ON pagos FOR DELETE
+    TO authenticated
+    USING (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'));

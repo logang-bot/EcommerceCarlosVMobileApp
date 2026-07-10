@@ -181,3 +181,23 @@ CREATE TABLE detalle_pedido (
 
 ALTER TABLE detalle_pedido ENABLE ROW LEVEL SECURITY;
 CREATE INDEX idx_detalle_pedido_pedido_id ON detalle_pedido (pedido_id);
+
+
+-- ────────────────────────────────────────────────────────────
+-- pagos
+-- One row per payment event against a pedido — an immutable
+-- ledger. Unlike pedidos/mercados/clientes/productos, this table
+-- has no updated_at/is_deleted/trigger: rows are inserted once
+-- and never updated or deleted (paid_at doubles as the "this is
+-- new" signal), and it is synced bundled with its parent pedido
+-- (like detalle_pedido) rather than as an independent entity.
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE pagos (
+    id         uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
+    pedido_id  uuid    NOT NULL REFERENCES pedidos (id) ON DELETE CASCADE,
+    amount     float8  NOT NULL,
+    paid_at    bigint  NOT NULL   -- epoch ms; includes time-of-day
+);
+
+ALTER TABLE pagos ENABLE ROW LEVEL SECURITY;
+CREATE INDEX idx_pagos_pedido_id ON pagos (pedido_id);

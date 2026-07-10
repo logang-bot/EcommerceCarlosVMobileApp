@@ -4,11 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.RegistrarPagoUseCase
 import com.restrusher.ecomercecarlosv.presentation.screens.DetallePedidoRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +23,7 @@ import javax.inject.Inject
 class DetallePedidoViewModel @Inject constructor(
     private val pedidoRepository: PedidoRepository,
     private val clienteRepository: ClienteRepository,
+    private val registrarPagoUseCase: RegistrarPagoUseCase,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -36,15 +37,17 @@ class DetallePedidoViewModel @Inject constructor(
         combine(
             pedidoRepository.getByIdFlow(pedidoId),
             pedidoRepository.getDetallesByPedidoFlow(pedidoId),
-        ) { pedido, detalles -> Pair(pedido, detalles) },
+            pedidoRepository.getPagosByPedidoFlow(pedidoId),
+        ) { pedido, detalles, pagos -> Triple(pedido, detalles, pagos) },
         combine(_showPagoSheet, _isSaving, _clienteName) { showSheet, saving, name -> Triple(showSheet, saving, name) },
         sessionManager.currentUser,
-    ) { pedidoPair, sheetTriple, user ->
-        val (pedido, detalles) = pedidoPair
+    ) { pedidoTriple, sheetTriple, user ->
+        val (pedido, detalles, pagos) = pedidoTriple
         val (showSheet, saving, clienteName) = sheetTriple
         DetallePedidoUiState(
             pedido = pedido,
             detalles = detalles,
+            pagos = pagos,
             clienteName = clienteName,
             isLoading = pedido == null,
             isSaving = saving,
@@ -72,12 +75,7 @@ class DetallePedidoViewModel @Inject constructor(
         val pedido = uiState.value.pedido ?: return
         _isSaving.value = true
         viewModelScope.launch {
-            pedidoRepository.updateStatus(
-                id = pedidoId,
-                status = PedidoStatus.PAID,
-                paid = pedido.total,
-                paidAt = System.currentTimeMillis(),
-            )
+            registrarPagoUseCase(pedido, pedido.pending)
             _isSaving.value = false
         }
     }
@@ -88,14 +86,7 @@ class DetallePedidoViewModel @Inject constructor(
         _isSaving.value = true
         _showPagoSheet.value = false
         viewModelScope.launch {
-            val newPaid = (pedido.paid + amount).coerceAtMost(pedido.total)
-            val newStatus = if (newPaid >= pedido.total) PedidoStatus.PAID else PedidoStatus.PARTIAL
-            pedidoRepository.updateStatus(
-                id = pedidoId,
-                status = newStatus,
-                paid = newPaid,
-                paidAt = System.currentTimeMillis(),
-            )
+            registrarPagoUseCase(pedido, amount)
             _isSaving.value = false
         }
     }

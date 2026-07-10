@@ -1,11 +1,13 @@
 package com.restrusher.ecomercecarlosv.ui.screen.pedido
 
 import com.restrusher.ecomercecarlosv.domain.model.DetallePedido
+import com.restrusher.ecomercecarlosv.domain.model.Pago
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 
 data class DetallePedidoUiState(
     val pedido: Pedido? = null,
     val detalles: List<DetallePedido> = emptyList(),
+    val pagos: List<Pago> = emptyList(),
     val clienteName: String = "",
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,

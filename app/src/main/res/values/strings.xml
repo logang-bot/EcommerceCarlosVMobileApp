@@ -516,7 +516,7 @@
 
     <!-- Generar reporte de pedidos por cliente -->
     <string name="reporte_generar_title">Generar reporte</string>
-    <string name="reporte_pedidos_intro">Elige un rango de fechas para reunir los pedidos del cliente y exportarlos en PDF.</string>
+    <string name="reporte_pedidos_intro">Elige un rango de fechas para generar un reporte detallado: incluirá cada pedido del cliente con sus productos y cantidades, además de los movimientos de saldo extra, todo en un solo PDF.</string>
     <string name="reporte_rango_rapido">Rango rápido</string>
     <string name="reporte_preset_esta_semana">Esta semana</string>
     <string name="reporte_pedidos_en_rango">Pedidos en el rango</string>

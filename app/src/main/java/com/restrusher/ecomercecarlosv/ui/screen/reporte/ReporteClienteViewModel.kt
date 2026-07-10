@@ -49,9 +49,10 @@ class ReporteClienteViewModel @Inject constructor(
     val uiState = combine(
         clienteRepository.getByIdFlow(clienteId),
         pedidoRepository.getByClienteWithLines(clienteId),
+        pedidoRepository.getPagosByClienteFlow(clienteId),
         _input,
         pedidoRepository.isSyncing,
-    ) { cliente, pedidos, input, isSyncing ->
+    ) { cliente, pedidos, pagos, input, isSyncing ->
         if (cliente == null) return@combine ReporteClienteUiState(isLoading = isSyncing)
 
         val (fromMs, toMs) = computeRange(input.preset, input.customFrom, input.customTo)
@@ -60,6 +61,7 @@ class ReporteClienteViewModel @Inject constructor(
         } else {
             emptyList()
         }
+        val inRangeIds = inRange.map { it.id }.toSet()
 
         ReporteClienteUiState(
             clienteName = cliente.name,
@@ -72,6 +74,7 @@ class ReporteClienteViewModel @Inject constructor(
             customFrom = input.customFrom,
             customTo = input.customTo,
             pedidosInRange = inRange,
+            pagos = pagos.filter { it.pedidoId in inRangeIds },
             pedidosCount = inRange.size,
             montoTotal = inRange.sumOf { it.total },
             showWarning = inRange.size > WARNING_THRESHOLD,

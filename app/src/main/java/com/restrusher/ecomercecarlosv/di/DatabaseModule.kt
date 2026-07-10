@@ -16,9 +16,11 @@ import com.restrusher.ecomercecarlosv.data.local.MIGRATION_13_14
 import com.restrusher.ecomercecarlosv.data.local.MIGRATION_14_15
 import com.restrusher.ecomercecarlosv.data.local.MIGRATION_15_16
 import com.restrusher.ecomercecarlosv.data.local.MIGRATION_16_17
+import com.restrusher.ecomercecarlosv.data.local.MIGRATION_17_18
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
 import com.restrusher.ecomercecarlosv.data.local.dao.DetallePedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.MercadoDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PagoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
@@ -38,7 +40,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "pedidos_db")
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
             .build()
 
     @Provides
@@ -61,4 +63,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSyncOperationDao(db: AppDatabase): SyncOperationDao = db.syncOperationDao()
+
+    @Provides
+    fun providePagoDao(db: AppDatabase): PagoDao = db.pagoDao()
 }
