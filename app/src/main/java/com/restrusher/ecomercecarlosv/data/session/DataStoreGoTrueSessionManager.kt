@@ -19,12 +19,25 @@ class DataStoreGoTrueSessionManager @Inject constructor(
 
     companion object {
         private val SESSION_KEY = stringPreferencesKey("supabase_jwt_session")
+
+        // Mirrors the refresh token of the last successful login, tagged with its owning user
+        // id. Unlike SESSION_KEY, this survives the startup wipe below — it is the only way a
+        // biometric-only login (no password) can silently re-establish a real Supabase session
+        // (needed for RLS) once the device is back online. See SessionManagerImpl.
+        private val BIOMETRIC_REFRESH_TOKEN_KEY = stringPreferencesKey("biometric_refresh_token")
+        private val BIOMETRIC_REFRESH_USER_ID_KEY = stringPreferencesKey("biometric_refresh_user_id")
+
         private val json = Json { ignoreUnknownKeys = true }
     }
 
     override suspend fun saveSession(session: UserSession) {
         dataStore.edit { prefs ->
             prefs[SESSION_KEY] = json.encodeToString(session)
+            val userId = session.user?.id
+            if (session.refreshToken.isNotBlank() && userId != null) {
+                prefs[BIOMETRIC_REFRESH_TOKEN_KEY] = session.refreshToken
+                prefs[BIOMETRIC_REFRESH_USER_ID_KEY] = userId
+            }
         }
     }
 
@@ -49,5 +62,19 @@ class DataStoreGoTrueSessionManager @Inject constructor(
 
     override suspend fun deleteSession() {
         dataStore.edit { prefs -> prefs.remove(SESSION_KEY) }
+    }
+
+    // Returns the mirrored refresh token only if it belongs to [userId] — guards against reusing
+    // a token left behind by a different account that later logged in on the same device.
+    suspend fun getBiometricRefreshToken(userId: String): String? {
+        val prefs = dataStore.data.first()
+        return if (prefs[BIOMETRIC_REFRESH_USER_ID_KEY] == userId) prefs[BIOMETRIC_REFRESH_TOKEN_KEY] else null
+    }
+
+    suspend fun clearBiometricRefreshToken() {
+        dataStore.edit { prefs ->
+            prefs.remove(BIOMETRIC_REFRESH_TOKEN_KEY)
+            prefs.remove(BIOMETRIC_REFRESH_USER_ID_KEY)
+        }
     }
 }

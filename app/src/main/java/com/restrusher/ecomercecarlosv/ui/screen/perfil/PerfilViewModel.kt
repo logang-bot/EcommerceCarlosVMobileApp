@@ -96,6 +96,7 @@ class PerfilViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.setBiometricEnabled(user.id, null)
             sessionManager.setCurrentUser(user.copy(biometricEnabledAt = null))
+            sessionManager.clearBiometricSession()
             _state.value = _state.value.copy(
                 isBiometricEnrolled  = false,
                 biometricEnabledDate = null,

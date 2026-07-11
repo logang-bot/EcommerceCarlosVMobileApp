@@ -135,8 +135,15 @@ class LoginViewModel @Inject constructor(
     fun onBiometricSuccess(onSuccess: () -> Unit) {
         viewModelScope.launch {
             val user = userRepository.getBiometricEnabledUser() ?: return@launch
+            // The fingerprint IS the identity check here, so this never waits on the network —
+            // it works fully offline from the cached Room profile.
             sessionManager.setCurrentUser(user)
+            dataSynchronizer.resetStaleness()
             onSuccess()
+            // Best-effort, silent: if online, re-establish a real Supabase session in the
+            // background so RLS-protected sync/writes work. Failure (offline, revoked token)
+            // is expected and not surfaced — the app keeps working from the local cache.
+            sessionManager.restoreBiometricSession()
         }
     }
 

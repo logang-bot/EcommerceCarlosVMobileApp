@@ -279,11 +279,56 @@ supabase-kt calls `loadSession()` internally when the JWT approaches expiry to g
 
 ---
 
+## Offline-capable biometric login (Phase 12)
+
+Only the biometric ("Entrar con huella") path can complete a login while the device is offline — a normal email/password login (regular state, or the enrolled-user's "Entrar con contraseña" sub-state) always requires calling `supabase.auth.signInWith(Email)`, so it needs network by definition. Biometrics are the only mechanism that can verify identity locally, so they're the only path allowed to skip the network entirely.
+
+### Why biometric login previously looked "online-only" in practice
+
+`LoginViewModel.onBiometricSuccess` never called Supabase — it only read the enrolled user from Room and called `sessionManager.setCurrentUser(user)`. That part already worked offline. But because `DataStoreGoTrueSessionManager.loadSession()` wipes the persisted JWT on every app start (`firstLoad`, see above), a fingerprint-only login never obtained a real Supabase Auth session either. Every table's RLS policy requires the `authenticated` role (`docs/sql/rls.sql`), so **any** sync read or queued write made after a fingerprint login was silently rejected — online or offline. In practice only the password-based paths (which do call `signInWith`) actually kept syncing, which is why biometric login looked like it "needed" credentials/network to really work.
+
+### Fix: a token mirror that survives the startup wipe
+
+`DataStoreGoTrueSessionManager` now also mirrors the refresh token of the *last successful login* into a second DataStore key, tagged with the owning user id (`biometric_refresh_token` / `biometric_refresh_user_id`). Unlike the main session key, this mirror is **not** touched by the `firstLoad` wipe, so it survives app restarts.
+
+```
+Any successful login (password or restored biometric session)
+  → supabase-kt calls sessionManager.saveSession(session)
+  → DataStoreGoTrueSessionManager writes SESSION_KEY (as before)
+  → …and mirrors refreshToken + user.id into the biometric-only keys
+```
+
+`SessionManager.restoreBiometricSession()` (fire-and-forget, runs on `@ApplicationScope` so it survives `LoginViewModel` being cleared right after navigation) uses this mirror:
+
+```
+LoginScreen: fingerprint tap succeeds
+  → LoginViewModel.onBiometricSuccess
+      1. sessionManager.setCurrentUser(cachedUser)   // Room read only — always works, even offline
+      2. onSuccess()                                  // navigate to Home immediately
+      3. sessionManager.restoreBiometricSession()      // best-effort, backgrounded, never blocks the UI
+           if offline                                  → no-op
+           if the mirrored token's user id doesn't
+             match the enrolled user                   → no-op (guards against a different
+                                                           account's later password login on
+                                                           the same device overwriting the mirror)
+           else → supabase.auth.refreshSession(token)  → supabase.auth.importSession(newSession)
+                    → sessionStatus emits Authenticated → RLS-protected sync/writes now work
+```
+
+If the refresh fails or times out (offline, revoked token), the failure is swallowed — the user is already in and working from the local Room cache; queued writes simply stay queued until a real session is restored on a later launch or an explicit password login.
+
+### Logout / disabling biometrics clears the mirror
+
+`SessionManagerImpl.signOut()` and `PerfilViewModel.disableBiometric()` both call `SessionManager.clearBiometricSession()`, deleting the mirrored token. After an explicit logout, the next fingerprint tap still logs the user in locally (offline-first, unaffected), but silent Supabase re-authentication won't happen again until a real password login re-populates the mirror.
+
+---
+
 ### Indefinite ban / activate
 Supabase Auth has no permanent-ban boolean. Workaround used in `UsuarioDetalleViewModel`:
 - **Deactivate**: `banDuration = "876000h"` (~100 years) + set `is_active = false` in users table
 - **Activate**: `banDuration = "none"` + set `is_active = true` in users table
 
 ### 👆 Biometric login
-No remaining TODOs. Biometric prompt verifies the user locally; the Supabase JWT is restored from
-DataStore and auto-refreshed by the Auth plugin, so no extra network call is needed on biometric login.
+See "Offline-capable biometric login (Phase 12)" above. The biometric prompt verifies the user
+locally and always succeeds offline; a real Supabase session is silently restored in the
+background, best-effort, when the device is online.

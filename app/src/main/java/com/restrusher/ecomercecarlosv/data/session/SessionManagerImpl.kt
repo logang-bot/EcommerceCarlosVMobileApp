@@ -1,10 +1,12 @@
 package com.restrusher.ecomercecarlosv.data.session
 
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.restrusher.ecomercecarlosv.data.local.AppDatabase
+import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
@@ -30,10 +32,13 @@ class SessionManagerImpl @Inject constructor(
     private val supabase: SupabaseClient,
     private val userRepository: UserRepository,
     private val database: AppDatabase,
+    private val goTrueSessionManager: DataStoreGoTrueSessionManager,
+    private val networkMonitor: NetworkMonitor,
 ) : SessionManager {
 
     companion object {
         val USER_ID_KEY = stringPreferencesKey("current_user_id")
+        private const val TAG = "SessionManagerImpl"
     }
 
     // Tracks whether the startup session clear has already been handled.
@@ -102,6 +107,29 @@ class SessionManagerImpl @Inject constructor(
         }
         _currentUser.value = null
         removeUserId()
+        // Require a fresh password login before the next biometric tap can silently
+        // re-authenticate with Supabase again — fingerprint login still works locally/offline.
+        goTrueSessionManager.clearBiometricRefreshToken()
+    }
+
+    override fun restoreBiometricSession() {
+        // Launched on the application scope (not the caller's) — LoginViewModel navigates away
+        // and gets cleared right after a fingerprint login, which would cancel this otherwise.
+        scope.launch {
+            if (!networkMonitor.isOnline) return@launch
+            val enrolledUser = userRepository.getBiometricEnabledUser() ?: return@launch
+            val refreshToken = goTrueSessionManager.getBiometricRefreshToken(enrolledUser.id) ?: return@launch
+            try {
+                val newSession = supabase.auth.refreshSession(refreshToken)
+                supabase.auth.importSession(newSession)
+            } catch (e: Exception) {
+                Log.d(TAG, "restoreBiometricSession: could not refresh — staying in local-only mode", e)
+            }
+        }
+    }
+
+    override suspend fun clearBiometricSession() {
+        goTrueSessionManager.clearBiometricRefreshToken()
     }
 
     private suspend fun wipeLocalDataIfNeeded() {
