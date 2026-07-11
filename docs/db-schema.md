@@ -1,6 +1,6 @@
 # Database Schema
 
-Room version: **18**. Supabase integration: Phase 10 (delta sync) + Phase 11 (soft-delete).
+Room version: **19**. Supabase integration: Phase 10 (delta sync) + Phase 11 (soft-delete).
 
 All primary keys are client-generated UUIDs (`String`). All timestamp columns store **epoch milliseconds** (`Long` in Room, `bigint` in Supabase). Nullable columns are marked `?`.
 
@@ -197,6 +197,27 @@ Saldo Extra entries are stored directly in the `pedidos` table with `isSaldoExtr
 
 ---
 
+### `umbrales` *(Room v19 — Phase 12)*
+
+Singleton config row — decides when a client's status becomes `CRITICO`. Previously local-only (`SharedPreferences` via `UmbralesManager`), which meant every device/user had its own thresholds with no way to keep them consistent across a team. Now synced like every other shared table, editable only by `SUPERUSUARIO`.
+
+| Column | Room type | Supabase type | Nullable | Notes |
+|--------|-----------|---------------|----------|-------|
+| `id` | `String` PK | `text` PK | — | Always `"global"` — there is exactly one row (`UmbralesEntity.SINGLETON_ID`) |
+| `montoMaximo` | `Double` | `float8` | — | Balance threshold; default `200.0` |
+| `diasMaximos` | `Int` | `int4` | — | Days-unpaid threshold; default `30` |
+| `updatedAt` | `Long` | `bigint` | — | Epoch ms; set by `set_updated_at_ms()` trigger. **Used as delta-sync cursor.** |
+
+**DAO operations:** `getFlow()` flow (single row) · `get()` (suspend) · `insert(REPLACE)` (safe — no inbound FK references)
+
+**No `isDeleted` column and no delete path.** The row is never deleted, only updated — there's no "remove the thresholds" concept in the UI, so `UmbralesRepositoryImpl` never enqueues a `DELETE` sync operation and `QueueProcessor`/`UmbralesSyncer` have no delete branch for this entity (same reasoning `pagos` uses to skip `isDeleted`, see above).
+
+**Sync notes:** `UmbralesSyncer` always fetches the single row by `id = 'global'` rather than paging or filtering by `since` — there's nothing to page. `DataSynchronizer` treats it as master data (`THRESHOLD_MASTER_MS`, 2h staleness). `UmbralesRepositoryImpl.save()` writes to Room and enqueues an `UPSERT` under `EntityType.UMBRALES`, exactly like every other entity.
+
+**Domain model:** `Umbrales.kt` — unchanged, just `montoMaximo`/`diasMaximos` (sync fields stay out of the domain model, same as `Producto`).
+
+---
+
 ### `sync_operations` *(Room v14 + v15 — Phase 9b)*
 
 Write-queue table. Every user mutation (create / update / delete) appends a row here immediately after the local Room write. `QueueProcessor` reads this table and pushes the corresponding Supabase call in the background. Rows are deleted only after a successful push — never before.
@@ -236,6 +257,8 @@ mercados
     └── saldo_extra  (stored as pedido rows with isSaldoExtra = true)
 
 productos (standalone catalogue)
+
+umbrales (standalone singleton config — no FK, always exactly one row)
 ```
 
 > **Data integrity — two critical rules:**
@@ -380,3 +403,46 @@ The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET i
 `MIGRATION_16_17` in `AppDatabase.kt` adds `isDeleted INTEGER NOT NULL DEFAULT 0` to `mercados`, `clientes`, `productos`, and `pedidos`. The Supabase column is named `is_deleted` (snake_case); the DTO field is `@SerialName("is_deleted") val isDeleted: Boolean = false`.
 
 `MIGRATION_17_18` in `AppDatabase.kt` creates the `pagos` table (`id`, `pedidoId` FK CASCADE, `amount`, `paidAt`) with an index on `pedidoId`. No backfill needed — it's a brand-new table with no historical data (past payments were never recorded individually, only as the cumulative `pedidos.paid`/`paid_at`).
+
+`MIGRATION_18_19` in `AppDatabase.kt` creates the `umbrales` table (`id`, `montoMaximo`, `diasMaximos`, `updatedAt`) and seeds it with a single row (`id = 'global'`, `montoMaximo = 200.0`, `diasMaximos = 30`) matching the old `SharedPreferences` defaults, so existing installs keep their current thresholds until the next sync pulls the real (possibly superuser-edited) values from Supabase.
+
+### 6. `umbrales` table (Phase 12 — was local-only, now synced)
+
+Existing environments predate `docs/sql/schema.sql`'s `umbrales` table, so run this once against each already-provisioned project (staging now, production whenever it's created and hasn't had `schema.sql` re-run):
+
+```sql
+CREATE TABLE IF NOT EXISTS umbrales (
+    id            text    PRIMARY KEY DEFAULT 'global',
+    monto_maximo  float8  NOT NULL DEFAULT 200,
+    dias_maximos  int4    NOT NULL DEFAULT 30,
+    updated_at    bigint  NOT NULL DEFAULT 0
+);
+
+ALTER TABLE umbrales ENABLE ROW LEVEL SECURITY;
+
+CREATE TRIGGER trg_umbrales_updated_at
+    BEFORE UPDATE ON umbrales
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+INSERT INTO umbrales (id, monto_maximo, dias_maximos, updated_at)
+VALUES ('global', 200, 30, 0)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "umbrales_select_authenticated"
+    ON umbrales FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "umbrales_insert_superusuario"
+    ON umbrales FOR INSERT
+    TO authenticated
+    WITH CHECK (get_my_role() = 'SUPERUSUARIO');
+
+CREATE POLICY "umbrales_update_superusuario"
+    ON umbrales FOR UPDATE
+    TO authenticated
+    USING (get_my_role() = 'SUPERUSUARIO')
+    WITH CHECK (get_my_role() = 'SUPERUSUARIO');
+```
+
+This assumes `set_updated_at_ms()` and `get_my_role()` already exist (they do on staging — both were created by the original `schema.sql`/`rls.sql` run). If a value was already saved on-device before this migration ships, opening **Mi Perfil → Umbrales de estado → Guardar umbrales** once (as a `SUPERUSUARIO`, while online) pushes it up and populates the row for every other device.

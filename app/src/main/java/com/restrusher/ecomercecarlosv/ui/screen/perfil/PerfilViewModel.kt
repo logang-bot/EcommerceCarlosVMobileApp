@@ -7,10 +7,10 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.data.prefs.ThemeManager
-import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ThemeMode
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +30,7 @@ class PerfilViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
-    private val umbralesManager: UmbralesManager,
+    private val umbralesRepository: UmbralesRepository,
     private val themeManager: ThemeManager,
 ) : ViewModel() {
 
@@ -40,7 +40,7 @@ class PerfilViewModel @Inject constructor(
     init {
         loadProfile()
         viewModelScope.launch {
-            umbralesManager.umbrales.collect { u ->
+            umbralesRepository.getUmbrales().collect { u ->
                 _state.value = _state.value.copy(umbralesSummary = formatUmbralesSummary(u))
             }
         }

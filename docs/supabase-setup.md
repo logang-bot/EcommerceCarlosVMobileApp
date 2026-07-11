@@ -178,6 +178,7 @@ The `SUPABASE_SERVICE_ROLE_KEY` is compiled into the APK via `BuildConfig` and i
 - [x] First SUPERUSUARIO created (auth user + `users` table row)
 - [x] `stagingDebug` variant selected — login works end-to-end
 - [ ] **Phase 10b migration** — run the ALTER TABLE statements from `docs/db-schema.md` → "Staging environment changes" section to add `updated_at` + triggers + indexes to the existing staging DB
+- [ ] **Phase 12 migration** — run `docs/db-schema.md` → "Staging environment changes" → section 6 to create the `umbrales` table (was local-only `SharedPreferences`, now synced)
 
 ### Production
 - [ ] Supabase project created

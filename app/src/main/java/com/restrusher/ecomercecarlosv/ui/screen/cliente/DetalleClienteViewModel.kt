@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.domain.usecase.CreateSaldoExtraUseCase
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
@@ -13,6 +12,7 @@ import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +29,7 @@ class DetalleClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val pedidoRepository: PedidoRepository,
     private val createSaldoExtraUseCase: CreateSaldoExtraUseCase,
-    umbralesManager: UmbralesManager,
+    umbralesRepository: UmbralesRepository,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -43,7 +43,7 @@ class DetalleClienteViewModel @Inject constructor(
         combine(
             clienteRepository.getByIdFlow(clienteId),
             pedidoRepository.getByClienteWithLines(clienteId),
-            umbralesManager.umbrales,
+            umbralesRepository.getUmbrales(),
             pedidoRepository.isSyncing,
         ) { cliente, pedidos, umbrales, isSyncing ->
             Pair(Triple(cliente, pedidos, umbrales), isSyncing && pedidos.isEmpty())

@@ -62,6 +62,7 @@ fun syncOperationLabel(entityType: String, operation: String): String = when {
     entityType == EntityType.MERCADO && operation == SyncOp.DELETE -> stringResource(R.string.sinc_op_mercado_delete)
     entityType == EntityType.PRODUCTO && operation == SyncOp.UPSERT -> stringResource(R.string.sinc_op_producto)
     entityType == EntityType.PRODUCTO && operation == SyncOp.DELETE -> stringResource(R.string.sinc_op_producto_delete)
+    entityType == EntityType.UMBRALES && operation == SyncOp.UPSERT -> stringResource(R.string.sinc_op_umbrales)
     else -> entityType
 }
 
@@ -73,6 +74,7 @@ fun SyncRow(item: SyncQueueItem, isError: Boolean) {
         EntityType.CLIENTE -> Icons.Default.Person
         EntityType.MERCADO -> Icons.Default.Store
         EntityType.PRODUCTO -> Icons.Default.Sell
+        EntityType.UMBRALES -> Icons.Default.Info
         else -> Icons.Default.Sync
     }
     val opLabel = syncOperationLabel(item.entityType, item.operation)

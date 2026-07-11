@@ -11,6 +11,7 @@ import com.restrusher.ecomercecarlosv.data.local.dao.PagoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
+import com.restrusher.ecomercecarlosv.data.local.dao.UmbralesDao
 import com.restrusher.ecomercecarlosv.data.local.dao.UserDao
 import com.restrusher.ecomercecarlosv.data.local.entity.ClienteEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.DetallePedidoEntity
@@ -19,6 +20,7 @@ import com.restrusher.ecomercecarlosv.data.local.entity.PagoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.PedidoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.ProductoEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
+import com.restrusher.ecomercecarlosv.data.local.entity.UmbralesEntity
 import com.restrusher.ecomercecarlosv.data.local.entity.UserEntity
 
 val MIGRATION_4_5 = object : Migration(4, 5) {
@@ -183,6 +185,26 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
     }
 }
 
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS `umbrales` (
+                `id` TEXT NOT NULL,
+                `montoMaximo` REAL NOT NULL,
+                `diasMaximos` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(`id`)
+            )""",
+        )
+        // Seed the singleton row with the previous SharedPreferences defaults so existing
+        // installs keep their current thresholds until the next sync pulls the real values.
+        db.execSQL(
+            """INSERT OR IGNORE INTO umbrales (id, montoMaximo, diasMaximos, updatedAt)
+               VALUES ('global', 200.0, 30, 0)""",
+        )
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
@@ -211,8 +233,9 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         DetallePedidoEntity::class,
         SyncOperationEntity::class,
         PagoEntity::class,
+        UmbralesEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -224,4 +247,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun detallePedidoDao(): DetallePedidoDao
     abstract fun syncOperationDao(): SyncOperationDao
     abstract fun pagoDao(): PagoDao
+    abstract fun umbralesDao(): UmbralesDao
 }

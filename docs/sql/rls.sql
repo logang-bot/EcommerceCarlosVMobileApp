@@ -209,3 +209,25 @@ CREATE POLICY "pagos_delete_superusuario_usuario"
     ON pagos FOR DELETE
     TO authenticated
     USING (get_my_role() IN ('SUPERUSUARIO', 'USUARIO'));
+
+
+-- ─── umbrales ────────────────────────────────────────────────
+-- Everyone reads (client status must compute identically for all
+-- roles). Only SUPERUSUARIO can change the thresholds — matches
+-- the in-app screen, which is hidden from USUARIO/INVITADO.
+
+CREATE POLICY "umbrales_select_authenticated"
+    ON umbrales FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "umbrales_insert_superusuario"
+    ON umbrales FOR INSERT
+    TO authenticated
+    WITH CHECK (get_my_role() = 'SUPERUSUARIO');
+
+CREATE POLICY "umbrales_update_superusuario"
+    ON umbrales FOR UPDATE
+    TO authenticated
+    USING (get_my_role() = 'SUPERUSUARIO')
+    WITH CHECK (get_my_role() = 'SUPERUSUARIO');

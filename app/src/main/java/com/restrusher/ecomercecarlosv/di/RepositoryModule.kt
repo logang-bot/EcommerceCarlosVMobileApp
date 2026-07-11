@@ -5,6 +5,7 @@ import com.restrusher.ecomercecarlosv.data.repository.impl.ClienteRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.MercadoRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.PedidoRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.ProductoRepositoryImpl
+import com.restrusher.ecomercecarlosv.data.repository.impl.UmbralesRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.repository.impl.UserRepositoryImpl
 import com.restrusher.ecomercecarlosv.data.session.SessionManagerImpl
 import com.restrusher.ecomercecarlosv.domain.repository.CleanupRepository
@@ -12,6 +13,7 @@ import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.ProductoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.Binds
@@ -51,4 +53,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCleanupRepository(impl: CleanupRepositoryImpl): CleanupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUmbralesRepository(impl: UmbralesRepositoryImpl): UmbralesRepository
 }

@@ -26,7 +26,7 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 
 ### Ajustes *(all users)* — `AjustesSection.kt`
 - **Apariencia** — in-card segment selector with three options: Claro / Oscuro / Sistema. Active option has accent background + white text/icon; inactive options are transparent. Persisted via `ThemeManager`; change takes effect instantly app-wide including system status bar and navigation bar icons.
-- **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only, `showUmbrales` param)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesManager` emits a new value.
+- **Umbrales de estado** (`Icons.Default.BarChart`) *(superuser only, `showUmbrales` param)* — navigates to `UmbralesRoute`. Subtitle is dynamic: updates reactively whenever `UmbralesRepository.getUmbrales()` emits a new value.
 
 ### Mantenimiento *(superuser only)* — `MantenimientoSection.kt`
 - **Depuración de datos** (`Icons.Default.Delete`, red icon) — navigates to `DepuracionRoute`. Two-phase destructive cleanup: exports old pedidos to CSV/XLSX then hard-deletes them from Supabase. See `docs/features/depuracion.md` for full details.
@@ -63,18 +63,22 @@ Allows superusers to change the thresholds that determine when a client's status
 
 **File**: `UmbralesScreen.kt`  
 **ViewModel**: `UmbralesViewModel.kt`  
-**Persistence**: `UmbralesManager` (`@Singleton`, `SharedPreferences("umbrales_prefs")`)
+**Persistence**: Supabase-synced, Room-backed — `UmbralesRepository` / `UmbralesRepositoryImpl` (see `docs/db-schema.md` → `umbrales` table). Previously local-only (`SharedPreferences` via a now-deleted `UmbralesManager`), which meant each device kept its own thresholds with no way to keep a team consistent; that's why it was moved onto the same delta-sync/queue infrastructure as every other entity (`EntityType.UMBRALES`, `UmbralesSyncer`, `UmbralesDao`).
 
 ### Fields
 
 | Field | Key | Type | Default |
 |-------|-----|------|---------|
-| Monto máximo | `monto_maximo` | `Float` (stored) / `Double` (domain) | `200.0` |
-| Días máximos | `dias_maximos` | `Int` | `30` |
+| Monto máximo | `monto_maximo` | `float8` (Supabase) / `Double` (domain) | `200.0` |
+| Días máximos | `dias_maximos` | `int4` (Supabase) / `Int` (domain) | `30` |
+
+### Write access
+
+The Supabase `umbrales_insert_superusuario`/`umbrales_update_superusuario` RLS policies restrict writes to `SUPERUSUARIO` — matching the app UI, which only shows the Umbrales row/screen to that role (`showUmbrales` in `AjustesSection`). All roles can read, since client status must compute identically everywhere.
 
 ### Reactivity
 
-`UmbralesManager` exposes `StateFlow<Umbrales>`. All ViewModels that inject it (`DetalleClienteViewModel`, `ClientesViewModel`, `PerfilViewModel`) recompute automatically when `save()` is called — no DB round-trip needed. Client status tags update as soon as the user navigates back to any list.
+`UmbralesRepository.getUmbrales()` returns a `Flow<Umbrales>` backed by Room (`UmbralesDao.getFlow()`). All ViewModels that inject it (`DetalleClienteViewModel`, `ClientesViewModel`, `PerfilViewModel`) recompute automatically whenever the local row changes — either from `save()` (writes to Room immediately, then queues a push to Supabase) or from a background pull-sync picking up another user's edit. Client status tags update as soon as the user navigates back to any list.
 
 ### Validation
 
@@ -95,8 +99,8 @@ data class Umbrales(
 
 ## ViewModel: `PerfilViewModel`
 
-Injects `UmbralesManager` and `ThemeManager`. On `init` it launches:
-- A `collect` on `umbralesManager.umbrales` → updates `state.umbralesSummary`.
+Injects `UmbralesRepository` and `ThemeManager`. On `init` it launches:
+- A `collect` on `umbralesRepository.getUmbrales()` → updates `state.umbralesSummary`.
 - A `collect` on `themeManager.themeMode` → updates `state.themeMode`.
 
 `setTheme(mode: ThemeMode)` delegates directly to `themeManager.setTheme(mode)`.

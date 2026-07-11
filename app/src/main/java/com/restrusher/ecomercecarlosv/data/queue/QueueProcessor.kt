@@ -11,6 +11,7 @@ import com.restrusher.ecomercecarlosv.data.local.dao.PagoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.ProductoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
+import com.restrusher.ecomercecarlosv.data.local.dao.UmbralesDao
 import com.restrusher.ecomercecarlosv.data.local.entity.EntityType
 import com.restrusher.ecomercecarlosv.data.local.entity.SyncOp
 import com.restrusher.ecomercecarlosv.data.local.entity.SyncOperationEntity
@@ -20,6 +21,7 @@ import com.restrusher.ecomercecarlosv.data.mapper.MercadoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.PagoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.PedidoMapper
 import com.restrusher.ecomercecarlosv.data.mapper.ProductoMapper
+import com.restrusher.ecomercecarlosv.data.mapper.UmbralesMapper
 import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
 import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
@@ -45,6 +47,7 @@ class QueueProcessor @Inject constructor(
     private val pedidoDao: PedidoDao,
     private val detalleDao: DetallePedidoDao,
     private val pagoDao: PagoDao,
+    private val umbralesDao: UmbralesDao,
     private val networkMonitor: NetworkMonitor,
     private val supabase: SupabaseClient,
     private val storageService: StorageService,
@@ -199,6 +202,10 @@ class QueueProcessor @Inject constructor(
                     supabase.from("pagos")
                         .upsert(pagos.map(PagoMapper::toDto))
                 }
+            }
+            EntityType.UMBRALES -> {
+                val entity = umbralesDao.get() ?: return true
+                supabase.from("umbrales").upsert(UmbralesMapper.toDto(entity))
             }
             else -> Log.w(TAG, "upsert: unknown entityType '${op.entityType}'")
         }

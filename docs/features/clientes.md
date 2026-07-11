@@ -224,7 +224,7 @@ Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combin
 **Implementation**:
 - `DetalleClienteViewModel.kt` — `computeStatus(balance, pedidos, umbrales)` + `isOlderThan(createdAt, days)`
 - `ClientesViewModel.kt` — same logic applied over `getAllUnpaid()` grouped by `clienteId`
-- `UmbralesManager.kt` — `@Singleton` `StateFlow<Umbrales>` backed by `SharedPreferences`; all injecting ViewModels recompute automatically on threshold change
+- `UmbralesRepository.getUmbrales()` — `Flow<Umbrales>` backed by Room, synced to/from Supabase (`umbrales` table, singleton row); all injecting ViewModels recompute automatically on threshold change, whether the change came from this device's `save()` or a background sync of another user's edit
 
 ---
 

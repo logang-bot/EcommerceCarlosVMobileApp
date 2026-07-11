@@ -583,6 +583,7 @@
     <string name="sinc_op_mercado_delete">Mercado eliminado</string>
     <string name="sinc_op_producto">Producto</string>
     <string name="sinc_op_producto_delete">Producto eliminado</string>
+    <string name="sinc_op_umbrales">Umbrales de estado</string>
     <string name="sinc_time_just_now">hace un momento</string>
     <string name="sinc_time_minutes">hace %1$d min</string>
     <string name="sinc_time_hours">hace %1$d h</string>

@@ -9,6 +9,7 @@ import com.restrusher.ecomercecarlosv.data.sync.impl.ClienteSyncer
 import com.restrusher.ecomercecarlosv.data.sync.impl.MercadoSyncer
 import com.restrusher.ecomercecarlosv.data.sync.impl.PedidoSyncer
 import com.restrusher.ecomercecarlosv.data.sync.impl.ProductoSyncer
+import com.restrusher.ecomercecarlosv.data.sync.impl.UmbralesSyncer
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.error.AppError
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,6 +38,7 @@ class DataSynchronizer @Inject constructor(
     private val clienteSyncer: ClienteSyncer,
     private val productoSyncer: ProductoSyncer,
     private val pedidoSyncer: PedidoSyncer,
+    private val umbralesSyncer: UmbralesSyncer,
     private val errorHandler: GlobalErrorHandler,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
@@ -57,6 +59,7 @@ class DataSynchronizer @Inject constructor(
             EntityType.CLIENTE,
             EntityType.PRODUCTO,
             EntityType.PEDIDO,
+            EntityType.UMBRALES,
         )
     }
 
@@ -160,6 +163,7 @@ class DataSynchronizer @Inject constructor(
             EntityType.CLIENTE  -> clienteSyncer
             EntityType.PRODUCTO -> productoSyncer
             EntityType.PEDIDO   -> pedidoSyncer
+            EntityType.UMBRALES -> umbralesSyncer
             else -> { lastSyncedAt[entityType] = previous; return false }
         }
 

@@ -201,3 +201,31 @@ CREATE TABLE pagos (
 
 ALTER TABLE pagos ENABLE ROW LEVEL SECURITY;
 CREATE INDEX idx_pagos_pedido_id ON pagos (pedido_id);
+
+
+-- ────────────────────────────────────────────────────────────
+-- umbrales
+-- Singleton config row (id is always 'global') — the thresholds
+-- that decide when a client's status becomes Crítico. Editable
+-- only by SUPERUSUARIO (see rls.sql), read by everyone so client
+-- status is computed identically on every device. No is_deleted
+-- column — this row is never deleted, only updated.
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE umbrales (
+    id            text    PRIMARY KEY DEFAULT 'global',
+    monto_maximo  float8  NOT NULL DEFAULT 200,
+    dias_maximos  int4    NOT NULL DEFAULT 30,
+    updated_at    bigint  NOT NULL DEFAULT 0
+);
+
+ALTER TABLE umbrales ENABLE ROW LEVEL SECURITY;
+
+CREATE TRIGGER trg_umbrales_updated_at
+    BEFORE UPDATE ON umbrales
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+-- Seed the singleton row so a fresh environment has something to read
+-- before the first superuser save.
+INSERT INTO umbrales (id, monto_maximo, dias_maximos, updated_at)
+VALUES ('global', 200, 30, 0)
+ON CONFLICT (id) DO NOTHING;

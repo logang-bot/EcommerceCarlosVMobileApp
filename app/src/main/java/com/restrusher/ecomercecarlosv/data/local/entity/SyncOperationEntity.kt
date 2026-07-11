@@ -23,6 +23,7 @@ object EntityType {
     const val CLIENTE = "CLIENTE"
     const val PRODUCTO = "PRODUCTO"
     const val PEDIDO = "PEDIDO"
+    const val UMBRALES = "UMBRALES"
 }
 
 object SyncOp {

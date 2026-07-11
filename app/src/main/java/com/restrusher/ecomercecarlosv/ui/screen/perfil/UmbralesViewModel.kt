@@ -2,26 +2,26 @@ package com.restrusher.ecomercecarlosv.ui.screen.perfil
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.Umbrales
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class UmbralesViewModel @Inject constructor(
-    private val umbralesManager: UmbralesManager,
+    private val umbralesRepository: UmbralesRepository,
 ) : ViewModel() {
 
-    private val initial = umbralesManager.umbrales.value
-
-    private val _montoText = MutableStateFlow(formatMonto(initial.montoMaximo))
-    private val _diasText = MutableStateFlow(initial.diasMaximos.toString())
+    private val _montoText = MutableStateFlow(formatMonto(Umbrales().montoMaximo))
+    private val _diasText = MutableStateFlow(Umbrales().diasMaximos.toString())
 
     val montoText: StateFlow<String> = _montoText.asStateFlow()
     val diasText: StateFlow<String> = _diasText.asStateFlow()
@@ -29,6 +29,14 @@ class UmbralesViewModel @Inject constructor(
     val canSave: StateFlow<Boolean> = combine(_montoText, _diasText) { m, d ->
         m.replace(",", ".").toDoubleOrNull() != null && d.toIntOrNull()?.let { it >= 1 } == true
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        viewModelScope.launch {
+            val current = umbralesRepository.getUmbrales().first()
+            _montoText.value = formatMonto(current.montoMaximo)
+            _diasText.value = current.diasMaximos.toString()
+        }
+    }
 
     fun onMontoChange(text: String) { _montoText.value = text }
 
@@ -39,7 +47,9 @@ class UmbralesViewModel @Inject constructor(
     fun save() {
         val monto = _montoText.value.replace(",", ".").toDoubleOrNull()?.coerceAtLeast(0.0) ?: return
         val dias = _diasText.value.toIntOrNull()?.coerceAtLeast(1) ?: return
-        umbralesManager.save(Umbrales(montoMaximo = monto, diasMaximos = dias))
+        viewModelScope.launch {
+            umbralesRepository.save(Umbrales(montoMaximo = monto, diasMaximos = dias))
+        }
     }
 
     private fun formatMonto(value: Double): String =

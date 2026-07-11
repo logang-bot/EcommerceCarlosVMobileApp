@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.data.prefs.UmbralesManager
 import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
@@ -13,6 +12,7 @@ import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.domain.usecase.RefreshClienteDataUseCase
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
@@ -29,7 +29,7 @@ class ClientesViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val mercadoRepository: MercadoRepository,
     private val pedidoRepository: PedidoRepository,
-    private val umbralesManager: UmbralesManager,
+    private val umbralesRepository: UmbralesRepository,
     private val sessionManager: SessionManager,
     private val refreshClienteData: RefreshClienteDataUseCase,
     savedStateHandle: SavedStateHandle,
@@ -47,7 +47,7 @@ class ClientesViewModel @Inject constructor(
         combine(
             clienteRepository.getByMercado(mercadoId),
             pedidoRepository.getAllUnpaid(),
-            umbralesManager.umbrales,
+            umbralesRepository.getUmbrales(),
             clienteRepository.isSyncing,
         ) { clientes, allUnpaid, umbrales, isSyncing ->
             val pedidosByCliente = allUnpaid.groupBy { it.clienteId }
