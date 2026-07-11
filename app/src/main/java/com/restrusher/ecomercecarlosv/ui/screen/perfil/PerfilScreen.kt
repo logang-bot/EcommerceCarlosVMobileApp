@@ -58,6 +58,7 @@ import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRout
 import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.EditarPerfilRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.GestionUsuariosRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.HelpRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.LoginRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.UmbralesRoute
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
@@ -113,6 +114,7 @@ fun PerfilScreen(
         },
         onGestionUsuariosClick = { navController.navigate(GestionUsuariosRoute) },
         onUmbralesClick = { navController.navigate(UmbralesRoute) },
+        onHelpClick = { navController.navigate(HelpRoute) },
         onMantenimientoClick = { navController.navigate(DepuracionRoute) },
         onChangePassword = { navController.navigate(CambiarContrasenaRoute(userId = state.userId, isSelf = true)) },
         onThemeChange = { viewModel.setTheme(it) },
@@ -134,6 +136,7 @@ private fun PerfilContent(
     onBiometricToggle: () -> Unit,
     onGestionUsuariosClick: () -> Unit,
     onUmbralesClick: () -> Unit = {},
+    onHelpClick: () -> Unit = {},
     onMantenimientoClick: () -> Unit = {},
     onChangePassword: () -> Unit = {},
     onThemeChange: (ThemeMode) -> Unit = {},
@@ -259,6 +262,7 @@ private fun PerfilContent(
                 showUmbrales = state.role == UserRole.SUPERUSUARIO,
                 umbralesSummary = state.umbralesSummary,
                 onUmbralesClick = onUmbralesClick,
+                onHelpClick = onHelpClick,
             )
 
             // Mantenimiento (superuser only)

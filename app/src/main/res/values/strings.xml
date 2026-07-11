@@ -279,6 +279,31 @@
     <string name="perfil_theme_light">Claro</string>
     <string name="perfil_theme_dark">Oscuro</string>
     <string name="perfil_theme_system">Sistema</string>
+    <string name="perfil_ayuda_title">Ayuda</string>
+    <string name="perfil_ayuda_subtitle">Guía rápida de la app</string>
+
+    <!-- Ayuda -->
+    <string name="help_title">Ayuda</string>
+    <string name="help_topic_inicio_title">Primeros pasos</string>
+    <string name="help_topic_inicio_body">Inicia sesión con tu correo y contraseña. Si ya activaste el acceso con huella dactilar, podrás entrar sin escribirla la próxima vez. Tu rol (Superusuario, Usuario o Invitado) determina qué puedes ver y editar dentro de la app.</string>
+    <string name="help_topic_mercados_title">Mercados</string>
+    <string name="help_topic_mercados_body">Un mercado agrupa a los clientes de una misma zona o punto de venta. Desde la pantalla principal puedes ver todos los mercados, crear uno nuevo y entrar a cada uno para ver sus clientes.</string>
+    <string name="help_topic_clientes_title">Clientes</string>
+    <string name="help_topic_clientes_body">Dentro de un mercado puedes ver la lista de clientes con su estado de cuenta: Al día (verde), Cobrar (amarillo) o Crítico (rojo), según el saldo pendiente y los umbrales configurados. Toca un cliente para ver su historial de pedidos y su saldo.</string>
+    <string name="help_topic_pedidos_title">Pedidos</string>
+    <string name="help_topic_pedidos_body">Cada pedido registra los productos entregados a un cliente. Puedes crear un pedido desde el detalle del cliente, agregar productos del catálogo o líneas manuales, y marcar pagos totales o parciales. También puedes registrar un saldo extra fuera de un pedido.</string>
+    <string name="help_topic_productos_title">Catálogo de productos</string>
+    <string name="help_topic_productos_body">El catálogo es compartido por todos los usuarios. Ahí puedes agregar productos con nombre, precio, costo, foto y existencias, para usarlos rápidamente al armar un pedido.</string>
+    <string name="help_topic_lista_negra_title">Lista negra</string>
+    <string name="help_topic_lista_negra_body">Si un cliente deja de pagar, puedes agregarlo a la lista negra desde su detalle, indicando el motivo y el monto adeudado. La lista negra reúne a los clientes marcados de todos los mercados, y puedes quitarlos cuando su situación se resuelva.</string>
+    <string name="help_topic_reportes_title">Reportes</string>
+    <string name="help_topic_reportes_body">En la pestaña Reporte puedes consultar totales diarios o por cliente, filtrar por fecha y exportar el resultado en PDF para compartirlo o imprimirlo.</string>
+    <string name="help_topic_sincronizacion_title">Sincronización sin conexión</string>
+    <string name="help_topic_sincronizacion_body">La app funciona sin internet: todo lo que registras se guarda primero en el dispositivo y se sincroniza automáticamente al recuperar conexión. El ícono de la nube en la barra superior indica si hay cambios pendientes por enviar.</string>
+    <string name="help_topic_seguridad_title">Seguridad y contraseña</string>
+    <string name="help_topic_seguridad_body">Desde Mi Perfil → Seguridad puedes activar el acceso con huella dactilar y cambiar tu contraseña. Los superusuarios también pueden restablecer la contraseña de otros usuarios desde su detalle.</string>
+    <string name="help_topic_equipo_title">Gestión de usuarios</string>
+    <string name="help_topic_equipo_body">Los superusuarios pueden crear cuentas de equipo, cambiar roles y activar o desactivar miembros desde Mi Perfil → Equipo, y ajustar los umbrales de estado de los clientes desde Ajustes.</string>
 
     <!-- Umbrales de estado -->
     <string name="umbrales_title">Umbrales de estado</string>

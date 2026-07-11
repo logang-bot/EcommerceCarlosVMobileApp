@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
@@ -47,6 +48,7 @@ internal fun AjustesSection(
     showUmbrales: Boolean,
     umbralesSummary: String?,
     onUmbralesClick: () -> Unit,
+    onHelpClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -68,6 +70,14 @@ internal fun AjustesSection(
                 trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
             )
         }
+        Spacer(Modifier.height(10.dp))
+        SettingRow(
+            icon = Icons.AutoMirrored.Filled.HelpOutline,
+            title = stringResource(R.string.perfil_ayuda_title),
+            subtitle = stringResource(R.string.perfil_ayuda_subtitle),
+            onClick = onHelpClick,
+            trailing = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = ext.text4, modifier = Modifier.size(17.dp)) },
+        )
     }
 }
 
@@ -205,6 +215,7 @@ private fun AjustesSectionPreview() {
             showUmbrales = false,
             umbralesSummary = null,
             onUmbralesClick = {},
+            onHelpClick = {},
         )
     }
 }
@@ -219,6 +230,7 @@ private fun AjustesSectionSuperusuarioDarkPreview() {
             showUmbrales = true,
             umbralesSummary = "Bs. 500 / Bs. 2.000",
             onUmbralesClick = {},
+            onHelpClick = {},
         )
     }
 }

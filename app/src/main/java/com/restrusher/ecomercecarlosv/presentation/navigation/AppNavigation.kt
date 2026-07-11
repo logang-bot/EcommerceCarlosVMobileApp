@@ -44,6 +44,8 @@ import com.restrusher.ecomercecarlosv.ui.screen.pedido.CreacionPedidoScreen
 import com.restrusher.ecomercecarlosv.ui.screen.pedido.DetallePedidoScreen
 import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.DepuracionRoute
+import com.restrusher.ecomercecarlosv.presentation.screens.HelpRoute
+import com.restrusher.ecomercecarlosv.ui.screen.perfil.HelpScreen
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteClienteRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.ReporteStatusRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.SincronizacionRoute
@@ -178,6 +180,9 @@ fun AppNavigation() {
         }
         composable<CambiarContrasenaRoute> {
             CambiarContrasenaScreen(navController = navController)
+        }
+        composable<HelpRoute> {
+            HelpScreen(navController = navController)
         }
     }
 }

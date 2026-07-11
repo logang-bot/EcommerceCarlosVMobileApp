@@ -86,3 +86,6 @@ object DepuracionRoute
 
 @Serializable
 data class CambiarContrasenaRoute(val userId: String, val isSelf: Boolean = false)
+
+@Serializable
+object HelpRoute
