@@ -14,6 +14,11 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+// Environment wins over local.properties so CI can inject secrets without writing the file.
+fun secret(key: String): String = System.getenv(key) ?: localProperties.getProperty(key) ?: ""
+
+val releaseKeystore = secret("RELEASE_KEYSTORE_FILE")
+
 android {
     namespace = "com.restrusher.ecomercecarlosv"
     compileSdk {
@@ -26,10 +31,22 @@ android {
         applicationId = "com.restrusher.ecomercecarlosv"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes the run number / tag; local builds fall back to a dev version.
+        versionCode = System.getenv("BUILD_NUMBER")?.toInt() ?: 1
+        versionName = System.getenv("BUILD_VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore.isNotEmpty()) {
+                storeFile = file(releaseKeystore)
+                storePassword = secret("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = secret("RELEASE_KEY_ALIAS")
+                keyPassword = secret("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     flavorDimensions += "environment"
@@ -38,20 +55,24 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".staging"
             versionNameSuffix = "-staging"
-            buildConfigField("String", "SUPABASE_URL", "\"${localProperties["STAGING_SUPABASE_URL"] ?: ""}\"")
-            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${localProperties["STAGING_SUPABASE_PUBLISHABLE_KEY"] ?: ""}\"")
-            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${localProperties["STAGING_SUPABASE_SECRET_KEY"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_URL", "\"${secret("STAGING_SUPABASE_URL")}\"")
+            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${secret("STAGING_SUPABASE_PUBLISHABLE_KEY")}\"")
+            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${secret("STAGING_SUPABASE_SECRET_KEY")}\"")
         }
         create("production") {
             dimension = "environment"
-            buildConfigField("String", "SUPABASE_URL", "\"${localProperties["PRODUCTION_SUPABASE_URL"] ?: ""}\"")
-            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${localProperties["PRODUCTION_SUPABASE_PUBLISHABLE_KEY"] ?: ""}\"")
-            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${localProperties["PRODUCTION_SUPABASE_SECRET_KEY"] ?: ""}\"")
+            buildConfigField("String", "SUPABASE_URL", "\"${secret("PRODUCTION_SUPABASE_URL")}\"")
+            buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${secret("PRODUCTION_SUPABASE_PUBLISHABLE_KEY")}\"")
+            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${secret("PRODUCTION_SUPABASE_SECRET_KEY")}\"")
         }
     }
 
     buildTypes {
         release {
+            // Left unsigned when no keystore is configured, so local release builds still work.
+            if (releaseKeystore.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -48,6 +48,11 @@ PRODUCTION_SUPABASE_SECRET_KEY=your-production-secret-key
 
 `local.properties` is gitignored — never commit these keys.
 
+> **CI builds don't see this file.** The build resolves each value from an environment
+> variable first and only falls back to `local.properties`, so GitHub Actions injects
+> the same six keys from repository secrets. If you add or rotate a value here, update
+> the matching secret too — see `docs/release-distribution.md`.
+
 ---
 
 ## 4. Create the first SUPERUSUARIO

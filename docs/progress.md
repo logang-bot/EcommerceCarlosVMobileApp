@@ -34,6 +34,69 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 11 | Soft-delete: `isDeleted` on all 4 entities, Room v17, QueueProcessor pushes UPDATE instead of DELETE, syncers hard-delete locally on delta when `is_deleted = true` | ✅ Done |
 | 12 | Depuración / Mantenimiento: Superusuario-only two-phase cleanup — export pedidos to CSV/XLSX then hard-delete from Supabase + Room | ✅ Done |
 | 13 | Cambiar contraseña (superuser-only) — self via Perfil + others via UsuarioDetalleScreen | ✅ Done |
+| 14 | Build distribution: GitHub Actions builds a signed APK on `v*` tags, Telegram bot delivers it to a private channel | ✅ Done |
+
+---
+
+## ✅ Phase 14 — Build distribution via GitHub Actions + Telegram
+
+Replaces paid distribution services (Firebase App Distribution / Azure Pipelines) with
+the free tier of GitHub Actions plus a Telegram bot. Full details in
+`docs/release-distribution.md`.
+
+### How it works
+
+Pushing a `v*` tag builds a signed `productionRelease` APK and posts it to the private
+Telegram channel the customer is subscribed to. A manual `workflow_dispatch` run can
+also target the `staging` flavor. Delivery is a single `sendDocument` call to the Bot
+API; the workflow fails early if the APK exceeds the API's 50 MB document limit
+(current builds are ~18 MB). The APK is renamed on upload (`CarlosV-1.2.0.apk`)
+since AGP's default `app-production-release.apk` makes every build indistinguishable
+in the channel.
+
+### Signing
+
+`app/build.gradle.kts` gained a `signingConfigs { release { ... } }` block. CI decodes
+`RELEASE_KEYSTORE_BASE64` into a `.jks` on the runner and points `RELEASE_KEYSTORE_FILE`
+at it. When no keystore is configured the `signingConfig` is simply not applied, so
+local `assembleRelease` still works (unsigned) and no developer needs the keystore.
+
+### Secret resolution
+
+New top-level `secret(key)` helper resolves **environment variables first, then
+`local.properties`**. This let CI inject Supabase values as env vars without
+synthesising a `local.properties` file, and left local development untouched. All six
+`buildConfigField` calls in the two flavors now route through it.
+
+### Versioning
+
+`versionCode` was hardcoded to `1`, which silently blocks installing any update over
+an existing build. It now reads `BUILD_NUMBER` (the GitHub run number, monotonic and
+never reused), and `versionName` reads `BUILD_VERSION_NAME` (derived from the tag).
+Both fall back to the old values for local builds.
+
+### ⚠️ Known issue — `SUPABASE_SECRET_KEY` ships in the APK
+
+`SUPABASE_SECRET_KEY` is a `buildConfigField`, so it is embedded in every APK and can
+be extracted by anyone who receives one. It bypasses RLS entirely. Pre-existing (not
+introduced by this phase) and left working as-is, but Telegram delivery widens the
+exposure. Fix: move privileged operations behind an Edge Function and ship only the
+publishable key.
+
+### New files
+
+| File | Description |
+|------|-------------|
+| `.github/workflows/release.yml` | Build + Telegram delivery; tag-triggered or manual with flavor picker |
+| `docs/release-distribution.md` | Setup reference: keystore, bot/channel, GitHub Secrets |
+| `docs/shipping-a-build.md` | Runbook: step-by-step for shipping staging and production |
+
+### Modified files
+
+| File | Change |
+|------|--------|
+| `app/build.gradle.kts` | `secret()` helper; `signingConfigs.release`; env-driven `versionCode`/`versionName`; flavors read via `secret()` |
+| `docs/supabase-setup.md` | Note that CI reads the same values from GitHub Secrets |
 
 ---
 
