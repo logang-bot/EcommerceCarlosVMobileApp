@@ -130,23 +130,35 @@ Every release number lives in **two places that must agree**: `APP_VERSION_NAME`
    APP_VERSION_NAME=1.2.1
    ```
 
-3. Commit and push to `main`. **Before tagging** — the tag must point at a commit that
+3. Add a matching section to `CHANGELOG.md`, at the top:
+
+   ```markdown
+   ## [1.2.1]
+   - Arreglado el error al guardar pedidos sin conexión.
+   ```
+
+   These notes go straight into the Telegram message the customer reads, so write
+   them for the business owner: Spanish, short sentences, what changed for someone
+   *using* the app. A production build with no section for its version fails before
+   compiling.
+
+4. Commit and push to `main`. **Before tagging** — the tag must point at a commit that
    already contains the bumped property, or the match check fails.
 
    ```bash
-   git add gradle.properties
+   git add gradle.properties CHANGELOG.md
    git commit -m "Bump version to 1.2.1"
    git push origin main
    ```
 
-4. Tag that commit and push the tag:
+5. Tag that commit and push the tag:
 
    ```bash
    git tag v1.2.1
    git push origin v1.2.1
    ```
 
-5. Go to the **Actions** tab — a run started automatically. Watch it.
+6. Go to the **Actions** tab — a run started automatically. Watch it.
 
 The tag must start with `v`; the workflow ignores anything else.
 
@@ -156,8 +168,12 @@ You shipped `1.0.0`. Since then you fixed a crash. To ship that fix:
 
 ```bash
 # 1. gradle.properties: APP_VERSION_NAME=1.0.0  ->  APP_VERSION_NAME=1.0.1
+# 2. CHANGELOG.md, at the top:
+#
+#    ## [1.0.1]
+#    - Arreglado el error al guardar pedidos sin conexión.
 
-git add gradle.properties
+git add gradle.properties CHANGELOG.md
 git commit -m "Bump version to 1.0.1"
 git push origin main
 
@@ -165,8 +181,8 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 
-The customer gets `CarlosV-1.0.1.apk` in the channel, installs it over `1.0.0`, and
-keeps all their data.
+The customer gets `CarlosV-1.0.1.apk` in the channel, with those notes in the message,
+installs it over `1.0.0`, and keeps all their data.
 
 Note what you **don't** touch: `versionCode`. It comes from the GitHub run number
 automatically and increases on its own. It's the number Android actually uses to
@@ -205,10 +221,17 @@ Versión: 1.2.0 (build 47)
 Entorno: production
 Tamaño: 18 MB
 Commit: a1b2c3d
+
+📝 Novedades
+- Arreglado el error al guardar pedidos sin conexión.
 ```
 
 Check **Commit** matches the commit you intended, and **Entorno** says `production`
 before telling the customer to update.
+
+**Novedades** is the `CHANGELOG.md` section for this version, copied verbatim. Staging
+builds show it too when a section exists, so you can proofread what the customer will
+read before the real release goes out.
 
 ### Filenames
 
@@ -288,6 +311,8 @@ directly.
 |---|---|
 | *Resolve build metadata*, "does not match APP_VERSION_NAME" | You tagged without bumping the property (or vice versa). Fix and re-tag — nothing shipped |
 | *Resolve build metadata*, "was already released" | A manual production dispatch of a version that already has a tag. Bump `APP_VERSION_NAME` |
+| *Resolve build metadata*, "has no '## [x.y.z]' section" | Add that version's section to `CHANGELOG.md`. Production only |
+| *Resolve build metadata*, "keep them under 800" | Release notes too long for a Telegram caption. Shorten them |
 | *Decode release keystore* | `RELEASE_KEYSTORE_BASE64` missing or misnamed |
 | *Build signed APK*, "keystore was tampered with" | Wrong keystore password, or the base64 got truncated when pasted |
 | *Build signed APK*, "No key with alias" | `RELEASE_KEY_ALIAS` doesn't match the keystore (this project's is `key0`) |

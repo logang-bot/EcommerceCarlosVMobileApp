@@ -100,11 +100,25 @@ introduced by this phase) and left working as-is, but Telegram delivery widens t
 exposure. Fix: move privileged operations behind an Edge Function and ship only the
 publishable key.
 
+### Release notes
+
+`CHANGELOG.md` holds a `## [x.y.z]` section per version, written in Spanish for the
+business owner. The workflow extracts the section matching `APP_VERSION_NAME` and
+appends it to the Telegram caption under **Novedades**. A production build with no
+matching section fails before compiling; staging is exempt.
+
+The caption uses `parse_mode=HTML`, not Markdown — release notes are free text, and an
+underscore or asterisk in ordinary Spanish (`saldo_extra`) would break Markdown parsing
+and reject the upload after a successful build. HTML needs only `&`, `<`, `>` escaped.
+Telegram caps captions at 1024 chars, so notes over 800 fail early rather than reaching
+the customer truncated mid-sentence.
+
 ### New files
 
 | File | Description |
 |------|-------------|
 | `.github/workflows/release.yml` | Build + Telegram delivery; tag-triggered or manual with flavor picker |
+| `CHANGELOG.md` | Customer-facing release notes, one section per version |
 | `docs/release-distribution.md` | Setup reference: keystore, bot/channel, GitHub Secrets |
 | `docs/shipping-a-build.md` | Runbook: step-by-step for shipping staging and production |
 

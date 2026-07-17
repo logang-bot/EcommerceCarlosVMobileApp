@@ -69,10 +69,34 @@ jobs:
             fi
           fi
 
+          # Release notes: the CHANGELOG section matching this version, blank lines
+          # dropped so the caption stays compact.
+          NOTES=$(awk -v ver="$VERSION_NAME" '
+            index($0, "## [" ver "]") == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found && NF { print }
+          ' CHANGELOG.md)
+
+          # Production must say what changed; staging is a rehearsal and need not.
+          if [ "$FLAVOR" = "production" ] && [ -z "$NOTES" ]; then
+            echo "::error::CHANGELOG.md has no '## [${VERSION_NAME}]' section. Add one before shipping to the customer."
+            exit 1
+          fi
+
+          # Telegram caps captions at 1024 chars. Fail now rather than truncate the
+          # customer's release notes mid-sentence after a successful build.
+          if [ "$(printf '%s' "$NOTES" | wc -m)" -gt 800 ]; then
+            echo "::error::Release notes for ${VERSION_NAME} are $(printf '%s' "$NOTES" | wc -m) chars; keep them under 800 so the Telegram caption fits."
+            exit 1
+          fi
+
           {
             echo "flavor=${FLAVOR}"
             echo "task=assemble${FLAVOR^}Release"
             echo "version_name=${VERSION_NAME}"
+            echo "notes<<CHANGELOG_EOF_9f3a"
+            echo "$NOTES"
+            echo "CHANGELOG_EOF_9f3a"
           } >> "$GITHUB_OUTPUT"
 
       - name: Decode release keystore
@@ -144,6 +168,7 @@ jobs:
           VERSION_NAME: ${{ steps.meta.outputs.version_name }}
           FLAVOR: ${{ steps.meta.outputs.flavor }}
           SIZE_MB: ${{ steps.apk.outputs.size_mb }}
+          NOTES: ${{ steps.meta.outputs.notes }}
         run: |
           set -euo pipefail
           # AGP names every APK app-<flavor>-release.apk; rename on upload so the
@@ -156,15 +181,23 @@ jobs:
             FILENAME="CarlosV-${VERSION_NAME}-${GITHUB_SHA::7}-${FLAVOR}.apk"
           fi
 
-          CAPTION=$(printf '📦 *Nueva versión disponible*\n\nVersión: %s (build %s)\nEntorno: %s\nTamaño: %s MB\nCommit: `%s`' \
+          CAPTION=$(printf '📦 <b>Nueva versión disponible</b>\n\nVersión: %s (build %s)\nEntorno: %s\nTamaño: %s MB\nCommit: <code>%s</code>' \
             "$VERSION_NAME" "$GITHUB_RUN_NUMBER" "$FLAVOR" "$SIZE_MB" "${GITHUB_SHA::7}")
+
+          # HTML parse mode, not Markdown: release notes are free text, and a stray
+          # _ or * in Spanish would break Markdown parsing and reject the upload.
+          # HTML needs only these three escaped.
+          if [ -n "$NOTES" ]; then
+            NOTES_ESC=$(printf '%s' "$NOTES" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+            CAPTION=$(printf '%s\n\n📝 <b>Novedades</b>\n%s' "$CAPTION" "$NOTES_ESC")
+          fi
 
           HTTP_CODE=$(curl -sS -o /tmp/tg-response.json -w '%{http_code}' \
             -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@${APK};filename=${FILENAME}" \
             -F "caption=${CAPTION}" \
-            -F "parse_mode=Markdown")
+            -F "parse_mode=HTML")
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "::error::Telegram rejected the upload (HTTP ${HTTP_CODE})"
