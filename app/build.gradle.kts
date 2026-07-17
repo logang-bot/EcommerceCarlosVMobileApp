@@ -19,6 +19,10 @@ fun secret(key: String): String = System.getenv(key) ?: localProperties.getPrope
 
 val releaseKeystore = secret("RELEASE_KEYSTORE_FILE")
 
+// Single source of truth for the shipped version, declared in gradle.properties.
+// The release tag must match it; the release workflow verifies this before building.
+val appVersionName = providers.gradleProperty("APP_VERSION_NAME").get()
+
 android {
     namespace = "com.restrusher.ecomercecarlosv"
     compileSdk {
@@ -31,9 +35,9 @@ android {
         applicationId = "com.restrusher.ecomercecarlosv"
         minSdk = 24
         targetSdk = 36
-        // CI passes the run number / tag; local builds fall back to a dev version.
+        // CI passes its run number, which only ever increases; local builds get 1.
         versionCode = System.getenv("BUILD_NUMBER")?.toInt() ?: 1
-        versionName = System.getenv("BUILD_VERSION_NAME") ?: "1.0"
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

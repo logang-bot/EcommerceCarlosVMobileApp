@@ -40,7 +40,7 @@ STAGING_SUPABASE_URL=https://YOUR_STAGING_PROJECT.supabase.co
 STAGING_SUPABASE_PUBLISHABLE_KEY=your-staging-publishable-key
 STAGING_SUPABASE_SECRET_KEY=your-staging-secret-key
 
-# Production (fill in when the project is ready)
+# Production
 PRODUCTION_SUPABASE_URL=https://YOUR_PRODUCTION_PROJECT.supabase.co
 PRODUCTION_SUPABASE_PUBLISHABLE_KEY=your-production-publishable-key
 PRODUCTION_SUPABASE_SECRET_KEY=your-production-secret-key

@@ -28,6 +28,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags are needed to detect an already-released version.
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -41,11 +44,31 @@ jobs:
         run: |
           set -euo pipefail
           FLAVOR="${{ inputs.flavor || 'production' }}"
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION_NAME="${GITHUB_REF_NAME#v}"
-          else
-            VERSION_NAME="0.0.0-${GITHUB_SHA::7}"
+
+          # gradle.properties is the single source of truth for the version.
+          VERSION_NAME=$(grep -E '^APP_VERSION_NAME=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          if [ -z "$VERSION_NAME" ]; then
+            echo "::error::APP_VERSION_NAME is missing from gradle.properties"
+            exit 1
           fi
+
+          # A tag that disagrees with the declared version means one of them is a
+          # mistake, and we can't tell which. Fail before burning a build.
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$TAG_VERSION" != "$VERSION_NAME" ]; then
+              echo "::error::Tag ${GITHUB_REF_NAME} does not match APP_VERSION_NAME=${VERSION_NAME} in gradle.properties. Bump the property and re-tag."
+              exit 1
+            fi
+          elif [ "$FLAVOR" = "production" ]; then
+            # Re-pushing a tag is blocked by git, but a manual production dispatch
+            # would happily ship an already-released version a second time.
+            if git rev-parse -q --verify "refs/tags/v${VERSION_NAME}" >/dev/null; then
+              echo "::error::Version ${VERSION_NAME} was already released as tag v${VERSION_NAME}. Bump APP_VERSION_NAME before shipping another production build."
+              exit 1
+            fi
+          fi
+
           {
             echo "flavor=${FLAVOR}"
             echo "task=assemble${FLAVOR^}Release"
@@ -76,17 +99,22 @@ jobs:
           STAGING_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
           STAGING_SUPABASE_SECRET_KEY: ${{ secrets.STAGING_SUPABASE_SECRET_KEY }}
           BUILD_NUMBER: ${{ github.run_number }}
-          BUILD_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
         run: ./gradlew ${{ steps.meta.outputs.task }} --no-daemon --stacktrace
 
       - name: Locate APK
         id: apk
         run: |
           set -euo pipefail
-          APK=$(find app/build/outputs/apk/${{ steps.meta.outputs.flavor }}/release \
-            -name "*.apk" -type f | head -n 1)
+          OUT_DIR="app/build/outputs/apk/${{ steps.meta.outputs.flavor }}/release"
+          # AGP falls back to an "-unsigned" APK instead of failing when no keystore
+          # applied. That APK cannot be installed, so never let one reach delivery.
+          APK=$(find "$OUT_DIR" -name "*.apk" ! -name "*-unsigned.apk" -type f | head -n 1)
           if [ -z "$APK" ]; then
-            echo "::error::No APK produced by ${{ steps.meta.outputs.task }}"
+            if find "$OUT_DIR" -name "*-unsigned.apk" -type f | grep -q .; then
+              echo "::error::Build produced only an unsigned APK — the keystore was not applied. Check the RELEASE_KEYSTORE_* secrets."
+            else
+              echo "::error::No APK produced by ${{ steps.meta.outputs.task }}"
+            fi
             exit 1
           fi
           SIZE_MB=$(( $(stat -c%s "$APK") / 1024 / 1024 ))
@@ -120,10 +148,12 @@ jobs:
           set -euo pipefail
           # AGP names every APK app-<flavor>-release.apk; rename on upload so the
           # customer can tell builds apart in the channel.
+          # Staging carries the commit too, since several staging builds can share
+          # one version number.
           if [ "$FLAVOR" = "production" ]; then
             FILENAME="CarlosV-${VERSION_NAME}.apk"
           else
-            FILENAME="CarlosV-${VERSION_NAME}-${FLAVOR}.apk"
+            FILENAME="CarlosV-${VERSION_NAME}-${GITHUB_SHA::7}-${FLAVOR}.apk"
           fi
 
           CAPTION=$(printf '📦 *Nueva versión disponible*\n\nVersión: %s (build %s)\nEntorno: %s\nTamaño: %s MB\nCommit: `%s`' \

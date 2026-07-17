@@ -71,9 +71,26 @@ synthesising a `local.properties` file, and left local development untouched. Al
 ### Versioning
 
 `versionCode` was hardcoded to `1`, which silently blocks installing any update over
-an existing build. It now reads `BUILD_NUMBER` (the GitHub run number, monotonic and
-never reused), and `versionName` reads `BUILD_VERSION_NAME` (derived from the tag).
-Both fall back to the old values for local builds.
+an existing build. It now reads `BUILD_NUMBER` (the GitHub run number — monotonic,
+never reused), falling back to `1` locally.
+
+`versionName` reads `APP_VERSION_NAME` from `gradle.properties`, the single source of
+truth. The tag does not set the version; it marks which commit ships. The workflow
+compares `${GITHUB_REF_NAME#v}` against the property and fails before building if they
+diverge, catching the "tagged without bumping" mistake in seconds.
+
+Git already refuses to re-push an existing tag, but a **manual** production dispatch
+bypasses tags entirely, so the workflow also refuses to build `production` when a tag
+matching `APP_VERSION_NAME` already exists (requires `fetch-depth: 0` on checkout).
+Staging is exempt — repeated staging builds of one version are normal, and the
+`.staging` application ID keeps them off the customer's install.
+
+### Guard against shipping unsigned APKs
+
+When no keystore applies, AGP does not fail — it emits `app-<flavor>-release-unsigned.apk`,
+which cannot be installed. The *Locate APK* step therefore excludes `*-unsigned.apk`
+and fails with an explicit message, so a misconfigured keystore can never reach the
+customer as a broken download.
 
 ### ⚠️ Known issue — `SUPABASE_SECRET_KEY` ships in the APK
 
@@ -651,8 +668,9 @@ See `docs/features/usuarios.md → canWrite pattern` for the full element table.
 
 ### 🌍 Environments
 Two product flavors: **staging** and **production**. Each reads its own Supabase URL + keys from
-`local.properties`. Build variants: `stagingDebug`, `stagingRelease`, `productionDebug`, `productionRelease`.
-Staging fully wired and tested. Production keys TBD.
+`local.properties` locally, or from the environment in CI (see Phase 14). Build variants:
+`stagingDebug`, `stagingRelease`, `productionDebug`, `productionRelease`.
+Both environments are fully wired; production keys are live as of Phase 14.
 
 ### 📋 SQL docs
 `docs/sql/schema.sql` — all CREATE TABLE statements with inline `ENABLE ROW LEVEL SECURITY`.

@@ -11,21 +11,29 @@ Cost: $0. Private repos get 2,000 free Actions minutes/month; a build here takes
 
 ## How a release is triggered
 
-**Tagged release (normal path).** The tag name becomes the version name:
+**Tagged release (normal path).** Bump `APP_VERSION_NAME` in `gradle.properties`,
+commit, then tag with a matching `v` prefix:
 
 ```bash
 git tag v1.2.0
 git push origin v1.2.0
 ```
 
-`v1.2.0` produces `versionName = 1.2.0`, always the `production` flavor.
+Always builds the `production` flavor.
 
 **Manual build.** Actions → *Release APK* → *Run workflow*, pick `production` or
-`staging`. Version name is `0.0.0-<short-sha>`, so it's obvious it isn't a real release.
+`staging`.
 
-`versionCode` always comes from the GitHub run number, which increases forever and
-never repeats. This matters: Android refuses to install an APK whose `versionCode`
-is the same as or lower than the installed one.
+### Versioning
+
+`versionName` comes from **`APP_VERSION_NAME` in `gradle.properties`** — the single
+source of truth. A tag doesn't set the version; it only says "ship what's declared."
+If a tag and the property disagree, the workflow fails in seconds, before building,
+because there's no way to tell which one is the mistake.
+
+`versionCode` is unrelated to that and comes from the GitHub run number, which only
+ever increases. Android refuses to install an APK whose `versionCode` is the same as
+or lower than the installed one, so this must never be hand-managed.
 
 ## One-time setup
 
