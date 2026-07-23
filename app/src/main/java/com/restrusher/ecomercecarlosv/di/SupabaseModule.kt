@@ -9,8 +9,8 @@ import dagger.hilt.components.SingletonComponent
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.MemoryCodeVerifierCache
-import io.github.jan.supabase.auth.minimalSettings
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 import javax.inject.Singleton
@@ -19,8 +19,13 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object SupabaseModule {
 
-    // Regular client (publishable key) — used for all authenticated-user API calls.
+    // Single client (publishable key) — used for all API calls.
     // RLS policies on each table enforce what this client can read/write.
+    //
+    // Privileged operations that need the service role (creating/updating/deleting
+    // auth users) are NOT done here — they run in Supabase Edge Functions, invoked
+    // via the Functions plugin (which forwards the current session JWT). This keeps
+    // the service-role secret off the device entirely. See `data/remote/AdminUserService`.
     @Provides
     @Singleton
     fun provideSupabaseClient(sessionManager: DataStoreGoTrueSessionManager): SupabaseClient =
@@ -36,25 +41,6 @@ object SupabaseModule {
             }
             install(Postgrest)
             install(Storage)
-        }
-
-    // Admin client (secret key) — bypasses RLS; used only for SUPERUSUARIO
-    // operations such as creating users. Keep this client isolated to admin use cases.
-    // TODO: move createUser / updateUser / deleteUser / banUser to Supabase Edge Functions
-    //   so the secret key never ships inside the APK. Safe to defer while the app is
-    //   distributed only to trusted internal users.
-    @Provides
-    @Singleton
-    @AdminClient
-    fun provideAdminSupabaseClient(): SupabaseClient =
-        createSupabaseClient(
-            supabaseUrl = BuildConfig.SUPABASE_URL,
-            supabaseKey = BuildConfig.SUPABASE_SECRET_KEY,
-        ) {
-            install(Auth) {
-                minimalSettings()
-            }
-            install(Postgrest)
-            install(Storage)
+            install(Functions)
         }
 }

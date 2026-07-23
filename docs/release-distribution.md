@@ -88,10 +88,12 @@ Settings → Secrets and variables → Actions → *New repository secret*:
 | `TELEGRAM_CHAT_ID` | Channel ID, including the leading `-100` |
 | `PRODUCTION_SUPABASE_URL` | Same values as your `local.properties` |
 | `PRODUCTION_SUPABASE_PUBLISHABLE_KEY` | |
-| `PRODUCTION_SUPABASE_SECRET_KEY` | See the security note below |
 | `STAGING_SUPABASE_URL` | |
 | `STAGING_SUPABASE_PUBLISHABLE_KEY` | |
-| `STAGING_SUPABASE_SECRET_KEY` | |
+
+> The Supabase **secret / service-role key** is no longer used by the app and must
+> **not** be added as a CI secret — privileged operations run in Edge Functions
+> (see the security note below).
 
 ## Customer-side install
 
@@ -109,19 +111,20 @@ environment variables first, then `local.properties`. So CI injects everything a
 env vars and never writes `local.properties`, while local development keeps working
 unchanged with no keystore present (release builds are simply left unsigned locally).
 
-## Security note: `SUPABASE_SECRET_KEY`
+## Security note: the secret / service-role key (resolved)
 
-`SUPABASE_SECRET_KEY` is compiled into `BuildConfig`, which means it ships inside the
-APK. Anyone who receives a build can unzip it and recover the key — and a Supabase
-secret/service-role key bypasses Row Level Security entirely. Telegram delivery
-widens the blast radius slightly, since the APK now sits in a chat that can be
-forwarded.
+The Supabase **secret / service-role key used to be compiled into `BuildConfig`** and
+shipped inside the APK, where anyone who unzipped a build could recover it — and that
+key bypasses Row Level Security entirely.
 
-This is pre-existing, not something the pipeline introduced, and it is left as-is
-here so the build keeps working. The fix is to drop the secret key from the client
-and reach privileged operations through an Edge Function using the user's JWT,
-leaving only the publishable key in the app. Worth doing before this goes to real
-customers.
+This has been fixed. The key is no longer referenced anywhere in the app: the
+privileged operations (creating, updating, deleting auth users) now run in
+server-side **Supabase Edge Functions**, invoked with the signed-in SUPERUSUARIO's
+JWT (`data/remote/AdminUserService`). The app now ships **only the publishable key**.
+
+See `docs/supabase-setup.md` → "Deploying the admin Edge Functions" for how to deploy
+them. When rotating keys, remember the old secret key was previously distributed in
+APKs and should be regenerated in the Supabase dashboard.
 
 ## Troubleshooting
 

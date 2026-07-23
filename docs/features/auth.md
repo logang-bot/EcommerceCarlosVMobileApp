@@ -181,7 +181,7 @@ The prompt is constructed in `LoginScreen` (requires `FragmentActivity` context 
 
 ### Supabase wiring
 - [x] `supabase-kt` 3.1.4 (auth-kt + postgrest-kt + ktor-okhttp) added to `libs.versions.toml` and `build.gradle.kts`
-- [x] Staging/production credentials in `local.properties` (`STAGING_SUPABASE_URL`, `STAGING_SUPABASE_KEY`, `STAGING_SUPABASE_SECRET_KEY`, and production equivalents); file is gitignored
+- [x] Staging/production credentials in `local.properties` (`STAGING_SUPABASE_URL`, `STAGING_SUPABASE_PUBLISHABLE_KEY`, and production equivalents); file is gitignored. The secret/service-role key is **no longer used by the app** — privileged Auth-Admin operations run in Edge Functions (`data/remote/AdminUserService`, `supabase/functions/`); see `docs/supabase-setup.md` §9
 - [x] `LoginViewModel.onLoginClick` calls `supabase.auth.signInWith(Email)` — stub removed
 - [x] `RestException` caught and mapped: "banned" → `isAccountDisabled = true`; invalid credentials → Spanish `errorMessage`; other → generic auth error
 - [x] After auth succeeds, `syncFromRemote(userId)` is always called to get the freshest `is_active` value; if `isActive == false` → `signOut()` + `isAccountDisabled = true`
@@ -324,9 +324,14 @@ If the refresh fails or times out (offline, revoked token), the failure is swall
 ---
 
 ### Indefinite ban / activate
-Supabase Auth has no permanent-ban boolean. Workaround used in `UsuarioDetalleViewModel`:
-- **Deactivate**: `banDuration = "876000h"` (~100 years) + set `is_active = false` in users table
-- **Activate**: `banDuration = "none"` + set `is_active = true` in users table
+Supabase Auth has no permanent-ban boolean. Handled by the `set-user-active` Edge Function
+(triggered from `UsuarioDetalleViewModel` via `AdminUserService.setActive`):
+- **Deactivate**: `ban_duration = "876000h"` (~100 years) + set `is_active = false` in users table
+- **Activate**: `ban_duration = "none"` + set `is_active = true` in users table
+
+All privileged user-management operations (create / role change / activate-deactivate /
+password reset of another user / delete) now run server-side in Edge Functions using the
+service role, instead of an admin client bundled in the APK. See `docs/supabase-setup.md` §9.
 
 ### 👆 Biometric login
 See "Offline-capable biometric login (Phase 12)" above. The biometric prompt verifies the user

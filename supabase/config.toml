@@ -1,0 +1,18 @@
+# Supabase Edge Functions configuration.
+# Each admin function verifies the caller's JWT (verify_jwt = true, the default)
+# and additionally enforces the SUPERUSUARIO check in code (see _shared/auth.ts).
+
+[functions.create-user]
+verify_jwt = true
+
+[functions.update-user-role]
+verify_jwt = true
+
+[functions.set-user-active]
+verify_jwt = true
+
+[functions.reset-user-password]
+verify_jwt = true
+
+[functions.delete-user]
+verify_jwt = true

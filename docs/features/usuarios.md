@@ -165,10 +165,12 @@ kept so the app can serve it while the device is offline.
 - Save button appears only when `selectedRole != user.role`
 - Permissions list in a `RoleOption` is shown **only when that card is selected** (collapsed otherwise)
 - Activity section: "Última sesión" row only
-- Inline action buttons at bottom of scroll:
-  - If `user.isActive`: `OutlinedButton` "Desactivar usuario" (red outline) → `onDeactivate` → `banDuration = "876000h"` + `is_active = false`
-  - If `!user.isActive`: `OutlinedButton` "Activar usuario" (green outline, Check icon) → `onActivate` → `banDuration = "none"` + `is_active = true`
-  - `Button` "Eliminar usuario" (red filled) → `onDelete` → removes from Supabase and Room
+- Inline action buttons at bottom of scroll (all privileged actions call `AdminUserService`,
+  which invokes a server-side Edge Function — see `docs/supabase-setup.md` §9):
+  - Role change (Save) → `onSaveRole` → `update-user-role` fn (`ban_duration` unaffected)
+  - If `user.isActive`: `OutlinedButton` "Desactivar usuario" (red outline) → `onDeactivate` → `set-user-active` fn (`ban_duration = "876000h"` + `is_active = false`)
+  - If `!user.isActive`: `OutlinedButton` "Activar usuario" (green outline, Check icon) → `onActivate` → `set-user-active` fn (`ban_duration = "none"` + `is_active = true`)
+  - `Button` "Eliminar usuario" (red filled) → `onDelete` → `delete-user` fn (removes from Supabase auth + `users` table), then Room
 
 ### CrearUsuarioScreen (`ui/screen/usuario/CrearUsuarioScreen.kt`)
 
@@ -176,27 +178,28 @@ kept so the app can serve it while the device is offline.
 - Fields: Nombre, Correo, Contraseña temporal (with hint "El usuario podrá cambiarla luego desde su perfil."), Rol
 - Role picker: three cards (SUPERUSUARIO, USUARIO, INVITADO); permissions list expands only for the selected card
 - CTA: "Crear usuario"
-- On submit: calls `supabase.auth.admin.createUserWithEmail { }` + upserts to Room
+- On submit: calls `adminUserService.createUser(...)` (the `create-user` Edge Function) + upserts to Room
 
 ---
 
-## Create User API (Phase 9 — implemented)
+## Create User API (Phase 9; hardened later — server-side)
 
-`CrearUsuarioViewModel.onCreate()` uses the Supabase admin API:
+`CrearUsuarioViewModel.onCreate()` calls `AdminUserService.createUser(...)`, which invokes the
+`create-user` Edge Function. The function runs with the service role **on the server** (the app
+no longer bundles the secret key — see `docs/supabase-setup.md` §9), creates the Supabase Auth
+user and inserts the `users` profile row atomically, and returns the created row:
 
 ```kotlin
-supabaseClient.auth.admin.createUserWithEmail {
-    email = state.email
-    password = state.password
-    autoConfirm = true
-    userMetadata {
-        put("name", state.name)
-        put("role", state.role.name)
-    }
-}
+// CrearUsuarioViewModel
+val created = adminUserService.createUser(
+    email = state.email, password = state.password,
+    name = state.name, role = state.role.name,
+)
+// → POST /functions/v1/create-user  (carries the caller's SUPERUSUARIO JWT)
 ```
 
-Then upserts an `AppUser` to Room so the local database stays in sync.
+Then upserts an `AppUser` (with `created.id`) to Room so the local database stays in sync.
+The function maps a duplicate email to the Spanish message "Ya existe un usuario con ese correo".
 
 ---
 

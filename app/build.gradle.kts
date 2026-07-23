@@ -57,17 +57,16 @@ android {
     productFlavors {
         create("staging") {
             dimension = "environment"
+            isDefault = true
             applicationIdSuffix = ".staging"
             versionNameSuffix = "-staging"
             buildConfigField("String", "SUPABASE_URL", "\"${secret("STAGING_SUPABASE_URL")}\"")
             buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${secret("STAGING_SUPABASE_PUBLISHABLE_KEY")}\"")
-            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${secret("STAGING_SUPABASE_SECRET_KEY")}\"")
         }
         create("production") {
             dimension = "environment"
             buildConfigField("String", "SUPABASE_URL", "\"${secret("PRODUCTION_SUPABASE_URL")}\"")
             buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${secret("PRODUCTION_SUPABASE_PUBLISHABLE_KEY")}\"")
-            buildConfigField("String", "SUPABASE_SECRET_KEY", "\"${secret("PRODUCTION_SUPABASE_SECRET_KEY")}\"")
         }
     }
 
@@ -117,6 +116,7 @@ dependencies {
     implementation(libs.supabase.auth)
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.storage)
+    implementation(libs.supabase.functions)
     implementation(libs.multiplatform.settings.no.arg)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.coil.compose)

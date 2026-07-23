@@ -124,7 +124,7 @@ Injects `UmbralesRepository` and `ThemeManager`. On `init` it launches:
 
 Controls three things:
 
-1. **API call** — `isSelf = true`: `supabase.auth.signInWith(Email)` to verify current password, then `supabase.auth.updateUser { password = newPassword }`. `isSelf = false`: `adminClient.auth.admin.updateUserById(userId) { password = newPassword }`.
+1. **API call** — `isSelf = true`: `supabase.auth.signInWith(Email)` to verify current password, then `supabase.auth.updateUser { password = newPassword }` (regular client). `isSelf = false`: `adminUserService.resetPassword(userId, newPassword)`, which invokes the `reset-user-password` Edge Function server-side (service role) — the app no longer holds the secret key. See `docs/supabase-setup.md` §9.
 2. **"Contraseña actual" field** — shown only when `isSelf = true`.
 3. **Scope banner** — amber-tinted info banner shown only when `isSelf = false`: "Estableces una contraseña nueva para este usuario. Comunícasela de forma segura."
 

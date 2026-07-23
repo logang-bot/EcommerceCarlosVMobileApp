@@ -2,26 +2,21 @@ package com.restrusher.ecomercecarlosv.ui.screen.usuario
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.restrusher.ecomercecarlosv.data.remote.dto.UserDto
-import com.restrusher.ecomercecarlosv.di.AdminClient
+import com.restrusher.ecomercecarlosv.data.remote.AdminUserService
 import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 @HiltViewModel
 class CrearUsuarioViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    @AdminClient private val adminClient: SupabaseClient,
+    private val adminUserService: AdminUserService,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CrearUsuarioFormState())
@@ -44,48 +39,33 @@ class CrearUsuarioViewModel @Inject constructor(
         _state.value = s.copy(isSending = true, errorMessage = null)
         viewModelScope.launch {
             try {
-                // 1. Create Supabase Auth user via the admin API
-                val authUser = adminClient.auth.admin.createUserWithEmail {
-                    email       = s.email.trim()
-                    password    = s.password
-                    autoConfirm = true
-                    userMetadata {
-                        put("name", s.name.trim())
-                        put("role", s.role.name)
-                    }
-                }
-
-                // 2. Insert the user's profile row into the `users` table
-                val now = System.currentTimeMillis()
-                val dto = UserDto(
-                    id        = authUser.id,
-                    email     = s.email.trim(),
-                    name      = s.name.trim(),
-                    role      = s.role.name,
-                    isActive  = true,
-                    createdAt = now,
+                // 1. Create the Supabase Auth user + `users` row server-side (Edge Function).
+                //    The service-role secret stays on the server; this call carries the
+                //    current SUPERUSUARIO's JWT, which the function verifies.
+                val created = adminUserService.createUser(
+                    email    = s.email.trim(),
+                    password = s.password,
+                    name     = s.name.trim(),
+                    role     = s.role.name,
                 )
-                adminClient.from("users").insert(dto)
 
-                // 3. Cache locally in Room so the user appears immediately
+                // 2. Cache locally in Room so the user appears immediately
                 val appUser = AppUser(
-                    id        = authUser.id,
-                    email     = s.email.trim(),
-                    name      = s.name.trim(),
+                    id        = created.id,
+                    email     = created.email,
+                    name      = created.name,
                     role      = s.role,
-                    isActive  = true,
-                    createdAt = now,
+                    isActive  = created.isActive,
+                    createdAt = created.createdAt,
                 )
                 userRepository.save(appUser)
 
                 _state.value = s.copy(isSending = false, sent = true)
                 onDone()
             } catch (e: Exception) {
-                val msg = when {
-                    e.message?.contains("already registered") == true ||
-                    e.message?.contains("already exists") == true -> "Ya existe un usuario con ese correo"
-                    else -> "Error al crear usuario: ${e.message}"
-                }
+                // The Edge Function already returns Spanish messages (e.g. the duplicate-email
+                // case → "Ya existe un usuario con ese correo"); surface them directly.
+                val msg = e.message?.takeIf { it.isNotBlank() } ?: "Error al crear usuario"
                 _state.value = s.copy(isSending = false, errorMessage = msg)
             }
         }

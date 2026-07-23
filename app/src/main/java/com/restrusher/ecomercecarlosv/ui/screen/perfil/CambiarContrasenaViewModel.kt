@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.di.AdminClient
+import com.restrusher.ecomercecarlosv.data.remote.AdminUserService
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.presentation.screens.CambiarContrasenaRoute
@@ -24,7 +24,7 @@ class CambiarContrasenaViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val sessionManager: SessionManager,
     private val supabase: SupabaseClient,
-    @AdminClient private val adminClient: SupabaseClient,
+    private val adminUserService: AdminUserService,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<CambiarContrasenaRoute>()
@@ -76,7 +76,9 @@ class CambiarContrasenaViewModel @Inject constructor(
                     }
                     supabase.auth.updateUser { password = s.newPassword }
                 } else {
-                    adminClient.auth.admin.updateUserById(userId) { password = s.newPassword }
+                    // Resetting another user's password requires the service role — done
+                    // server-side by the Edge Function, which verifies the caller is SUPERUSUARIO.
+                    adminUserService.resetPassword(userId, s.newPassword)
                 }
                 _state.value = _state.value.copy(isLoading = false, isSuccess = true)
             } catch (e: Exception) {

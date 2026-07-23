@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.data.mapper.UserMapper
 import com.restrusher.ecomercecarlosv.data.remote.StorageService
-import com.restrusher.ecomercecarlosv.di.AdminClient
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +24,7 @@ class EditarPerfilViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val userRepository: UserRepository,
     private val storageService: StorageService,
-    @AdminClient private val adminClient: SupabaseClient,
+    private val supabase: SupabaseClient,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(EditarPerfilUiState())
@@ -68,17 +67,19 @@ class EditarPerfilViewModel @Inject constructor(
             }
 
             try {
-                // Update Supabase auth user (email + metadata)
-                adminClient.auth.admin.updateUserById(user.id) {
+                // Editing the *current* user's own profile — the regular authenticated
+                // client is enough (no service role). `users` RLS allows a user to update
+                // their own row. Email changes go through the standard updateUser flow.
+                supabase.auth.updateUser {
                     if (newEmail != user.email) email = newEmail
-                    userMetadata = buildJsonObject {
+                    data = buildJsonObject {
                         put("name", newName)
                         if (newPhone != null) put("phone", newPhone)
                     }
                 }
                 // Upsert the updated profile into the `users` table
                 val updated = user.copy(name = newName, email = newEmail, phone = newPhone, photoUrl = photoUrl)
-                adminClient.from("users").upsert(UserMapper.toDto(updated))
+                supabase.from("users").upsert(UserMapper.toDto(updated))
             } catch (_: Exception) {
                 // Fall through and update Room; will sync when online
             }

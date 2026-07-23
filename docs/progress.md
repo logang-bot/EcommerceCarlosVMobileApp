@@ -22,7 +22,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 7 | Lista Negra, Agregar a Lista Negra | ✅ Done |
 | 2h | Splash screen, app icon, app rename, real logo in Login, biometric screen redesign, file splits | ✅ Done |
 | 8 | Reportes tab (Diario + Por cliente modes, PDF export, Reporte de Pedidos) | ✅ Done |
-| 9 | Supabase auth + sync layer, DataStore session persistence | 🔄 In Progress |
+| 9 | Supabase auth + sync layer, DataStore session persistence | ✅ Done |
 | 9b | NetworkMonitor, centralized error manager, data synchronizer, network request queue | ✅ Done |
 | 9c | WorkManager background queue, immediate flush on enqueue, reliable trigger via MAX(id) | ✅ Done |
 | 9d | Always require login on app start — session wiped on startup, Room cache preserved | ✅ Done |
@@ -35,6 +35,26 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 12 | Depuración / Mantenimiento: Superusuario-only two-phase cleanup — export pedidos to CSV/XLSX then hard-delete from Supabase + Room | ✅ Done |
 | 13 | Cambiar contraseña (superuser-only) — self via Perfil + others via UsuarioDetalleScreen | ✅ Done |
 | 14 | Build distribution: GitHub Actions builds a signed APK on `v*` tags, Telegram bot delivers it to a private channel | ✅ Done |
+| 15 | Security hardening: Supabase service-role key removed from the APK; admin user ops moved to server-side Edge Functions | ✅ Done |
+
+---
+
+## ✅ Phase 15 — Secret / service-role key removed from the APK
+
+The Supabase secret / service-role key was compiled into `BuildConfig` and shipped inside every
+APK, where anyone who decompiled a build could recover it (and it bypasses RLS entirely).
+
+The privileged Auth-Admin operations now run in **server-side Edge Functions** (`supabase/functions/`),
+one per operation — `create-user`, `update-user-role`, `set-user-active`, `reset-user-password`,
+`delete-user` — each verifying the caller's JWT and confirming an active `SUPERUSUARIO`. The app
+calls them via `data/remote/AdminUserService` (regular client `functions.invoke`, which forwards
+the session JWT). Everything else that used the old admin client moved to the regular authenticated
+client, allowed by existing RLS: photo uploads (`StorageService`), plus self password change and
+self profile edits. The `@AdminClient` provider, the `AdminClient` qualifier, and the
+`SUPABASE_SECRET_KEY` `buildConfigField` (and its `local.properties` / CI secrets) are gone — the
+app now ships **only the publishable key**.
+
+Full details and the per-environment deploy/rotation steps live in `docs/supabase-setup.md` §9.
 
 ---
 
@@ -92,13 +112,13 @@ which cannot be installed. The *Locate APK* step therefore excludes `*-unsigned.
 and fails with an explicit message, so a misconfigured keystore can never reach the
 customer as a broken download.
 
-### ⚠️ Known issue — `SUPABASE_SECRET_KEY` ships in the APK
+### ✅ Resolved — secret / service-role key removed from the APK
 
-`SUPABASE_SECRET_KEY` is a `buildConfigField`, so it is embedded in every APK and can
-be extracted by anyone who receives one. It bypasses RLS entirely. Pre-existing (not
-introduced by this phase) and left working as-is, but Telegram delivery widens the
-exposure. Fix: move privileged operations behind an Edge Function and ship only the
-publishable key.
+The service-role key used to be a `buildConfigField` embedded in every APK (extractable
+by anyone who received one, and it bypasses RLS entirely). It has been removed: the
+privileged Auth-Admin operations now run in server-side Edge Functions
+(`supabase/functions/`, invoked via `data/remote/AdminUserService`), and the app ships
+only the publishable key. See `docs/supabase-setup.md` §9.
 
 ### Release notes
 
@@ -138,7 +158,7 @@ Admin password change flow wired to Supabase Auth. Full details in `docs/feature
 ### Two entry points
 
 - **PerfilScreen → Seguridad → Cambiar contraseña** (`isSelf = true`): The logged-in superuser changes their own password. Requires entering the current password (verified via `supabase.auth.signInWith(Email)`) before `supabase.auth.updateUser { password = ... }`.
-- **UsuarioDetalleScreen → Seguridad → Cambiar contraseña** (`isSelf = false`): Superuser resets another user's password without needing their current password. Uses `adminClient.auth.admin.updateUserById(userId) { password = ... }`.
+- **UsuarioDetalleScreen → Seguridad → Cambiar contraseña** (`isSelf = false`): Superuser resets another user's password without needing their current password. *(Later hardened: now calls the `reset-user-password` Edge Function via `AdminUserService` instead of a bundled admin client — see `docs/supabase-setup.md` §9.)*
 
 ### New files
 
@@ -259,9 +279,9 @@ The NPE was previously swallowed by `.getOrElse { uriStr }` (which fell back to 
 </provider>
 ```
 
-**Fix — `StorageService`**: Switched from the regular `SupabaseClient` to `@AdminClient` (service role key). The admin client bypasses Storage RLS INSERT policies entirely, so uploads work regardless of how the bucket policies are configured.
+**Fix — `StorageService`**: Switched from the regular `SupabaseClient` to `@AdminClient` (service role key). The admin client bypasses Storage RLS INSERT policies entirely, so uploads work regardless of how the bucket policies are configured. *(Superseded: `StorageService` was moved back to the regular authenticated client when the service-role key was removed from the APK — the public buckets' RLS already allows `authenticated` uploads. See `docs/supabase-setup.md` §8–§9.)*
 
-**Fix — `SupabaseModule`**: Added `install(Storage)` to `provideAdminSupabaseClient()` so the admin client has the Storage plugin available.
+**Fix — `SupabaseModule`**: Added `install(Storage)` to `provideAdminSupabaseClient()` so the admin client has the Storage plugin available. *(Superseded: the admin client provider was removed entirely; `Storage` and `Functions` are now installed on the single regular client.)*
 
 **Fix — `gradle/libs.versions.toml` + `app/build.gradle.kts`**: Added `multiplatform-settings-no-arg:1.1.1` as an explicit dependency. supabase-kt pulls it transitively, but declaring it explicitly ensures the Android AAR variant (with its manifest) is always resolved and appears in the merged manifest for verification.
 
@@ -640,12 +660,14 @@ On app restart, supabase-kt auto-loads the JWT from DataStore; `SessionManagerIm
 - `SessionStatus.LoadingFromStorage` → renamed `Initializing` in supabase-kt 3.1.4
 - `SessionStatus.NetworkError` → renamed `RefreshFailure` in supabase-kt 3.1.4
 
-### 🔗 Create user — wired to Supabase admin API
-`CrearUsuarioViewModel` calls `adminClient.auth.admin.createUserWithEmail(...)` (renamed in supabase-kt 3.1.4), inserts a row in the `users` table, and upserts into local Room. Requires `STAGING/PRODUCTION_SECRET_KEY` in `local.properties`.
+### 🔗 Create user — wired to a Supabase Edge Function
+`CrearUsuarioViewModel` calls `AdminUserService.createUser(...)`, which invokes the
+`create-user` Edge Function (creates the auth user + `users` row server-side with the service
+role), then upserts into local Room. **No secret key in the app** — see `docs/supabase-setup.md` §9.
 
-Admin operations use `banDuration`:
-- Deactivate user → `banDuration = "876000h"` (~100 years; Supabase has no permanent-ban boolean)
-- Reactivate user → `banDuration = "none"`
+Privileged operations run in Edge Functions (`supabase/functions/`) and use `ban_duration`:
+- Deactivate user → `ban_duration = "876000h"` (~100 years; Supabase has no permanent-ban boolean)
+- Reactivate user → `ban_duration = "none"`
 
 ### 👥 Three-role schema (client requirement)
 | Role | Access |
