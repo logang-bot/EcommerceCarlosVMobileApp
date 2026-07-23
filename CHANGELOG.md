@@ -11,6 +11,10 @@ En español, en frases cortas, describiendo qué cambia para quien usa la app �
 no qué archivo se modificó. Máximo ~800 caracteres por versión (Telegram limita
 el texto que acompaña al archivo).
 
+> Los cambios aún **sin publicar** se van anotando en `CHANGELOG.unreleased.md`. Al
+> preparar una versión, se resumen en una sección `## [VERSION]` aquí y ese archivo se
+> vacía. Ver la skill `updating-changelog-or-release-notes`.
+
 ---
 
 ## [1.0.0]
