@@ -96,7 +96,8 @@ class PerfilViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.setBiometricEnabled(user.id, null)
             sessionManager.setCurrentUser(user.copy(biometricEnabledAt = null))
-            sessionManager.clearBiometricSession()
+            // The stored refresh token stays: the user is still signed in, and it is what keeps
+            // their session alive. Signing out later revokes it, since they are no longer enrolled.
             _state.value = _state.value.copy(
                 isBiometricEnrolled  = false,
                 biometricEnabledDate = null,

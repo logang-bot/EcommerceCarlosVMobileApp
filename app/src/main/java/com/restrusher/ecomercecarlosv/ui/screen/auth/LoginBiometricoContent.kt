@@ -44,7 +44,7 @@ internal fun LoginBiometricoContent(
     onLoginClick: () -> Unit,
     onBiometricClick: () -> Unit,
     onSwitchToPassword: () -> Unit,
-    onOtherAccount: () -> Unit,
+    onForgetUser: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -74,16 +74,31 @@ internal fun LoginBiometricoContent(
             }
 
             Spacer(modifier = Modifier.weight(1.1f))
-            Text(
-                text = stringResource(R.string.login_otra_cuenta),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clickable(onClick = onOtherAccount)
-                    .padding(bottom = 14.dp),
-            )
+            ForgetUserRow(firstName = state.enrolledUserFirstName, onClick = onForgetUser)
         }
+    }
+}
+
+@Composable
+private fun ForgetUserRow(firstName: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.login_no_eres, firstName),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.extendedColors.text3,
+        )
+        Text(
+            text = stringResource(R.string.login_otra_cuenta),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -213,11 +228,12 @@ private fun WelcomeBackCard(state: LoginFormState) {
 }
 
 private val previewState = LoginFormState(
-    isBiometricEnabled   = true,
-    enrolledUserName     = "Carlos Villarroel",
-    enrolledUserEmail    = "carlos@comercializadora.ve",
-    enrolledUserRole     = UserRole.SUPERUSUARIO,
-    enrolledUserInitials = "CV",
+    isBiometricEnabled    = true,
+    enrolledUserName      = "Carlos Villarroel",
+    enrolledUserFirstName = "Carlos",
+    enrolledUserEmail     = "carlos@comercializadora.ve",
+    enrolledUserRole      = UserRole.SUPERUSUARIO,
+    enrolledUserInitials  = "CV",
 )
 
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true, name = "Biométrico default Dark")
@@ -227,7 +243,7 @@ private fun BiometricoDarkPreview() {
         LoginBiometricoContent(
             state = previewState,
             onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
-            onSwitchToPassword = {}, onOtherAccount = {},
+            onSwitchToPassword = {}, onForgetUser = {},
         )
     }
 }
@@ -239,7 +255,7 @@ private fun BiometricoLightPreview() {
         LoginBiometricoContent(
             state = previewState,
             onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
-            onSwitchToPassword = {}, onOtherAccount = {},
+            onSwitchToPassword = {}, onForgetUser = {},
         )
     }
 }
@@ -251,7 +267,7 @@ private fun PasswordModeLightPreview() {
         LoginBiometricoContent(
             state = previewState.copy(showPasswordLogin = true),
             onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
-            onSwitchToPassword = {}, onOtherAccount = {},
+            onSwitchToPassword = {}, onForgetUser = {},
         )
     }
 }

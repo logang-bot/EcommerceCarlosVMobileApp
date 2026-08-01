@@ -9,18 +9,26 @@ interface SessionManager {
     val isLoaded: StateFlow<Boolean>
     fun setCurrentUser(user: AppUser)
     fun clearSession()
+
+    /**
+     * Ends the session. On a device with fingerprint enrolled the refresh token is deliberately
+     * kept and only the access token is dropped, so the next fingerprint tap can mint a fresh
+     * session without a password. Otherwise the refresh token is revoked server-side as well.
+     */
     suspend fun signOut()
 
     /**
-     * Best-effort, fire-and-forget: silently re-establishes a real Supabase session for the
-     * biometric-enrolled user using its last stored refresh token, so RLS-protected sync/writes
-     * work once the device is online. Runs on an application-scoped coroutine — safe to call
-     * right before navigating away (e.g. right after a fingerprint-only login), since it must
-     * outlive the caller's own scope. Silently no-ops when offline, when no token is stored, or
-     * when the token is rejected; callers should never treat that as a login failure.
+     * Guarantees a usable Supabase access token before RLS-protected work runs, trading the stored
+     * refresh token for a brand-new session when needed. Safe to call concurrently — callers share
+     * a single in-flight refresh rather than racing, since parallel refreshes with the same
+     * rotating token would themselves look like a token-reuse attack.
      */
-    fun restoreBiometricSession()
+    suspend fun ensureValidSession(): SessionResult
 
-    /** Clears the stored refresh token used by [restoreBiometricSession]. */
-    suspend fun clearBiometricSession()
+    /**
+     * Hard sign-out for "forget this device": revokes the refresh token across all sessions and
+     * erases the local copy. Unlike [signOut] this never wipes cached data — the caller decides
+     * what happens to it.
+     */
+    suspend fun forgetDevice()
 }

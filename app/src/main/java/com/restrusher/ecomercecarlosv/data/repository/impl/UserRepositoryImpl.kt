@@ -35,6 +35,9 @@ class UserRepositoryImpl @Inject constructor(
     override suspend fun setBiometricEnabled(id: String, enabledAt: Long?) =
         dao.setBiometricEnabled(id, enabledAt)
 
+    override suspend fun clearBiometricEnabledExcept(id: String) =
+        dao.clearBiometricEnabledExcept(id)
+
     override suspend fun hasBiometricEnabled(): Boolean =
         dao.countBiometricEnabled() > 0
 

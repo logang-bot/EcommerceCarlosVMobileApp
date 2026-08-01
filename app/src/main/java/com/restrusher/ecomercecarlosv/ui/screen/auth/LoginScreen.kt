@@ -76,8 +76,15 @@ fun LoginScreen(
             onLoginClick = { viewModel.onBiometricPasswordLogin(handleLoginSuccess) },
             onBiometricClick = triggerBiometric,
             onSwitchToPassword = viewModel::switchToPasswordLogin,
-            onOtherAccount = viewModel::switchToOtherAccount,
+            onForgetUser = viewModel::onForgetUserClick,
         )
+        if (state.showForgetDialog) {
+            OlvidarUsuarioDialog(
+                userName = state.enrolledUserName,
+                onConfirm = viewModel::onForgetUserConfirm,
+                onDismiss = viewModel::onForgetDialogDismiss,
+            )
+        }
     } else {
         LoginContent(
             state = state,

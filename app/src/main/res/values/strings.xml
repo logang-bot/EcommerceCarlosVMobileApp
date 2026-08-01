@@ -28,6 +28,20 @@
     <string name="login_error_get_user">Error al obtener usuario</string>
     <string name="login_error_not_registered">Usuario no registrado en el sistema</string>
     <string name="login_error_no_internet">Sin conexión a internet</string>
+    <string name="login_error_session_expired">Tu sesión expiró. Escribe tu contraseña para continuar</string>
+
+    <!-- Login · olvidar usuario recordado -->
+    <string name="login_no_eres">¿No eres %1$s?</string>
+    <string name="login_olvidar_title">¿Olvidar a %1$s en este dispositivo?</string>
+    <string name="login_olvidar_body">Se borrará la sesión guardada y el acceso con huella. La próxima vez tendrás que escribir correo y contraseña.</string>
+    <string name="login_olvidar_note">Los datos de la cuenta no se eliminan — solo se olvidan en este teléfono.</string>
+    <string name="login_olvidar_confirm">Olvidar</string>
+
+    <!-- Mensajes de error generales (snackbar) -->
+    <string name="error_sync_generic">No se pudieron actualizar los datos</string>
+    <string name="error_queue_generic">No se pudieron guardar los cambios</string>
+    <string name="error_network_generic">Sin conexión con el servidor</string>
+    <string name="error_generic">Ocurrió un problema. Inténtalo de nuevo</string>
 
     <!-- Pull-to-refresh error toast -->
     <string name="refresh_error_title">No se pudo actualizar</string>

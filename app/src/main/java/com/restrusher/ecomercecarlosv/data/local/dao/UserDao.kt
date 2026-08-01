@@ -34,8 +34,13 @@ interface UserDao {
     @Query("SELECT COUNT(*) FROM users WHERE biometricEnabledAt IS NOT NULL")
     suspend fun countBiometricEnabled(): Int
 
-    @Query("SELECT * FROM users WHERE biometricEnabledAt IS NOT NULL LIMIT 1")
+    // Ordered so that if two users are somehow enrolled at once, the fingerprint resolves to the
+    // most recent one instead of whichever row SQLite happens to return first.
+    @Query("SELECT * FROM users WHERE biometricEnabledAt IS NOT NULL ORDER BY biometricEnabledAt DESC LIMIT 1")
     suspend fun getBiometricEnabledUser(): UserEntity?
+
+    @Query("UPDATE users SET biometricEnabledAt = NULL WHERE id != :id")
+    suspend fun clearBiometricEnabledExcept(id: String)
 
     @Query("UPDATE users SET name = :name, email = :email, phone = :phone, photoUrl = :photoUrl WHERE id = :id")
     suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)

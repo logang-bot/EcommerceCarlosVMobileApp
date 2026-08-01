@@ -19,6 +19,7 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 
 ### Seguridad
 - **BiometricCard** — toggle to enroll/disable biometric auth. Uses `BiometricPrompt` from `androidx.biometric`. State persisted via `UserRepository.setBiometricEnabled(userId, timestamp)`.
+  Disabling does **not** clear the stored refresh token — the user is still signed in and that token is what keeps their session alive. Signing out afterwards takes the not-enrolled branch and revokes it properly.
 - **Cambiar contraseña** (`Icons.Default.Lock`) — visible only to `SUPERUSUARIO`. Navigates to `CambiarContrasenaRoute(userId = state.userId, isSelf = true)`. See [Cambiar contraseña screen](#cambiar-contraseña-screen) below.
 
 ### Equipo *(superuser only)*
@@ -33,6 +34,11 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
 
 ### Logout
 - Red tinted button, clears session and navigates to `LoginRoute` with full backstack pop.
+- **Two-tier since Phase 16** (`SessionManagerImpl.signOut()`): with the fingerprint enrolled it drops
+  the access token locally and keeps the stored refresh token, so the next fingerprint tap gets back in
+  without a password; cached data is kept. Without the fingerprint it revokes the refresh token
+  server-side and wipes the local tables. Use "Olvidar este dispositivo" on the login screen for a hard
+  sign-out that revokes everything. See `docs/features/auth.md`.
 
 ---
 

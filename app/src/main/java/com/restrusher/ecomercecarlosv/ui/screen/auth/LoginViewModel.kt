@@ -9,9 +9,13 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.data.sync.DataSynchronizer
+import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.BiometricLoginResult
+import com.restrusher.ecomercecarlosv.domain.usecase.BiometricLoginUseCase
+import com.restrusher.ecomercecarlosv.domain.usecase.ForgetEnrolledUserUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.restrusher.ecomercecarlosv.R
@@ -32,6 +36,8 @@ class LoginViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val supabase: SupabaseClient,
     private val dataSynchronizer: DataSynchronizer,
+    private val biometricLogin: BiometricLoginUseCase,
+    private val forgetEnrolledUser: ForgetEnrolledUserUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginFormState())
@@ -46,17 +52,21 @@ class LoginViewModel @Inject constructor(
             val deviceReady = BiometricManager.from(context)
                 .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
             if (deviceReady && userRepository.hasBiometricEnabled()) {
-                val user = userRepository.getBiometricEnabledUser()
-                _state.value = _state.value.copy(
-                    isBiometricEnabled = true,
-                    enrolledUserName = user?.name ?: "",
-                    enrolledUserEmail = user?.email ?: "",
-                    enrolledUserRole = user?.role ?: UserRole.USUARIO,
-                    enrolledUserInitials = computeInitials(user?.name ?: ""),
-                    enrolledUserPhotoUrl = user?.photoUrl,
-                )
+                userRepository.getBiometricEnabledUser()?.let { showEnrolledUser(it) }
             }
         }
+    }
+
+    private fun showEnrolledUser(user: AppUser) {
+        _state.value = _state.value.copy(
+            isBiometricEnabled = true,
+            enrolledUserName = user.name,
+            enrolledUserFirstName = user.name.substringBefore(' '),
+            enrolledUserEmail = user.email,
+            enrolledUserRole = user.role,
+            enrolledUserInitials = computeInitials(user.name),
+            enrolledUserPhotoUrl = user.photoUrl,
+        )
     }
 
     fun onEmailChange(value: String) {
@@ -71,80 +81,75 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val s = _state.value
-            Log.d(TAG, "onLoginClick: attempting sign-in for '${s.email.trim()}'")
             try {
                 supabase.auth.signInWith(Email) {
                     email = s.email.trim()
                     password = s.password
                 }
-                Log.d(TAG, "onLoginClick: Supabase auth succeeded")
-
-                val userId = supabase.auth.currentUserOrNull()?.id ?: run {
-                    Log.e(TAG, "onLoginClick: currentUserOrNull() returned null after successful sign-in")
-                    _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_get_user))
-                    return@launch
-                }
-                Log.d(TAG, "onLoginClick: userId=$userId")
-
-                // Sync from remote first to get the freshest is_active value;
-                // fall back to local cache only if the network call fails.
-                val remoteUser = userRepository.syncFromRemote(userId)
-                Log.d(TAG, "onLoginClick: syncFromRemote result=${if (remoteUser != null) "user(${remoteUser.name}, active=${remoteUser.isActive})" else "null"}")
-
-                val user = remoteUser
-                    ?: userRepository.getById(userId).also {
-                        Log.d(TAG, "onLoginClick: local cache result=${if (it != null) "user(${it.name})" else "null"}")
-                    }
-                    ?: run {
-                        Log.e(TAG, "onLoginClick: user not found in remote or local cache for userId=$userId")
-                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_not_registered))
-                        return@launch
-                    }
-
-                if (!user.isActive) {
-                    Log.w(TAG, "onLoginClick: user is inactive, signing out")
-                    supabase.auth.signOut()
-                    _state.value = s.copy(isLoading = false, isAccountDisabled = true)
-                    return@launch
-                }
-
-                Log.d(TAG, "onLoginClick: login successful, navigating to home")
-                sessionManager.setCurrentUser(user)
-                dataSynchronizer.resetStaleness()
-                _state.value = s.copy(isLoading = false)
-                onSuccess()
+                val userId = supabase.auth.currentUserOrNull()?.id
+                    ?: return@launch fail(s, R.string.login_error_get_user)
+                finishPasswordLogin(userId, onSuccess)
             } catch (e: RestException) {
-                val body = e.message ?: ""
-                Log.e(TAG, "onLoginClick: RestException — status=${e.statusCode}, error='${e.error}', description='${e.description}'")
-                when {
-                    body.contains("banned", ignoreCase = true) ->
-                        _state.value = s.copy(isLoading = false, isAccountDisabled = true)
-                    body.contains("Invalid login", ignoreCase = true) ||
-                    body.contains("invalid_credentials", ignoreCase = true) ->
-                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_invalid_credentials))
-                    else ->
-                        _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_auth_failed))
-                }
+                Log.e(TAG, "onLoginClick: RestException — status=${e.statusCode}, error='${e.error}'")
+                applyRestError(s, e)
             } catch (e: Exception) {
                 Log.e(TAG, "onLoginClick: unexpected exception", e)
-                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_no_internet))
+                fail(s, R.string.login_error_no_internet)
             }
         }
     }
 
-    fun onBiometricSuccess(onSuccess: () -> Unit) {
-        viewModelScope.launch {
-            val user = userRepository.getBiometricEnabledUser() ?: return@launch
-            // The fingerprint IS the identity check here, so this never waits on the network —
-            // it works fully offline from the cached Room profile.
-            sessionManager.setCurrentUser(user)
-            dataSynchronizer.resetStaleness()
-            onSuccess()
-            // Best-effort, silent: if online, re-establish a real Supabase session in the
-            // background so RLS-protected sync/writes work. Failure (offline, revoked token)
-            // is expected and not surfaced — the app keeps working from the local cache.
-            sessionManager.restoreBiometricSession()
+    private suspend fun finishPasswordLogin(userId: String, onSuccess: () -> Unit) {
+        val s = _state.value
+        // Sync from remote first to get the freshest is_active value; fall back to the local cache
+        // only if the network call fails.
+        val user = userRepository.syncFromRemote(userId)
+            ?: userRepository.getById(userId)
+            ?: return fail(s, R.string.login_error_not_registered)
+        if (!user.isActive) {
+            supabase.auth.signOut()
+            _state.value = s.copy(isLoading = false, isAccountDisabled = true)
+            return
         }
+        // Whoever signs in with a password owns this device from now on.
+        userRepository.clearBiometricEnabledExcept(userId)
+        sessionManager.setCurrentUser(user)
+        dataSynchronizer.resetStaleness()
+        _state.value = s.copy(isLoading = false)
+        onSuccess()
+    }
+
+    fun onBiometricSuccess(onSuccess: () -> Unit) {
+        _state.value = _state.value.copy(isLoading = true, errorMessage = null)
+        viewModelScope.launch {
+            when (val result = biometricLogin()) {
+                is BiometricLoginResult.Success -> completeBiometricLogin(result, onSuccess)
+                BiometricLoginResult.AccountDisabled ->
+                    _state.value = _state.value.copy(isLoading = false, isAccountDisabled = true)
+                BiometricLoginResult.PasswordRequired -> requirePassword()
+                BiometricLoginResult.NotEnrolled ->
+                    _state.value = _state.value.copy(isLoading = false, isBiometricEnabled = false)
+            }
+        }
+    }
+
+    private fun completeBiometricLogin(result: BiometricLoginResult.Success, onSuccess: () -> Unit) {
+        sessionManager.setCurrentUser(result.user)
+        // Only a real session can re-download, so an offline login keeps the cached thresholds
+        // instead of forcing a full refetch it cannot perform.
+        if (result.isFreshSession) dataSynchronizer.resetStaleness()
+        _state.value = _state.value.copy(isLoading = false)
+        onSuccess()
+    }
+
+    // Reached only when Supabase rejected the stored refresh token — the account was banned,
+    // deleted, or its password changed elsewhere. A password login is the only way back in.
+    private fun requirePassword() {
+        _state.value = _state.value.copy(
+            isLoading = false,
+            showPasswordLogin = true,
+            errorMessage = str(R.string.login_error_session_expired),
+        )
     }
 
     fun onBiometricFailed() { /* no-op */ }
@@ -153,36 +158,36 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val s = _state.value
-            val enrolledUser = userRepository.getBiometricEnabledUser() ?: run {
-                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_invalid_credentials))
-                return@launch
-            }
+            val enrolledUser = userRepository.getBiometricEnabledUser()
+                ?: return@launch fail(s, R.string.login_error_invalid_credentials)
             try {
                 supabase.auth.signInWith(Email) {
                     email = enrolledUser.email
                     password = s.password
                 }
-                val user = userRepository.syncFromRemote(enrolledUser.id) ?: enrolledUser
-                if (!user.isActive) {
-                    supabase.auth.signOut()
-                    _state.value = s.copy(isLoading = false, isAccountDisabled = true)
-                    return@launch
-                }
-                sessionManager.setCurrentUser(user)
-                dataSynchronizer.resetStaleness()
-                _state.value = s.copy(isLoading = false)
-                onSuccess()
+                finishPasswordLogin(enrolledUser.id, onSuccess)
             } catch (e: RestException) {
-                val msg = when {
-                    e.message?.contains("Invalid login") == true ||
-                    e.message?.contains("invalid_credentials") == true -> str(R.string.login_error_wrong_password)
-                    else -> str(R.string.login_error_auth_failed)
-                }
-                _state.value = s.copy(isLoading = false, errorMessage = msg)
+                applyWrongPasswordError(s, e)
             } catch (e: Exception) {
                 Log.e(TAG, "onBiometricPasswordLogin: unexpected exception", e)
-                _state.value = s.copy(isLoading = false, errorMessage = str(R.string.login_error_no_internet))
+                fail(s, R.string.login_error_no_internet)
             }
+        }
+    }
+
+    fun onForgetUserClick() {
+        _state.value = _state.value.copy(showForgetDialog = true)
+    }
+
+    fun onForgetDialogDismiss() {
+        _state.value = _state.value.copy(showForgetDialog = false)
+    }
+
+    fun onForgetUserConfirm() {
+        _state.value = _state.value.copy(showForgetDialog = false, isLoading = true)
+        viewModelScope.launch {
+            forgetEnrolledUser()
+            _state.value = LoginFormState()
         }
     }
 
@@ -199,6 +204,28 @@ class LoginViewModel @Inject constructor(
             password = "",
             errorMessage = null,
         )
+    }
+
+    private fun applyRestError(s: LoginFormState, e: RestException) {
+        val body = e.message ?: ""
+        when {
+            body.contains("banned", ignoreCase = true) ->
+                _state.value = s.copy(isLoading = false, isAccountDisabled = true)
+            body.contains("Invalid login", ignoreCase = true) ||
+            body.contains("invalid_credentials", ignoreCase = true) ->
+                fail(s, R.string.login_error_invalid_credentials)
+            else -> fail(s, R.string.login_error_auth_failed)
+        }
+    }
+
+    private fun applyWrongPasswordError(s: LoginFormState, e: RestException) {
+        val body = e.message ?: ""
+        val invalid = body.contains("Invalid login") || body.contains("invalid_credentials")
+        fail(s, if (invalid) R.string.login_error_wrong_password else R.string.login_error_auth_failed)
+    }
+
+    private fun fail(s: LoginFormState, @StringRes messageRes: Int) {
+        _state.value = s.copy(isLoading = false, errorMessage = str(messageRes))
     }
 
     private fun str(@StringRes id: Int) = context.getString(id)

@@ -30,7 +30,11 @@ interface NetworkMonitor {
 Three components working together:
 
 ### AppError (sealed class)
-Typed error hierarchy. All errors carry a `message: String` and an optional `cause: Throwable?`.
+Typed error hierarchy. Every error carries **two** messages: `message: String` is developer-facing and
+goes to the log only (it may hold entity ids, HTTP bodies, stack context), while `@StringRes
+userMessageRes: Int` is the short Spanish text the user is allowed to see. Keeping them separate is
+what stops technical text reaching the UI — `AppError.Queue("Failed to push PEDIDO(<uuid>)…")` used to
+be rendered verbatim in a toast. Plus an optional `cause: Throwable?`.
 
 ```
 AppError
@@ -60,7 +64,13 @@ errorHandler.emit(AppError.Network("No internet", e))
 errorHandler.emit(throwable, "context description")
 ```
 
-`AppNavigation` collects this flow and shows a `Toast` for every emitted error. Screens that already handle errors with their own UI (e.g. `LoginScreen` shows an inline banner) should **not** re-emit through `GlobalErrorHandler` — they already give the user feedback.
+`AppViewModel.userErrors` maps this flow to `userMessageRes` and drops repeats of the same message
+within 5s; `AppNavigation` collects that and shows a Material3 **Snackbar** (hosted in a `Box` around
+the `NavHost` — there is no global `Scaffold`, since each screen builds its own with its own bottom nav
+and FABs). Emit one error per logical failure, not per record: `QueueProcessor.flush()` reports once for
+the whole flush rather than once per operation, which previously stacked a dozen identical messages.
+Screens that already handle errors with their own UI (e.g. `LoginScreen` shows an inline banner) should
+**not** re-emit through `GlobalErrorHandler` — they already give the user feedback.
 
 ---
 
@@ -482,7 +492,7 @@ MercadosScreen (top bar)
 
 AppNavigation
   ├── LaunchedEffect(Unit)
-  │     └── errorHandler.errors.collect → Toast.makeText(...)
+  │     └── appViewModel.userErrors.collect → snackbarHostState.showSnackbar(getString(res))
   └── HomeRoute → HomeScreen(onSyncClick = { navController.navigate(SincronizacionRoute) })
 ```
 

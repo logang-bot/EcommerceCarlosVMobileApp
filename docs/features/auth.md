@@ -76,7 +76,8 @@ Column (horizontal padding 26dp, centered)
   ├── Spacer 10dp
   ├── OutlinedButton — "Entrar con contraseña" → switchToPasswordLogin()
   ├── Spacer (weight 1.1f)
-  └── "Entrar con otra cuenta" — accent text link → switchToOtherAccount()
+  └── ForgetUserRow — "¿No eres X?" (text3) + "Entrar con otra cuenta" (accent, SemiBold)
+        → onForgetUserClick() → OlvidarUsuarioDialog
 ```
 
 ### Sub-state B — password mode (`showPasswordLogin == true`)
@@ -91,8 +92,16 @@ Column (horizontal padding 26dp, centered)
   ├── Spacer 12dp
   ├── Row (clickable) — Fingerprint icon + "Entrar con huella" → triggers BiometricPrompt
   ├── Spacer (weight 1.1f)
-  └── "Entrar con otra cuenta" — accent text link → switchToOtherAccount()
+  └── ForgetUserRow — same as sub-state A
 ```
+
+### Overlay — OlvidarUsuarioDialog
+
+Rendered by `LoginScreen` over either sub-state when `showForgetDialog == true`. Amber person badge,
+"¿Olvidar a {nombre} en este dispositivo?", body explaining the saved session and fingerprint are
+deleted, a shield note clarifying the account itself is untouched, then `Cancelar` / `Olvidar` (error
+colour). Confirming runs `ForgetEnrolledUserUseCase` and resets state to a blank `LoginFormState`, i.e.
+the regular email/password screen.
 
 ---
 
@@ -108,7 +117,10 @@ App start:
 Enrolled user taps "Entrar con huella":
   BiometricPrompt.authenticate()
     → onAuthenticationSucceeded → LoginViewModel.onBiometricSuccess(onLoginSuccess)
-        → getBiometricEnabledUser() → sessionManager.setCurrentUser → navigate(HomeRoute)
+        → BiometricLoginUseCase (blocks — see "Offline-capable biometric login" below)
+            VALID    → syncFromRemote → isActive check → setCurrentUser → navigate(HomeRoute)
+            OFFLINE  → setCurrentUser from Room cache → navigate(HomeRoute)
+            REVOKED  → showPasswordLogin = true + login_error_session_expired
 
 Enrolled user taps "Entrar con contraseña":
   viewModel.switchToPasswordLogin() → showPasswordLogin = true → password sub-state shown
@@ -121,7 +133,12 @@ Enrolled user types password + taps "Iniciar sesión" (password sub-state):
 Enrolled user taps "Entrar con huella" (password sub-state):
   triggerBiometric → BiometricPrompt.authenticate() → same as default biometric path
 
-User taps "Entrar con otra cuenta":
+Enrolled user taps "¿No eres X? Entrar con otra cuenta":
+  viewModel.onForgetUserClick() → showForgetDialog = true
+    → confirm → ForgetEnrolledUserUseCase (revoke globally, erase token, clear enrolment,
+                 wipe cached data if the write queue drained) → blank LoginFormState
+
+Regular / account-disabled screen taps "Entrar con otra cuenta":
   viewModel.switchToOtherAccount() → isBiometricEnabled = false → regular login shown
 
 Regular login:
@@ -139,7 +156,9 @@ Regular login:
 | `isLoading`, `errorMessage` | Loading/error UI state |
 | `isBiometricEnabled` | Whether to show the enrolled-user screen |
 | `showPasswordLogin` | True when enrolled user has tapped "Entrar con contraseña" |
-| `enrolledUserName` | Name shown in the welcome-back card |
+| `showForgetDialog` | True while the `OlvidarUsuarioDialog` confirmation is open |
+| `enrolledUserName` | Name shown in the welcome-back card, and in the forget dialog title |
+| `enrolledUserFirstName` | First name only — used by the "¿No eres X?" row |
 | `enrolledUserEmail` | Email shown in the welcome-back card |
 | `enrolledUserRole` | Role shown as `RoleBadge` in the welcome-back card |
 | `enrolledUserInitials` | Initials for `ProfileAvatar` in the welcome-back card |
@@ -259,19 +278,24 @@ After the user logs in, `saveSession()` stores the new JWT. Any subsequent `load
 
 ### Room data is preserved across restarts
 
-`SessionManagerImpl` distinguishes the startup clear from an explicit logout using a `startupDone` flag:
+`SessionManagerImpl.onNotAuthenticated()` **never** wipes local data. `NotAuthenticated` fires for three
+different reasons — the startup session clear, an explicit sign-out, and a mid-session refresh failure
+when supabase-kt gives up on a revoked token — and only one of them is the user's intent. Deciding from
+inside the collector meant a revoked token silently destroyed cached business data, unsynced
+`sync_operations` included.
+
+The wipe therefore lives in `signOut()`, where the intent is unambiguous:
 
 ```kotlin
-is SessionStatus.NotAuthenticated -> {
+override suspend fun signOut() {
+    if (userRepository.hasBiometricEnabled()) discardAccessToken() else revokeAndWipe()
     _currentUser.value = null
     removeUserId()
-    if (startupDone) wipeLocalDataIfNeeded()   // skip on startup, run on explicit logout
-    startupDone = true
-    _isLoaded.value = true
 }
 ```
 
-The local Room cache (mercados, clientes, productos, pedidos, sync queue) survives restarts. Only explicit logout triggers the table wipe.
+The local Room cache (mercados, clientes, productos, pedidos, sync queue) survives restarts and
+refresh failures. Only an explicit sign-out on a device with no fingerprint enrolled wipes the tables.
 
 ### Token refresh during the session
 
@@ -298,28 +322,63 @@ Any successful login (password or restored biometric session)
   → …and mirrors refreshToken + user.id into the biometric-only keys
 ```
 
-`SessionManager.restoreBiometricSession()` (fire-and-forget, runs on `@ApplicationScope` so it survives `LoginViewModel` being cleared right after navigation) uses this mirror:
+### The refresh is blocking, not fire-and-forget
+
+The original Phase 12 design navigated to Home first and restored the session afterwards in the
+background, swallowing failures. That is exactly what allowed a fingerprint login to land in the app
+with **no** session: supabase-kt does not throw when a session is missing — `AccessToken.kt` falls back
+to the publishable key — so every request went out anonymous and was silently declined by RLS. The user
+saw stale data, missing images and failed writes, with nothing indicating they were unauthenticated.
+
+`SessionManager.ensureValidSession()` replaces `restoreBiometricSession()` and **gates navigation**:
 
 ```
 LoginScreen: fingerprint tap succeeds
-  → LoginViewModel.onBiometricSuccess
-      1. sessionManager.setCurrentUser(cachedUser)   // Room read only — always works, even offline
-      2. onSuccess()                                  // navigate to Home immediately
-      3. sessionManager.restoreBiometricSession()      // best-effort, backgrounded, never blocks the UI
-           if offline                                  → no-op
-           if the mirrored token's user id doesn't
-             match the enrolled user                   → no-op (guards against a different
-                                                           account's later password login on
-                                                           the same device overwriting the mirror)
-           else → supabase.auth.refreshSession(token)  → supabase.auth.importSession(newSession)
-                    → sessionStatus emits Authenticated → RLS-protected sync/writes now work
+  → BiometricLoginUseCase
+      1. sessionManager.ensureValidSession()          // blocks — one HTTP round trip when online
+           already has a session                       → VALID
+           offline                                     → OFFLINE
+           no stored token for this user               → REVOKED
+           else → supabase.auth.refreshSession(token)
+                    → saveLastRefreshToken(rotated)     // persisted BEFORE importSession
+                    → supabase.auth.importSession(...)  → VALID
+                  RestException (revoked/banned/reused) → REVOKED
+      2. VALID    → syncFromRemote(user.id), reject if !isActive, then navigate
+         OFFLINE  → local-only login from the Room cache, staleness thresholds preserved
+         REVOKED  → stay on Login, switch to the password field
 ```
 
-If the refresh fails or times out (offline, revoked token), the failure is swallowed — the user is already in and working from the local Room cache; queued writes simply stay queued until a real session is restored on a later launch or an explicit password login.
+`ensureValidSession()` is guarded by a `Mutex`: parallel refreshes presenting the same rotating token
+would themselves look like a token-reuse attack.
 
-### Logout / disabling biometrics clears the mirror
+**Token rotation ordering matters.** Supabase rotates the refresh token on every use and invalidates the
+spent one after a short reuse window. Persisting the rotated token only after `importSession()` left a
+crash window in which the stored token was already dead — and replaying a dead token is treated as a
+reuse attack that revokes the entire token family, locking the user out permanently. The rotated token
+is therefore written the instant `refreshSession()` returns.
 
-`SessionManagerImpl.signOut()` and `PerfilViewModel.disableBiometric()` both call `SessionManager.clearBiometricSession()`, deleting the mirrored token. After an explicit logout, the next fingerprint tap still logs the user in locally (offline-first, unaffected), but silent Supabase re-authentication won't happen again until a real password login re-populates the mirror.
+### Sign-out is two-tier
+
+| | fingerprint enrolled | not enrolled |
+|---|---|---|
+| access token | discarded locally (`auth.clearSession()`) | discarded |
+| refresh token | **kept** — no `/logout` call | revoked server-side |
+| cached data | kept | wiped |
+| next fingerprint tap | mints a fresh session, no password | n/a |
+
+A fingerprint is not a credential — it unlocks the device, it proves nothing to Supabase. The stored
+refresh token is the only thing the app can present, so revoking it on sign-out is what previously left
+the fingerprint button working but useless. Keeping it means an enrolled user is never asked for a
+password again; "Olvidar este dispositivo" on the login screen is the hard sign-out that revokes
+everything (`ForgetEnrolledUserUseCase`).
+
+`PerfilViewModel.disableBiometric()` no longer clears the token — the user is still signed in and that
+token is what keeps their session alive. Signing out afterwards takes the not-enrolled branch and
+revokes it properly.
+
+A deactivated account loses its enrolment: `BiometricLoginUseCase` calls `forgetDevice()` and clears
+`biometricEnabledAt`, so the fingerprint stops offering a way in until a superuser reactivates the
+account and the user signs in with their password.
 
 ---
 
@@ -334,6 +393,15 @@ password reset of another user / delete) now run server-side in Edge Functions u
 service role, instead of an admin client bundled in the APK. See `docs/supabase-setup.md` §9.
 
 ### 👆 Biometric login
-See "Offline-capable biometric login (Phase 12)" above. The biometric prompt verifies the user
-locally and always succeeds offline; a real Supabase session is silently restored in the
-background, best-effort, when the device is online.
+See "Offline-capable biometric login (Phase 12)" above. When online, the fingerprint trades the stored
+refresh token for a brand-new Supabase session **before** navigating, and re-reads the profile so role
+and is-active changes apply exactly as they would on a password login. Offline it still completes from
+the Room cache.
+
+### 🗑️ Olvidar este dispositivo
+The recurring-user login screen offers "¿No eres X? Entrar con otra cuenta", which opens a confirmation
+dialog. Confirming runs `ForgetEnrolledUserUseCase`: a global sign-out (so a token copied off the device
+is dead), the stored token erased, `biometricEnabledAt` cleared, and the cached business data wiped —
+the last step only once the write queue has drained, since unsynced pedidos exist nowhere else.
+`DeviceDataCleaner.wipeCachedDataIfFullySynced()` returns false and keeps the data when writes are still
+pending.

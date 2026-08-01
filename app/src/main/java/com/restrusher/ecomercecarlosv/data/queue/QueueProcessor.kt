@@ -96,24 +96,36 @@ class QueueProcessor @Inject constructor(
         val deduplicated = deduplicate(pending)
         Log.d(TAG, "flush: ${pending.size} raw ops → ${deduplicated.size} after dedup")
 
-        var anyFailed = false
+        var firstFailure: Throwable? = null
         for (op in deduplicated) {
-            val success = processOperation(op)
-            if (success) {
-                pending
-                    .filter { it.entityType == op.entityType && it.entityId == op.entityId }
-                    .forEach { syncOperationDao.delete(it.id) }
+            val failure = processOperation(op).exceptionOrNull()
+            if (failure == null) {
+                forEachMatching(pending, op) { syncOperationDao.delete(it.id) }
             } else {
-                anyFailed = true
-                pending
-                    .filter { it.entityType == op.entityType && it.entityId == op.entityId }
-                    .forEach { syncOperationDao.incrementRetry(it.id) }
+                firstFailure = firstFailure ?: failure
+                forEachMatching(pending, op) { syncOperationDao.incrementRetry(it.id) }
             }
         }
-        if (!anyFailed) {
+        reportFlushOutcome(firstFailure)
+        return firstFailure != null
+    }
+
+    private suspend fun forEachMatching(
+        pending: List<SyncOperationEntity>,
+        op: SyncOperationEntity,
+        action: suspend (SyncOperationEntity) -> Unit,
+    ) = pending
+        .filter { it.entityType == op.entityType && it.entityId == op.entityId }
+        .forEach { action(it) }
+
+    // One message per flush rather than one per operation — a failed flush of a dozen pedidos
+    // would otherwise stack a dozen identical snackbars on the user.
+    private fun reportFlushOutcome(failure: Throwable?) {
+        if (failure == null) {
             _lastSuccessfulFlushAt.value = System.currentTimeMillis()
+            return
         }
-        return anyFailed
+        errorHandler.emit(AppError.Queue("flush failed to push one or more operations", failure))
     }
 
     fun triggerFlush() {
@@ -132,29 +144,24 @@ class QueueProcessor @Inject constructor(
             }
     }
 
-    private suspend fun processOperation(op: SyncOperationEntity): Boolean {
-        return runCatching {
-            when (op.operation) {
-                SyncOp.UPSERT -> upsert(op)
-                SyncOp.DELETE -> delete(op)
-                else -> {
-                    Log.w(TAG, "unknown operation '${op.operation}' — skipping")
-                    true
-                }
-            }
-        }.onFailure { e ->
-            val error = AppError.Queue(
-                "Failed to push ${op.entityType}(${op.entityId}) to Supabase",
-                e,
-            )
-            errorHandler.emit(error)
-        }.getOrDefault(false)
+    private suspend fun processOperation(op: SyncOperationEntity): Result<Unit> = runCatching {
+        when (op.operation) {
+            SyncOp.UPSERT -> upsert(op)
+            SyncOp.DELETE -> delete(op)
+            else -> logUnknownOperation(op)
+        }
+    }.onFailure { e ->
+        Log.w(TAG, "failed to push ${op.entityType}(${op.entityId})", e)
     }
 
-    private suspend fun upsert(op: SyncOperationEntity): Boolean {
+    private fun logUnknownOperation(op: SyncOperationEntity) {
+        Log.w(TAG, "unknown operation '${op.operation}' — skipping")
+    }
+
+    private suspend fun upsert(op: SyncOperationEntity) {
         when (op.entityType) {
             EntityType.MERCADO -> {
-                val entity = mercadoDao.getById(op.entityId) ?: return true // deleted locally
+                val entity = mercadoDao.getById(op.entityId) ?: return // deleted locally
                 val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
                     val remoteUrl = storageService.uploadPhoto("mercado-photos", entity.id, Uri.parse(entity.photoUrl))
                     entity.copy(photoUrl = remoteUrl).also { mercadoDao.update(it) }
@@ -164,7 +171,7 @@ class QueueProcessor @Inject constructor(
                 supabase.from("mercados").upsert(MercadoMapper.toDto(finalEntity))
             }
             EntityType.CLIENTE -> {
-                val entity = clienteDao.getById(op.entityId) ?: return true
+                val entity = clienteDao.getById(op.entityId) ?: return
                 val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
                     val remoteUrl = storageService.uploadPhoto("cliente-photos", entity.id, Uri.parse(entity.photoUrl))
                     entity.copy(photoUrl = remoteUrl).also { clienteDao.update(it) }
@@ -174,7 +181,7 @@ class QueueProcessor @Inject constructor(
                 supabase.from("clientes").upsert(ClienteMapper.toDto(finalEntity))
             }
             EntityType.PRODUCTO -> {
-                val entity = productoDao.getById(op.entityId) ?: return true
+                val entity = productoDao.getById(op.entityId) ?: return
                 val finalEntity = if (entity.photoUrl?.startsWith("content://") == true) {
                     val remoteUrl = storageService.uploadPhoto("producto-photos", entity.id, Uri.parse(entity.photoUrl))
                     entity.copy(photoUrl = remoteUrl).also { productoDao.update(it) }
@@ -184,7 +191,7 @@ class QueueProcessor @Inject constructor(
                 supabase.from("productos").upsert(ProductoMapper.toDto(finalEntity))
             }
             EntityType.PEDIDO -> {
-                val entity = pedidoDao.getById(op.entityId) ?: return true
+                val entity = pedidoDao.getById(op.entityId) ?: return
                 supabase.from("pedidos").upsert(PedidoMapper.toDto(entity))
                 // Also push current line items (replace remote ones)
                 val detalles = detalleDao.getByPedido(op.entityId)
@@ -204,16 +211,15 @@ class QueueProcessor @Inject constructor(
                 }
             }
             EntityType.UMBRALES -> {
-                val entity = umbralesDao.get() ?: return true
+                val entity = umbralesDao.get() ?: return
                 supabase.from("umbrales").upsert(UmbralesMapper.toDto(entity))
             }
             else -> Log.w(TAG, "upsert: unknown entityType '${op.entityType}'")
         }
         Log.d(TAG, "upsert: pushed ${op.entityType}(${op.entityId})")
-        return true
     }
 
-    private suspend fun delete(op: SyncOperationEntity): Boolean {
+    private suspend fun delete(op: SyncOperationEntity) {
         val table = when (op.entityType) {
             EntityType.MERCADO  -> "mercados"
             EntityType.CLIENTE  -> "clientes"
@@ -221,12 +227,11 @@ class QueueProcessor @Inject constructor(
             EntityType.PEDIDO   -> "pedidos"
             else -> {
                 Log.w(TAG, "delete: unknown entityType '${op.entityType}'")
-                return true
+                return
             }
         }
         supabase.from(table).update({ set("is_deleted", true) }) { filter { eq("id", op.entityId) } }
         Log.d(TAG, "soft-delete: marked ${op.entityType}(${op.entityId}) deleted in $table")
-        return true
     }
 
     companion object {

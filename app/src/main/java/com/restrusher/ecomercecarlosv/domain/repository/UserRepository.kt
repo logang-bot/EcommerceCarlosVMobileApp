@@ -10,6 +10,8 @@ interface UserRepository {
     suspend fun delete(id: String)
     suspend fun setActive(id: String, active: Boolean)
     suspend fun setBiometricEnabled(id: String, enabledAt: Long?)
+    /** Drops any other account's fingerprint enrolment, so only [id] can unlock this device. */
+    suspend fun clearBiometricEnabledExcept(id: String)
     suspend fun hasBiometricEnabled(): Boolean
     suspend fun getBiometricEnabledUser(): AppUser?
     suspend fun updateProfile(id: String, name: String, email: String, phone: String?, photoUrl: String?)

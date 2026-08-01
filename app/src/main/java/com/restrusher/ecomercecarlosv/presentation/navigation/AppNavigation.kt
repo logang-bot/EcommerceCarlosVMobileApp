@@ -1,9 +1,16 @@
 package com.restrusher.ecomercecarlosv.presentation.navigation
 
-import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -88,101 +95,112 @@ fun AppNavigation() {
         }
     }
 
-    // Global error toasts — shown for errors not handled by individual screens.
+    // Global error snackbars — shown for errors not handled by individual screens. Only the
+    // friendly message is surfaced; the technical detail stays in the log.
+    val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
-        appViewModel.errorHandler.errors.collect { error ->
-            Toast.makeText(context, error.message, Toast.LENGTH_LONG).show()
+        appViewModel.userErrors.collect { messageRes ->
+            snackbarHostState.showSnackbar(context.getString(messageRes))
         }
     }
 
-    NavHost(navController = navController, startDestination = LoginRoute) {
-        composable<LoginRoute> {
-            LoginScreen(onLoginSuccess = {
-                navController.navigate(HomeRoute) {
-                    popUpTo(LoginRoute) { inclusive = true }
-                }
-            })
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = LoginRoute) {
+            composable<LoginRoute> {
+                LoginScreen(onLoginSuccess = {
+                    navController.navigate(HomeRoute) {
+                        popUpTo(LoginRoute) { inclusive = true }
+                    }
+                })
+            }
+            composable<HomeRoute> {
+                HomeScreen(
+                    navController = navController,
+                    onSyncClick = { navController.navigate(SincronizacionRoute) },
+                )
+            }
+            composable<DetalleMercadoRoute> {
+                DetalleMercadoScreen(navController = navController)
+            }
+            composable<CreateMercadoRoute> {
+                CreateMercadoScreen(navController = navController)
+            }
+            composable<PerfilRoute> {
+                PerfilScreen(navController = navController)
+            }
+            composable<EditarPerfilRoute> {
+                EditarPerfilScreen(navController = navController)
+            }
+            composable<UmbralesRoute> {
+                UmbralesScreen(navController = navController)
+            }
+            composable<GestionUsuariosRoute> {
+                GestionUsuariosScreen(navController = navController)
+            }
+            composable<UsuarioDetalleRoute> {
+                UsuarioDetalleScreen(navController = navController)
+            }
+            composable<CrearUsuarioRoute> {
+                CrearUsuarioScreen(navController = navController)
+            }
+            composable<BusquedaRoute> {
+                BusquedaScreen(navController = navController)
+            }
+            composable<ClientesRoute> {
+                ClientesScreen(navController = navController)
+            }
+            composable<DetalleClienteRoute> {
+                DetalleClienteScreen(navController = navController)
+            }
+            composable<CreateClienteRoute> {
+                CreateClienteScreen(navController = navController)
+            }
+            composable<CreateProductoRoute> {
+                CreateProductoScreen(navController = navController)
+            }
+            composable<ListaNegraRoute> {
+                ListaNegraScreen(navController = navController)
+            }
+            composable<AgregarListaNegraRoute> {
+                AgregarListaNegraScreen(navController = navController)
+            }
+            composable<CreacionPedidoRoute> {
+                CreacionPedidoScreen(navController = navController)
+            }
+            composable<SaldoExtraRoute> {
+                SaldoExtraScreen(navController = navController)
+            }
+            composable<DetallePedidoRoute> {
+                DetallePedidoScreen(navController = navController)
+            }
+            composable<EditarPedidoRoute> {
+                EditarPedidoScreen(navController = navController)
+            }
+            composable<ReporteClienteRoute> {
+                ReporteClienteScreen(navController = navController)
+            }
+            composable<ReporteStatusRoute> {
+                ReporteStatusScreen(navController = navController)
+            }
+            composable<SincronizacionRoute> {
+                SincronizacionScreen(navController = navController)
+            }
+            composable<DepuracionRoute> {
+                DepuracionScreen(navController = navController)
+            }
+            composable<CambiarContrasenaRoute> {
+                CambiarContrasenaScreen(navController = navController)
+            }
+            composable<HelpRoute> {
+                HelpScreen(navController = navController)
+            }
         }
-        composable<HomeRoute> {
-            HomeScreen(
-                navController = navController,
-                onSyncClick = { navController.navigate(SincronizacionRoute) },
-            )
-        }
-        composable<DetalleMercadoRoute> {
-            DetalleMercadoScreen(navController = navController)
-        }
-        composable<CreateMercadoRoute> {
-            CreateMercadoScreen(navController = navController)
-        }
-        composable<PerfilRoute> {
-            PerfilScreen(navController = navController)
-        }
-        composable<EditarPerfilRoute> {
-            EditarPerfilScreen(navController = navController)
-        }
-        composable<UmbralesRoute> {
-            UmbralesScreen(navController = navController)
-        }
-        composable<GestionUsuariosRoute> {
-            GestionUsuariosScreen(navController = navController)
-        }
-        composable<UsuarioDetalleRoute> {
-            UsuarioDetalleScreen(navController = navController)
-        }
-        composable<CrearUsuarioRoute> {
-            CrearUsuarioScreen(navController = navController)
-        }
-        composable<BusquedaRoute> {
-            BusquedaScreen(navController = navController)
-        }
-        composable<ClientesRoute> {
-            ClientesScreen(navController = navController)
-        }
-        composable<DetalleClienteRoute> {
-            DetalleClienteScreen(navController = navController)
-        }
-        composable<CreateClienteRoute> {
-            CreateClienteScreen(navController = navController)
-        }
-        composable<CreateProductoRoute> {
-            CreateProductoScreen(navController = navController)
-        }
-        composable<ListaNegraRoute> {
-            ListaNegraScreen(navController = navController)
-        }
-        composable<AgregarListaNegraRoute> {
-            AgregarListaNegraScreen(navController = navController)
-        }
-        composable<CreacionPedidoRoute> {
-            CreacionPedidoScreen(navController = navController)
-        }
-        composable<SaldoExtraRoute> {
-            SaldoExtraScreen(navController = navController)
-        }
-        composable<DetallePedidoRoute> {
-            DetallePedidoScreen(navController = navController)
-        }
-        composable<EditarPedidoRoute> {
-            EditarPedidoScreen(navController = navController)
-        }
-        composable<ReporteClienteRoute> {
-            ReporteClienteScreen(navController = navController)
-        }
-        composable<ReporteStatusRoute> {
-            ReporteStatusScreen(navController = navController)
-        }
-        composable<SincronizacionRoute> {
-            SincronizacionScreen(navController = navController)
-        }
-        composable<DepuracionRoute> {
-            DepuracionScreen(navController = navController)
-        }
-        composable<CambiarContrasenaRoute> {
-            CambiarContrasenaScreen(navController = navController)
-        }
-        composable<HelpRoute> {
-            HelpScreen(navController = navController)
-        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
+        )
     }
 }

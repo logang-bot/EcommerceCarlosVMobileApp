@@ -36,6 +36,62 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 13 | Cambiar contraseña (superuser-only) — self via Perfil + others via UsuarioDetalleScreen | ✅ Done |
 | 14 | Build distribution: GitHub Actions builds a signed APK on `v*` tags, Telegram bot delivers it to a private channel | ✅ Done |
 | 15 | Security hardening: Supabase service-role key removed from the APK; admin user ops moved to server-side Edge Functions | ✅ Done |
+| 16 | Fingerprint login mints a real session before entering the app; two-tier sign-out; "Olvidar este dispositivo"; friendly snackbar errors | ✅ Done |
+
+---
+
+## ✅ Phase 16 — Fingerprint login gets a real session + friendly errors
+
+A fingerprint login could drop the user into the app with **no Supabase session at all**: stale data,
+missing photos, admin edits rejected, and a raw `Failed to push PEDIDO(<uuid>) to Supabase` toast.
+
+**Root cause.** `onBiometricSuccess` navigated straight from the Room cache and restored the session
+afterwards, fire-and-forget, swallowing every failure. `signOut()` revoked the refresh token but left
+`biometricEnabledAt` set, so after any sign-out the fingerprint button remained with nothing left to
+refresh with. supabase-kt does not throw on a missing session — `AccessToken.kt` falls back to the
+publishable key — so requests went out **anonymous** and every `TO authenticated` RLS policy declined
+them. Phase 15 made it worse for admins specifically: those ops used to run through the embedded
+service-role client and worked regardless of session, but now hit Edge Functions with `verify_jwt`.
+
+**Session lifecycle.** `SessionManager.ensureValidSession(): SessionResult` (VALID / OFFLINE / REVOKED)
+replaces `restoreBiometricSession()` and **blocks** before navigation, trading the stored refresh token
+for a fresh access token — no password. `Mutex`-guarded, since parallel refreshes with the same
+rotating token look like a reuse attack. The rotated token is now persisted the instant
+`refreshSession()` returns, **before** `importSession()`: the old ordering left a crash window where
+the stored token was already spent, and replaying a spent token revokes the whole token family.
+`BiometricLoginUseCase` re-reads the profile on VALID so role changes and `isActive` apply exactly as
+on a password login (the old path skipped the check entirely). A deactivated account loses its
+enrolment.
+
+**Two-tier sign-out.** Enrolled → `auth.clearSession()` drops the access token locally, no `/logout`,
+refresh token kept, next tap is instant. Not enrolled → full revoke + local wipe, as before. The wipe
+also moved out of the `NotAuthenticated` collector into `signOut()`: that status also fires for the
+startup clear and for refresh failures, so a revoked token was silently destroying cached data
+including unsynced `sync_operations`.
+
+**Olvidar este dispositivo.** The login screen's bottom link became the design's "¿No eres X? Entrar
+con otra cuenta" row, opening `OlvidarUsuarioDialog`. Confirming runs `ForgetEnrolledUserUseCase`:
+global sign-out, token erased, enrolment cleared, cached data wiped — the last step only once the
+write queue drained (`DeviceDataCleaner.wipeCachedDataIfFullySynced()`), so unsynced pedidos survive.
+Previously the link only hid the fingerprint card until the next restart.
+
+**Errors.** `AppError` now carries `@StringRes userMessageRes` alongside the technical `message`
+(logs only). `AppViewModel.userErrors` maps and de-dupes within 5s; `AppNavigation` shows a Material3
+Snackbar in a `Box` around the `NavHost` instead of a `Toast`. `QueueProcessor` emits once per flush
+rather than once per operation.
+
+**New files**: `domain/session/SessionResult.kt`, `domain/session/DeviceDataCleaner.kt`,
+`data/session/DeviceDataCleanerImpl.kt`, `domain/usecase/BiometricLoginUseCase.kt`,
+`domain/usecase/ForgetEnrolledUserUseCase.kt`, `ui/screen/auth/OlvidarUsuarioDialog.kt`.
+
+**Known gap (deferred)**: staying offline past the token's 80% refresh point drops the session to
+`RefreshFailure`, where `currentSessionOrNull()` is null and requests again go out anonymous —
+affecting password users too. `QueueProcessor.start()` also flushes the moment connectivity returns,
+beating supabase-kt's 10s `retryDelay`. Fix is to wire `ensureValidSession()` into
+`QueueProcessor.flush()` and `DataSynchronizer.syncIfStale()` (returning early without
+`retryCount++` when offline), plus a proactive refresh on reconnect.
+
+See `docs/features/auth.md` and `docs/features/infrastructure.md`.
 
 ---
 
@@ -504,6 +560,7 @@ Three inter-related infrastructure features added. All details in `docs/features
 - `AppErrorLogger`: routes to `Log.e`/`Log.w` with structured tags.
 - `GlobalErrorHandler`: `@Singleton` `SharedFlow<AppError>` event bus. Injected into syncers and `QueueProcessor`.
 - `AppNavigation` collects errors → `Toast.LENGTH_LONG`. Screens with own error UI (e.g. Login's inline banner) do not re-emit through this handler.
+- *Superseded by Phase 16*: `AppError` gained `@StringRes userMessageRes`, and the Toast became a de-duplicated Material3 Snackbar.
 
 ### 🔄 Data Synchronizer (read path)
 `DataSynchronizer` runs on app start and on connectivity restore. Fetches all records from Supabase with a 10s timeout; on timeout/failure, Room data continues to serve the UI. Syncers: `MercadoSyncer`, `ClienteSyncer` (merges local-only fields), `ProductoSyncer`, `PedidoSyncer` (+ detalles). Room v14 schema unchanged (no new tables for syncers).
@@ -609,6 +666,8 @@ The user is always required to log in every time the app starts. A persisted JWT
 After login, `saveSession()` stores the new JWT. Subsequent `loadSession()` calls (`firstLoad = false`) return the JWT normally so token refresh works during the active session.
 
 `SessionManagerImpl` uses a `startupDone` flag to distinguish the startup clear from an explicit logout. `wipeLocalDataIfNeeded()` (which calls `database.clearAllTables()`) is skipped during the startup clear so Room cache (mercados, clientes, pedidos, sync queue) survives restarts. It still runs on explicit logout.
+
+*Superseded by Phase 16*: the flag is gone. `NotAuthenticated` also fires on a mid-session refresh failure, where wiping destroyed unsynced `sync_operations`, so the wipe moved into `signOut()` itself — and only on the branch where no fingerprint is enrolled.
 
 **Files changed (Phase 9d):**
 `data/session/DataStoreGoTrueSessionManager.kt` (+ `firstLoad` flag, wipe-on-first-load in `loadSession()`),
