@@ -42,6 +42,82 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 
 ---
 
+## ✅ Resolved post-Phase 16c — Admin operation errors
+
+Two defects in how the app handled failures from the Phase 15 admin Edge Functions. Both were
+deferred when Phase 15 landed and fixed together.
+
+### 1. `AdminUserService` checked a status that could never be non-2xx
+
+`ensureSuccess()` and `decodeOrThrow()` tested `HttpResponse.status.isSuccess()` after
+`functions.invoke` returned. But supabase-kt's `Functions.invoke` is documented `@throws
+RestException` and its `parseErrorResponse` fires on **every** non-2xx *before* returning — so
+both helpers were unreachable, and the exception propagated instead.
+
+That mattered because `RestException`'s message embeds the request context:
+
+```
+$error (description)
+URL: ${response.request.url}
+Headers: ${response.request.headers.entries()}
+Http Method: ...
+```
+
+`CrearUsuarioViewModel` and `CambiarContrasenaViewModel` assigned `e.message` straight into
+`state.errorMessage`, putting the URL and **the request headers — including the session's
+`Authorization: Bearer` token** — on screen, against the contract in `domain/error/AppError.kt`.
+
+**Fix.** The two dead helpers are gone. All five calls run through one `adminCall()` wrapper that
+catches `RestException`, logs the detail, and rethrows `AdminOperationException(serverMessage,
+cause)`. `serverMessage` is parsed out of the function's `{"error": "…"}` body and is the only
+part that may reach the UI; a body that does not parse (gateway 401, undeployed 404) yields
+`null` and the caller falls back to a string resource. `CancellationException` is rethrown so a
+cancelled screen is not reported as a failure.
+
+UI states now carry `errorMessage: String?` (server text) **plus** `@StringRes errorRes: Int?`
+(fallback); screens render `errorMessage ?: stringResource(errorRes)`.
+
+`CambiarContrasenaViewModel`'s self path throws `AuthRestException`, which extends
+`RestException` and leaks identically. It now reads `e.errorCode` and maps it to a resource,
+reusing the approach in `LoginViewModel.applyAuthError` (`InvalidCredentials` →
+`login_error_wrong_password`), so the "wrong current password" distinction survives.
+
+`CrearUsuarioScreen` never rendered `state.errorMessage` at all — creation errors were computed
+and dropped. It now shows the same red error block as `CambiarContrasenaScreen`.
+
+### 2. `UsuarioDetalleViewModel` wrote to Room whether or not the server agreed
+
+Four `catch (_: Exception) { /* will sync later */ }` blocks each fell through to an
+unconditional Room write and `onDone()` (which pops the back stack). The comment was wrong:
+these are Edge Function calls, **not** `sync_operations` queue entries, so nothing ever retried
+them. A failed `updateRole` left Room asserting the new role forever while the server kept the
+old one, and the user saw a successful-looking navigation back.
+
+**Fix.** Each operation goes through `runAdminOp()`, which on failure puts the error in state and
+returns false; the Room write and the back-navigation are both skipped, so the screen stays open
+showing what failed and local data only moves once the server confirms. `onDeactivate` /
+`onActivate` collapsed into one private `setActive()`.
+
+### Modified files
+
+`data/remote/AdminUserService.kt`, `ui/screen/usuario/UsuarioDetalleViewModel.kt` +
+`UsuarioDetalleUiState.kt` + `UsuarioDetalleScreen.kt`, `ui/screen/usuario/CrearUsuarioViewModel.kt`
++ `CrearUsuarioFormState.kt` + `CrearUsuarioScreen.kt`,
+`ui/screen/perfil/CambiarContrasenaViewModel.kt` + `CambiarContrasenaUiState.kt` +
+`CambiarContrasenaScreen.kt`, `res/values/strings.xml`.
+
+### Still open
+
+- The refresh token is stored in plaintext DataStore and `BiometricPrompt` runs without a
+  `CryptoObject`, so nothing cryptographically gates it (`data/session/DataStoreGoTrueSessionManager.kt`,
+  `ui/screen/auth/LoginScreen.kt`).
+- A session revoked **mid-use** is only noticed when the access token expires: `ensureValidSession()`
+  returns `VALID` off `SessionStatus.Authenticated` without asking the server, and no 401/403 from
+  Postgrest is mapped to the `endSession()` / `sessionEnded` path. A banned user keeps a
+  signed-in UI for up to the token's ~1h lifetime.
+
+---
+
 ## ✅ Phase 16c — Usable re-login + device handover
 
 Two defects that only surface **after** Supabase rejects the stored refresh token, i.e. once Phase 16b's

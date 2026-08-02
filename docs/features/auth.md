@@ -578,6 +578,10 @@ All privileged user-management operations (create / role change / activate-deact
 password reset of another user / delete) now run server-side in Edge Functions using the
 service role, instead of an admin client bundled in the APK. See `docs/supabase-setup.md` §9.
 
+If the function rejects the call, the local `users` row is left untouched — these operations are
+not queued `sync_operations`, so nothing would ever retry a local-only change. See
+`docs/features/usuarios.md` → "Error contract".
+
 ### 👆 Biometric login
 See "Offline-capable biometric login (Phase 12)" above. When online, the fingerprint trades the stored
 refresh token for a brand-new Supabase session **before** navigating, and re-reads the profile so role

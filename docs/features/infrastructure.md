@@ -73,6 +73,14 @@ the whole flush rather than once per operation, which previously stacked a dozen
 Screens that already handle errors with their own UI (e.g. `LoginScreen` shows an inline banner) should
 **not** re-emit through `GlobalErrorHandler` — they already give the user feedback.
 
+The admin user-management screens are the other inline case, and they apply the same
+developer-facing / user-facing split without going through `AppError`: `AdminUserService` throws
+`AdminOperationException(serverMessage)`, where `serverMessage` is the Edge Function's own Spanish
+text and the untrusted transport detail stays in the log. The screens pair it with a
+`@StringRes errorRes` fallback. See `docs/features/usuarios.md` → "Error contract"; the rule it
+enforces is the one this section exists for — the raw `RestException.message` carries the request
+headers and the caller's bearer token.
+
 ---
 
 ## Data Synchronizer (Read Path)

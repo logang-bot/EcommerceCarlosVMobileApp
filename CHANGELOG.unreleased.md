@@ -16,6 +16,17 @@ written at release time. Skip purely internal changes with no user or security i
 
 ## Pending
 
+- **Fix (usuarios):** changing a role, deactivating, activating or deleting a user looked like it
+  had worked even when the server rejected it — the app kept the change locally and went back to
+  the list, so the app and the server disagreed from then on, with nothing to retry it. It now
+  stays on the screen and says what failed, and the local data is only updated once the server
+  confirms.
+- **Fix (mensajes de error):** errors from user administration showed a raw technical block that
+  included the URL, the request headers and the session token. They now show only the server's
+  short Spanish explanation ("Ya existe un usuario con ese correo"), or a generic message when the
+  server did not send one. Creating a user also finally shows its error — it was silently
+  discarded before.
+
 - **Fix (trabajar sin conexión):** after a long spell offline the app lost its connection to the
   server, and the first sync on reconnect failed — showing a red sync icon, a "sync failed"
   notification and an error message, even though nothing was actually wrong. The app now waits for

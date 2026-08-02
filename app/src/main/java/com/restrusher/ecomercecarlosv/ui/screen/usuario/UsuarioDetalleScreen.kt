@@ -216,6 +216,23 @@ private fun UsuarioDetalleContent(
 
                 Spacer(Modifier.height(24.dp))
 
+                // ── Admin operation error ─────────────────────────────
+                val errorText = state.errorMessage ?: state.errorRes?.let { stringResource(it) }
+                if (errorText != null) {
+                    Text(
+                        text = errorText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ext.redText,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(ext.redTint)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 // ── Actions ───────────────────────────────────────────
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp),

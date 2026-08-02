@@ -1,12 +1,16 @@
 package com.restrusher.ecomercecarlosv.ui.screen.usuario
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.data.remote.AdminOperationException
 import com.restrusher.ecomercecarlosv.data.remote.AdminUserService
 import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +22,10 @@ class CrearUsuarioViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val adminUserService: AdminUserService,
 ) : ViewModel() {
+
+    private companion object {
+        const val TAG = "CrearUsuarioViewModel"
+    }
 
     private val _state = MutableStateFlow(CrearUsuarioFormState())
     val state: StateFlow<CrearUsuarioFormState> = _state.asStateFlow()
@@ -36,7 +44,7 @@ class CrearUsuarioViewModel @Inject constructor(
             _state.value = s.copy(nameError = nameError, emailError = emailError, passwordError = passwordError)
             return
         }
-        _state.value = s.copy(isSending = true, errorMessage = null)
+        _state.value = s.copy(isSending = true, errorMessage = null, errorRes = null)
         viewModelScope.launch {
             try {
                 // 1. Create the Supabase Auth user + `users` row server-side (Edge Function).
@@ -62,11 +70,21 @@ class CrearUsuarioViewModel @Inject constructor(
 
                 _state.value = s.copy(isSending = false, sent = true)
                 onDone()
-            } catch (e: Exception) {
+            } catch (e: AdminOperationException) {
                 // The Edge Function already returns Spanish messages (e.g. the duplicate-email
-                // case → "Ya existe un usuario con ese correo"); surface them directly.
-                val msg = e.message?.takeIf { it.isNotBlank() } ?: "Error al crear usuario"
-                _state.value = s.copy(isSending = false, errorMessage = msg)
+                // case → "Ya existe un usuario con ese correo"); surface those, and only those.
+                _state.value = s.copy(
+                    isSending    = false,
+                    errorMessage = e.serverMessage,
+                    errorRes     = R.string.crear_usuario_error_generico,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The remote call succeeded but caching it locally did not. Nothing technical
+                // reaches the screen — see AppError's contract.
+                Log.w(TAG, "createUser: could not cache the new user locally", e)
+                _state.value = s.copy(isSending = false, errorRes = R.string.crear_usuario_error_generico)
             }
         }
     }

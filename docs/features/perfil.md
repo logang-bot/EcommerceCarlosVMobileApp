@@ -135,6 +135,12 @@ Controls three things:
 
 1. **API call** — `isSelf = true`: `supabase.auth.signInWith(Email)` to verify current password, then `supabase.auth.updateUser { password = newPassword }` (regular client). `isSelf = false`: `adminUserService.resetPassword(userId, newPassword)`, which invokes the `reset-user-password` Edge Function server-side (service role) — the app no longer holds the secret key. See `docs/supabase-setup.md` §9.
 2. **"Contraseña actual" field** — shown only when `isSelf = true`.
+   - Error handling differs with it: the `isSelf = false` path surfaces
+     `AdminOperationException.serverMessage` (see `docs/features/usuarios.md` → "Error contract"),
+     while the self path catches `AuthRestException` and maps `e.errorCode` to a string resource
+     (`InvalidCredentials` → `login_error_wrong_password`), the same approach as
+     `LoginViewModel.applyAuthError`. Neither shows the exception message — `AuthRestException`
+     extends `RestException`, whose message carries the request headers and bearer token.
 3. **Scope banner** — amber-tinted info banner shown only when `isSelf = false`: "Estableces una contraseña nueva para este usuario. Comunícasela de forma segura."
 
 ### Screen layout

@@ -250,6 +250,11 @@ acting (`supabase/functions/_shared/auth.ts`). The Android side calls them throu
 the session JWT). The app ships **only the publishable key**; the service-role key never leaves
 the server (Supabase injects it into each function at runtime).
 
+Each function reports failures as `{"error": "<Spanish text>"}`; the app shows that text and
+nothing else. See `docs/features/usuarios.md` → "Error contract" for how the client side handles
+it — in short, `functions.invoke` throws before the app can inspect the status, and the raw
+exception message carries the caller's bearer token, so it never reaches the UI.
+
 Everything else that used to go through the old admin client now uses the regular authenticated
 client, allowed by existing RLS: photo uploads (`StorageService`), self password change and
 self profile edits (`CambiarContrasenaViewModel` self path, `EditarPerfilViewModel`).
@@ -281,11 +286,11 @@ Email), a self email change may require confirmation. Name, phone and photo are 
 - [x] `schema.sql` executed *(v1 — no `updated_at`)*
 - [x] `rls.sql` executed
 - [x] `storage.sql` executed
-- [ ] Admin Edge Functions deployed (`create-user`, `update-user-role`, `set-user-active`, `reset-user-password`, `delete-user`)
+- [x] Admin Edge Functions deployed (`create-user`, `update-user-role`, `set-user-active`, `reset-user-password`, `delete-user`)
 - [x] `local.properties` updated with staging values (URL + publishable key only)
 - [x] First SUPERUSUARIO created (auth user + `users` table row)
 - [x] `stagingDebug` variant selected — login works end-to-end
-- [ ] **Secret-key cleanup** — old `sb_secret_...` key revoked; removed from `local.properties` + CI (see section 9)
+- [x] **Secret-key cleanup** — old `sb_secret_...` key revoked; removed from `local.properties` + CI (see section 9)
 - [ ] **Phase 10b migration** — run the ALTER TABLE statements from `docs/db-schema.md` → "Staging environment changes" section to add `updated_at` + triggers + indexes to the existing staging DB
 - [ ] **Phase 12 migration** — run `docs/db-schema.md` → "Staging environment changes" → section 6 to create the `umbrales` table (was local-only `SharedPreferences`, now synced)
 

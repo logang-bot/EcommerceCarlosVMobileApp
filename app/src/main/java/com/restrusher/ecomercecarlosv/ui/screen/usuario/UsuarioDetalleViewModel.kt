@@ -1,9 +1,12 @@
 package com.restrusher.ecomercecarlosv.ui.screen.usuario
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.restrusher.ecomercecarlosv.R
+import com.restrusher.ecomercecarlosv.data.remote.AdminOperationException
 import com.restrusher.ecomercecarlosv.data.remote.AdminUserService
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
@@ -46,60 +49,74 @@ class UsuarioDetalleViewModel @Inject constructor(
     }
 
     fun onRoleChange(role: UserRole) {
-        _state.value = _state.value.copy(selectedRole = role)
+        _state.value = _state.value.copy(selectedRole = role, errorMessage = null, errorRes = null)
     }
 
     fun onSaveRole(onDone: () -> Unit) {
         val uiUser = _state.value.user ?: return
-        _state.value = _state.value.copy(isSaving = true)
+        startOperation(isDeleting = false)
         viewModelScope.launch {
             val domainUser = userRepository.getById(uiUser.id) ?: run {
                 _state.value = _state.value.copy(isSaving = false)
                 return@launch
             }
             val newRole = _state.value.selectedRole
-            try {
-                // Edge Function updates the auth metadata + `users` row server-side.
-                adminUserService.updateRole(userId, newRole.name)
-            } catch (_: Exception) { /* will sync later */ }
+            // Edge Function updates the auth metadata + `users` row server-side. Nothing retries
+            // this — it is not a queued sync operation — so a failure must not reach Room.
+            if (!runAdminOp(R.string.usuario_detalle_error_rol) { adminUserService.updateRole(userId, newRole.name) }) return@launch
             userRepository.save(domainUser.copy(role = newRole))
             _state.value = _state.value.copy(isSaving = false)
             onDone()
         }
     }
 
-    fun onDeactivate(onDone: () -> Unit) {
-        viewModelScope.launch {
-            try {
-                // Edge Function bans the auth user (~100-year indefinite disable) and
-                // sets is_active = false in the `users` row server-side.
-                adminUserService.setActive(userId, false)
-            } catch (_: Exception) { /* will sync later */ }
-            userRepository.setActive(userId, false)
-            onDone()
-        }
-    }
+    fun onDeactivate(onDone: () -> Unit) = setActive(isActive = false, onDone = onDone)
 
-    fun onActivate(onDone: () -> Unit) {
+    fun onActivate(onDone: () -> Unit) = setActive(isActive = true, onDone = onDone)
+
+    // Edge Function bans the auth user (~100-year indefinite disable) or lifts the ban, and writes
+    // is_active in the `users` row server-side.
+    private fun setActive(isActive: Boolean, onDone: () -> Unit) {
+        startOperation(isDeleting = false)
         viewModelScope.launch {
-            try {
-                adminUserService.setActive(userId, true)
-            } catch (_: Exception) { /* will sync later */ }
-            userRepository.setActive(userId, true)
+            if (!runAdminOp(R.string.usuario_detalle_error_estado) { adminUserService.setActive(userId, isActive) }) return@launch
+            userRepository.setActive(userId, isActive)
+            _state.value = _state.value.copy(isSaving = false)
             onDone()
         }
     }
 
     fun onDelete(onDone: () -> Unit) {
-        _state.value = _state.value.copy(isDeleting = true)
+        startOperation(isDeleting = true)
         viewModelScope.launch {
-            try {
-                // Edge Function deletes the auth account + `users` row server-side.
-                adminUserService.deleteUser(userId)
-            } catch (_: Exception) { /* will sync later */ }
+            // Edge Function deletes the auth account + `users` row server-side.
+            if (!runAdminOp(R.string.usuario_detalle_error_eliminar) { adminUserService.deleteUser(userId) }) return@launch
             userRepository.delete(userId)
             _state.value = _state.value.copy(isDeleting = false)
             onDone()
         }
+    }
+
+    private fun startOperation(isDeleting: Boolean) {
+        _state.value = _state.value.copy(
+            isSaving     = !isDeleting,
+            isDeleting   = isDeleting,
+            errorMessage = null,
+            errorRes     = null,
+        )
+    }
+
+    /** Returns false when the call failed, in which case the error is already on screen. */
+    private suspend fun runAdminOp(@StringRes fallbackRes: Int, block: suspend () -> Unit): Boolean = try {
+        block()
+        true
+    } catch (e: AdminOperationException) {
+        _state.value = _state.value.copy(
+            isSaving     = false,
+            isDeleting   = false,
+            errorMessage = e.serverMessage,
+            errorRes     = fallbackRes,
+        )
+        false
     }
 }

@@ -175,6 +175,13 @@ including what happens when a **different** user signs in over another's queued 
   - If `user.isActive`: `OutlinedButton` "Desactivar usuario" (red outline) → `onDeactivate` → `set-user-active` fn (`ban_duration = "876000h"` + `is_active = false`)
   - If `!user.isActive`: `OutlinedButton` "Activar usuario" (green outline, Check icon) → `onActivate` → `set-user-active` fn (`ban_duration = "none"` + `is_active = true`)
   - `Button` "Eliminar usuario" (red filled) → `onDelete` → `delete-user` fn (removes from Supabase auth + `users` table), then Room
+- **Failures never reach Room.** Each action runs through `runAdminOp()`; if the Edge Function
+  rejects it, the error goes into state and the Room write *and* the back-navigation are both
+  skipped, so the screen stays open. These are not queued `sync_operations` — nothing retries
+  them — so a local write on failure would diverge from the server permanently.
+- Error display: a red block above the action buttons showing `state.errorMessage` (the
+  function's own Spanish text) or `state.errorRes` (`usuario_detalle_error_rol` /
+  `_estado` / `_eliminar`) when the server sent none
 
 ### CrearUsuarioScreen (`ui/screen/usuario/CrearUsuarioScreen.kt`)
 
@@ -183,6 +190,8 @@ including what happens when a **different** user signs in over another's queued 
 - Role picker: three cards (SUPERUSUARIO, USUARIO, INVITADO); permissions list expands only for the selected card
 - CTA: "Crear usuario"
 - On submit: calls `adminUserService.createUser(...)` (the `create-user` Edge Function) + upserts to Room
+- Errors render in a red block below the role picker (`errorMessage` from the server, else
+  `crear_usuario_error_generico`)
 
 ---
 
@@ -204,6 +213,31 @@ val created = adminUserService.createUser(
 
 Then upserts an `AppUser` (with `created.id`) to Room so the local database stays in sync.
 The function maps a duplicate email to the Spanish message "Ya existe un usuario con ese correo".
+
+### Error contract
+
+`functions.invoke` throws `RestException` on any non-2xx **before** returning, so there is no
+status left to inspect — every failure arrives as an exception. `AdminUserService.adminCall()`
+catches it, logs the detail, and rethrows `AdminOperationException`:
+
+```kotlin
+class AdminOperationException(val serverMessage: String?, cause: Throwable? = null)
+```
+
+`serverMessage` is parsed from the function's `{"error": "<Spanish text>"}` body and is the
+**only** part a ViewModel may display. `RestException.message` must never be shown: it embeds
+the request URL and headers, including the session's `Authorization: Bearer` token. A body that
+does not parse — a gateway 401, an undeployed function's 404 — leaves `serverMessage` null and
+the caller falls back to its own string resource.
+
+Callers therefore keep two fields in state:
+
+| Field | Source |
+|-------|--------|
+| `errorMessage: String?` | `e.serverMessage` — the Edge Function's own wording |
+| `@StringRes errorRes: Int?` | fallback used when the server sent nothing usable |
+
+Screens render `state.errorMessage ?: state.errorRes?.let { stringResource(it) }`.
 
 ---
 

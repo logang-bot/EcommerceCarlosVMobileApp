@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -206,6 +207,22 @@ private fun CrearUsuarioContent(
                         ) else null,
                     )
                 }
+            }
+
+            // API error
+            val apiError = state.errorMessage ?: state.errorRes?.let { stringResource(it) }
+            if (apiError != null) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = apiError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ext.redText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ext.redTint)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                )
             }
 
             Spacer(Modifier.height(8.dp))

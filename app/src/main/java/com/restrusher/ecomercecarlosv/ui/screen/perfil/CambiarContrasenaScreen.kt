@@ -197,9 +197,10 @@ private fun CambiarContrasenaContent(
                 PwRequirementsCard(state = state)
 
                 // API error
-                if (state.errorMessage != null) {
+                val apiError = state.errorMessage ?: state.errorRes?.let { stringResource(it) }
+                if (apiError != null) {
                     Text(
-                        text = state.errorMessage,
+                        text = apiError,
                         style = MaterialTheme.typography.bodySmall,
                         color = ext.redText,
                         modifier = Modifier

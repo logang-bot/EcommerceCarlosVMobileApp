@@ -367,6 +367,9 @@
     <string name="usuario_detalle_activar">Activar usuario</string>
     <string name="usuario_detalle_eliminar">Eliminar usuario</string>
     <string name="usuario_detalle_not_found">Usuario no encontrado</string>
+    <string name="usuario_detalle_error_rol">No se pudo cambiar el rol. Inténtalo de nuevo</string>
+    <string name="usuario_detalle_error_estado">No se pudo cambiar el estado del usuario. Inténtalo de nuevo</string>
+    <string name="usuario_detalle_error_eliminar">No se pudo eliminar el usuario. Inténtalo de nuevo</string>
 
     <!-- Clientes screen -->
     <string name="clientes_title_fallback">Clientes</string>
@@ -461,6 +464,7 @@
     <string name="crear_usuario_contrasena_error">La contraseña es obligatoria</string>
     <string name="crear_usuario_rol">Rol</string>
     <string name="crear_usuario_cta">Crear usuario</string>
+    <string name="crear_usuario_error_generico">No se pudo crear el usuario. Inténtalo de nuevo</string>
 
     <!-- Lista Negra -->
     <string name="lista_negra_title">Lista Negra</string>
@@ -686,6 +690,7 @@
     <string name="cambiar_contrasena_exito_title">Contraseña actualizada</string>
     <string name="cambiar_contrasena_exito_self">Tu contraseña ha sido actualizada correctamente.</string>
     <string name="cambiar_contrasena_exito_other">La contraseña ha sido actualizada. Comunícasela al usuario de forma segura.</string>
+    <string name="cambiar_contrasena_error_generico">No se pudo cambiar la contraseña. Inténtalo de nuevo</string>
     <!-- Usuario Detalle: Seguridad -->
     <string name="usuario_detalle_seguridad">Seguridad</string>
     <string name="usuario_detalle_cambiar_contrasena">Cambiar contraseña</string>
