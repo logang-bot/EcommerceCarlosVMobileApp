@@ -94,6 +94,16 @@ fun LoginScreen(
             onSwitchToOtherAccount = viewModel::switchToOtherAccount,
         )
     }
+
+    state.handover?.let { handover ->
+        CambioDeUsuarioDialog(
+            incomingUserName = handover.incomingUserName,
+            previousUserName = handover.previousUserName,
+            pendingCount = handover.pendingCount,
+            onConfirm = { viewModel.onHandoverConfirm(handleLoginSuccess) },
+            onDismiss = viewModel::onHandoverDismiss,
+        )
+    }
 }
 
 internal fun Context.findFragmentActivity(): FragmentActivity? {

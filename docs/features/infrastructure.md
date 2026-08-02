@@ -42,12 +42,13 @@ AppError
 ├── Database  — Room errors
 ├── Sync      — Data synchronizer failures
 ├── Queue     — Queue processor failures
+├── Session   — the stored refresh token was rejected; the user must sign in again
 └── Unknown   — Anything else
 ```
 
 ### AppErrorLogger (object)
 Wraps `android.util.Log` with consistent tags and severity routing:
-- `Network`, `Database`, `Unknown` → `Log.e`
+- `Network`, `Database`, `Session`, `Unknown` → `Log.e`
 - `Sync`, `Queue` → `Log.w`
 
 Callable from anywhere with no dependencies.
@@ -103,7 +104,28 @@ If the last successful sync for an entity was within the threshold, `triggerSync
 
 ### Connectivity restore
 
-When the device goes from offline to online, `lastSyncedAt` is cleared entirely. The next navigation to any screen will fetch fresh data from Supabase as if no previous sync had occurred.
+When the device goes from offline to online, `lastSyncedAt` is cleared entirely. The next navigation to any screen will fetch fresh data from Supabase as if no previous sync had occurred. `SessionManager.sessionRecovered` clears it again once the access token is actually back, since anything read in between was served from cache or refused by RLS.
+
+### Session gate
+
+`syncIfStale()` calls `sessionManager.ensureValidSession()` before fetching. Without a session
+supabase-kt sends the publishable key instead of failing, so a read returns empty from RLS and reads as
+"no data" rather than "not signed in".
+
+| result | behaviour |
+|---|---|
+| `VALID` | proceed |
+| `OFFLINE` | return false silently |
+| `REVOKED` | return false — `SessionManager.endSession()` emits `AppError.Session` itself |
+| `DEFERRED` | **wait up to 12s** for `sessionRecovered`, then proceed |
+
+Two placement details that are easy to get wrong:
+
+- The gate sits **after** the staleness check. It can block for seconds while a session renews, and a
+  screen whose data is already fresh must never wait for a sync it was not going to run.
+- `DEFERRED` waits rather than failing because the caller may be a **pull-to-refresh**. Returning false
+  there paints "No se pudo actualizar · Sin conexión con el servidor" while the device is online and the
+  session is seconds away. 12s just clears supabase-kt's 10s `retryDelay`.
 
 ### Concurrency
 
@@ -193,6 +215,11 @@ Affected repositories: `MercadoRepositoryImpl`, `ClienteRepositoryImpl`, `Produc
 **Trigger 1 — connectivity restore:**
 Collects `NetworkMonitor.isOnlineFlow`. Calls `flush()` every time the device goes from offline to online.
 
+**Trigger 1b — session recovered:**
+Collects `SessionManager.sessionRecovered`. Trigger 1 usually fires while supabase-kt is still renewing
+the access token, so that attempt returns `DEFERRED` and pushes nothing; this is what actually flushes
+once the token is back. Without it the only retry would be WorkManager's 30s backoff.
+
 **Trigger 2 — new entry enqueued (and startup orphan recovery):**
 Observes `MAX(id)` from `sync_operations` via `observeLatestEnqueuedId(): Flow<Long>`. Since `id` is auto-incremented, every new insert produces a strictly higher `MAX(id)`. When `distinctUntilChanged` detects a new value and the device is online, `flush()` is called immediately. It also calls `SyncWorker.schedule()` unconditionally so a WorkManager job is always queued as a fallback in case the app dies before the in-process flush completes.
 
@@ -203,9 +230,27 @@ Room `Flow` queries **emit the current DB value immediately when collection star
 
 ### flush() algorithm
 
-`flush()` returns `Boolean` — `true` if at least one op failed, `false` if everything was pushed successfully (or the queue was empty). `SyncWorker` uses this return value to decide between `Result.success()` and `Result.retry()`.
+`flush()` returns `FlushOutcome` — `COMPLETED`, `FAILED`, or `DEFERRED`. The three-way split matters:
+a Boolean conflated "the server rejected this" with "we had no token to send", and `SyncWorker` mapped
+both onto a user-visible failure notification.
 
-1. Load **all** pending entries from `sync_operations` (no retry-count filter — WorkManager backoff is the retry gate, not a per-row counter).
+The whole body runs under a `Mutex`. Trigger 1b makes it re-entrant by construction: a flush whose
+session gate performs a refresh causes `sessionRecovered` to fire, whose collector flushes again — with
+the *same* `pending` snapshot still in flight. That pushed every operation twice (duplicate photo
+upload, duplicate `detalle_pedido`/`pagos` delete-then-insert) and raced `delete(id)` against
+`incrementRetry(id)`. The second caller now waits and finds an empty queue.
+
+1. Load **all** pending entries from `sync_operations` (no retry-count filter — WorkManager backoff is the retry gate, not a per-row counter). Empty → `COMPLETED`.
+1b. **Session gate** — `sessionManager.ensureValidSession()`. Without a session supabase-kt sends the
+   publishable key rather than failing, so every push would go out anonymous and be declined by RLS,
+   indistinguishable from a real rejection. On `OFFLINE` / `DEFERRED` / `REVOKED`, return `DEFERRED`
+   immediately: no push, **no `retryCount++`**, nothing emitted. Those operations did nothing wrong and
+   must not be marked as failing because *we* lacked a token. `REVOKED` reports itself from
+   `SessionManager.endSession()`, so there is nothing to emit here.
+1c. **Ownership gate** — `deviceOwnerUserId()` vs. the signed-in user. Queued operations carry no
+   author and RLS only checks *role*, so a mismatch would file one user's pedidos under another's
+   account silently and **successfully**. Returns `DEFERRED` until the handover is resolved at the
+   login screen (see `auth.md` → "Device ownership").
 2. Deduplicate by `(entityType, entityId)`:
    - `DELETE` always wins over `UPSERT` for the same entity.
    - Multiple `UPSERT` entries collapse into one (latest wins by `createdAt`).
@@ -213,10 +258,10 @@ Room `Flow` queries **emit the current DB value immediately when collection star
    - **UPSERT**: read the current entity state from Room → push DTO to Supabase via `upsert()`.
    - **DELETE**: call `supabase.from(table).update({ set("is_deleted", true) }) { filter { eq("id", entityId) } }`. This is a soft-delete — the Supabase row is not removed. The `set_updated_at_ms()` trigger fires automatically, bumping `updated_at`. Other devices pick up the deletion in their next delta sync.
 4. On success: delete all raw queue entries for that entity.
-5. On failure: increment `retryCount` for all raw entries for that entity (observability only — not used to gate retries), set `anyFailed = true`, continue to next entity.
-6. Return `anyFailed`.
+5. On failure: increment `retryCount` for all raw entries for that entity (observability only — not used to gate retries), remember the first throwable, continue to next entity.
+6. Return `COMPLETED` if nothing failed, else `FAILED` (emitting **one** `AppError.Queue` for the whole flush, not one per operation).
 
-**MERCADO / CLIENTE / PRODUCTO UPSERT — photo upload**: before pushing the entity DTO to Supabase, `QueueProcessor` checks `entity.photoUrl?.startsWith("content://")`. If `true`, it calls `storageService.uploadPhoto(bucket, entityId, Uri.parse(photoUrl))`, updates the Room entity with the resulting `https://` URL, then proceeds with the Supabase upsert. If the upload throws (network failure), the outer `runCatching` catches it and `anyFailed = true`, leaving the op in the queue for the next retry cycle.
+**MERCADO / CLIENTE / PRODUCTO UPSERT — photo upload**: before pushing the entity DTO to Supabase, `QueueProcessor` checks `entity.photoUrl?.startsWith("content://")`. If `true`, it calls `storageService.uploadPhoto(bucket, entityId, Uri.parse(photoUrl))`, updates the Room entity with the resulting `https://` URL, then proceeds with the Supabase upsert. If the upload throws (network failure), the outer `runCatching` catches it and the operation is recorded as failed, leaving it in the queue for the next retry cycle.
 
 This makes the photo upload path fully offline-first: the UI writes the local `content://` URI to Room immediately (no blocking network call on save), and the upload happens here in the background. On reconnect, any entity with a pending `content://` photoUrl is automatically uploaded as part of normal queue processing.
 
@@ -231,14 +276,18 @@ Buckets used: `"mercado-photos"`, `"cliente-photos"`, `"producto-photos"`.
 A `@HiltWorker` (WorkManager) that acts as the safety net for the write queue. It covers the scenario where the app is killed with pending rows in the queue — `QueueProcessor`'s coroutines died, but the Room rows survived.
 
 ```kotlin
-override suspend fun doWork(): Result {
-    val anyFailed = queueProcessor.flush()
-    return if (anyFailed) Result.retry() else Result.success()
+override suspend fun doWork(): Result = when (queueProcessor.flush()) {
+    FlushOutcome.COMPLETED -> { syncNotifier.notifySuccess(); Result.success() }
+    FlushOutcome.FAILED    -> { syncNotifier.notifyFailure(); Result.retry() }
+    FlushOutcome.DEFERRED  -> { syncNotifier.dismiss();       Result.retry() }
 }
 ```
 
-- If `flush()` pushed every pending op successfully → `Result.success()`. The worker is done; the next write will schedule a new one.
-- If any op failed → `Result.retry()`. WorkManager automatically reschedules the worker with **exponential backoff**: 30 s → 60 s → 120 s → … capped at WorkManager's internal maximum (~5 hours). No manual retry logic is needed.
+- `COMPLETED` → the worker is done; the next write will schedule a new one.
+- `FAILED` → `Result.retry()`. WorkManager reschedules with **exponential backoff**: 30 s → 60 s → 120 s → … capped at WorkManager's internal maximum (~5 hours). No manual retry logic is needed.
+- `DEFERRED` → reschedule **without** telling the user a sync failed, because nothing of theirs did.
+  The `dismiss()` is mandatory, not cosmetic: `notifyStarted()` posts an `setOngoing(true)` notification
+  the user cannot swipe away, so any path ending without success or failure must clear it explicitly.
 
 ```kotlin
 fun schedule(workManager: WorkManager) {
@@ -273,8 +322,9 @@ This means a WorkManager job is **always scheduled** whenever there is a pending
 
 | Event | What happens |
 |---|---|
-| Push fails | `retryCount++` (observability), `anyFailed = true`, continue to next entity |
-| `flush()` returns `true` (any failure) | `SyncWorker` returns `Result.retry()` → WorkManager reschedules with backoff |
+| Push fails | `retryCount++` (observability), remember the first throwable, continue to next entity |
+| `flush()` returns `FAILED` | `SyncWorker` returns `Result.retry()` → WorkManager reschedules with backoff |
+| `flush()` returns `DEFERRED` (no session) | No push, no `retryCount++`, no notification; `Result.retry()`, and `sessionRecovered` re-flushes as soon as the token is back |
 | WorkManager backoff schedule | 30 s → 60 s → 120 s → 240 s → … (capped at ~5 h) |
 | Connectivity restored (in-process) | `QueueProcessor.isOnlineFlow` triggers `flush()` immediately regardless of backoff |
 | New write while worker is in backoff | `QueueProcessor` calls `flush()` in-process immediately (app alive); WorkManager KEEP ensures a job is also queued for the app-killed case |
@@ -341,7 +391,7 @@ Device goes online → WorkManager fires SyncWorker (CONNECTED constraint satisf
 User edits a mercado → row enqueued (id=7)
   ↓ SyncWorker.schedule() called (WorkManager job queued)
   ↓ networkMonitor.isOnline == true → flush() called in-process
-    - Supabase 503 → retryCount=1 → returns true (anyFailed)
+    - Supabase 503 → retryCount=1 → returns FAILED
 
 SyncWorker doWork() runs:
   ↓ flush() → Supabase 503 → retryCount=2 → returns true
@@ -469,7 +519,7 @@ The ERROR state shows a "Reintentar envío" button in `SyncBanner`. It calls `Si
 
 ### `lastSuccessfulFlushAt`
 
-`QueueProcessor` exposes a `StateFlow<Long?>` that is set to `System.currentTimeMillis()` at the end of every `flush()` call where `!anyFailed` and the queue was not empty. The SYNCED state chip reads this to show "Última sincronización · hace X min".
+`QueueProcessor` exposes a `StateFlow<Long?>` that is set to `System.currentTimeMillis()` at the end of every `flush()` that returned `COMPLETED` with a non-empty queue. The SYNCED state chip reads this to show "Última sincronización · hace X min".
 
 ---
 

@@ -156,10 +156,19 @@ private fun PasswordSection(
     }
     Spacer(modifier = Modifier.height(if (state.errorMessage != null) 12.dp else 16.dp))
     PrimaryLoginButton(isLoading = state.isLoading, onClick = onLoginClick)
-    Spacer(modifier = Modifier.height(12.dp))
+    // Hidden once the stored token is gone: the fingerprint would only spend a tap to arrive back
+    // at this same password field.
+    if (state.canUseFingerprint) {
+        Spacer(modifier = Modifier.height(12.dp))
+        BackToFingerprintRow(onClick = onBiometricClick)
+    }
+}
+
+@Composable
+private fun BackToFingerprintRow(onClick: () -> Unit) {
     Row(
         modifier = Modifier
-            .clickable(onClick = onBiometricClick)
+            .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -266,6 +275,36 @@ private fun PasswordModeLightPreview() {
     EcomerceCarlosVTheme(darkTheme = false) {
         LoginBiometricoContent(
             state = previewState.copy(showPasswordLogin = true),
+            onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
+            onSwitchToPassword = {}, onForgetUser = {},
+        )
+    }
+}
+
+private val sessionExpiredState = previewState.copy(
+    showPasswordLogin = true,
+    canUseFingerprint = false,
+    errorMessage = "Tu sesión expiró. Escribe tu contraseña para continuar",
+)
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true, name = "Sesión expirada Light")
+@Composable
+private fun SessionExpiredPreview() {
+    EcomerceCarlosVTheme(darkTheme = false) {
+        LoginBiometricoContent(
+            state = sessionExpiredState,
+            onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
+            onSwitchToPassword = {}, onForgetUser = {},
+        )
+    }
+}
+
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true, name = "Sesión expirada Dark")
+@Composable
+private fun SessionExpiredDarkPreview() {
+    EcomerceCarlosVTheme(darkTheme = true) {
+        LoginBiometricoContent(
+            state = sessionExpiredState,
             onPasswordChange = {}, onLoginClick = {}, onBiometricClick = {},
             onSwitchToPassword = {}, onForgetUser = {},
         )

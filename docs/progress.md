@@ -37,6 +37,146 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 14 | Build distribution: GitHub Actions builds a signed APK on `v*` tags, Telegram bot delivers it to a private channel | ✅ Done |
 | 15 | Security hardening: Supabase service-role key removed from the APK; admin user ops moved to server-side Edge Functions | ✅ Done |
 | 16 | Fingerprint login mints a real session before entering the app; two-tier sign-out; "Olvidar este dispositivo"; friendly snackbar errors | ✅ Done |
+| 16b | Session recovery on reconnect: nothing leaves the app unauthenticated, queued writes flush the moment the token is back | ✅ Done |
+| 16c | Revoked session lands on a login screen that can recover it; device handover protects one user's queued writes from another's session | ✅ Done |
+
+---
+
+## ✅ Phase 16c — Usable re-login + device handover
+
+Two defects that only surface **after** Supabase rejects the stored refresh token, i.e. once Phase 16b's
+`REVOKED` path actually fires.
+
+### 1. The forced password login landed on a screen that could not perform it
+
+`endSession()` → `sessionEnded` → `AppNavigation` returns the user to Login. But `LoginScreen` routes on
+`biometricEnabledAt` in Room, which a revocation never touches — so an enrolled user arrived at the
+fingerprint card, and the fingerprint is precisely what cannot work: `refreshWith` had just cleared the
+stored token. Tapping it spent a round trip to reach a failure that was already knowable.
+
+Worse, `AppError.Session` was emitted by `QueueProcessor` and `DataSynchronizer` only. The reconnect
+collector in `SessionManagerImpl.init` calls `ensureValidSession()` on nobody's behalf, so that path
+**teleported the user to Login with no message at all**.
+
+**Fix.** Emit from `endSession()` itself — every detection, exactly once (it clears `current_user_id`, so
+a repeat call resolves no user and returns `DEFERRED`). And add `SessionManager.canRestoreSession(userId)`,
+checked by `checkBiometricAvailability()` on arrival: **enrolled *and* no stored token** can only mean the
+token was rejected, since the other two `clearLastRefreshToken()` call sites also drop the enrolment. It is
+answered from DataStore, so it holds offline too. The enrolment is deliberately kept — erasing it would
+leave the fingerprint silently off after recovery, and a stale enrolment cannot grant access anyway.
+
+### 2. One user's queued writes could be pushed under another user's session
+
+`SyncOperationEntity` has no author column, `getPending()` has no filter, and `docs/sql/rls.sql` checks
+only the signed-in user's **role** (`get_my_role() IN ('SUPERUSUARIO','USUARIO')`) — `pedidos` has no owner
+column at all. So a flush after a user switch did not fail; it **succeeded**, filing the previous user's
+pedidos under the new account. Their whole Room cache was visible to the new user as well.
+
+Nothing durably recorded device ownership: `current_user_id` is cleared by the startup wipe *and* by
+`endSession()` — exactly when the answer is needed.
+
+**Fix.** `DEVICE_OWNER_KEY` in DataStore, written by an explicit `claimDevice()` rather than by
+`persistUserId()`: `onAuthenticated` fires the instant `signInWith` returns and would have overwritten the
+owner before the difference could be detected. The login flow therefore reads `deviceOwnerUserId()`
+**before** authenticating. `ResolveDeviceHandoverUseCase` decides at `finishPasswordLogin()` (the single
+funnel for both password paths): same user → proceed; different with an empty queue → silent wipe;
+different with queued writes → `CambioDeUsuarioDialog`. `QueueProcessor.flush()` independently refuses on
+an owner/session mismatch, covering the window in which `SyncWorker`'s backoff could fire mid-dialog. A
+fingerprint login skips the check — it can only resolve to the enrolled user, who already owns the cache.
+
+### Adjacent fixes
+
+- **`flush()` had no mutex.** The `sessionRecovered` collector re-entered it while the flush that caused
+  the refresh still held the same `pending` snapshot — duplicate photo uploads and duplicate
+  `detalle_pedido`/`pagos` delete-then-insert, plus `delete(id)` racing `incrementRetry(id)`.
+- **`revokeAndWipe()` ran `clearAllTables()` unconditionally**, so a non-enrolled user signing out while
+  offline destroyed every queued pedido. Now guarded on `pendingCount()`, mirroring `DeviceDataCleanerImpl`.
+  This does strand the queue behind a sign-out with no way back in, but the next login resolves it.
+- **Ban detection matched English message text** (`e.message.contains("banned")`). Now
+  `AuthRestException.errorCode` against `AuthErrorCode.UserBanned` / `InvalidCredentials` / `UserNotFound`
+  (supabase-kt 3.1.4). Deleted accounts previously reported "Contraseña incorrecta" when the password was
+  not the problem.
+
+**No Room migration** — DB stays at v19. Since a user switch always wipes, the queue is homogeneous by
+construction and a per-operation owner column would be redundant.
+
+**Not covered by tests.** The repo has only the template `ExampleUnitTest`/`ExampleInstrumentedTest`; all
+of the above was verified by build + manual reasoning, and the handover scenarios need two real accounts.
+
+---
+
+## ✅ Phase 16b — Session recovery on reconnect
+
+The second path to the same anonymous-request failure as Phase 16, deferred at the time and affecting
+**every** user, not just enrolled ones.
+
+**Root cause.** supabase-kt refreshes at 80% of token life (`AuthImpl.kt:61,480`). Offline that throws;
+`tryImportingSession` sets `RefreshFailure` and retries every `retryDelay` (10s, `AuthConfig.kt:25`).
+While in `RefreshFailure`, `currentSessionOrNull()` is null (`Auth.kt:388-391`), so requests fall back
+to the publishable key and RLS declines them. `QueueProcessor.start()` flushes the instant
+`isOnlineFlow` emits true, beating that 10s delay — so the whole flush went out anonymous.
+
+**No data was ever lost** (WorkManager retried with 30s exponential backoff and the writes landed). What
+it cost was false alarms: `retryCount > 0` pinned the sync icon to `ERROR`, `SyncNotifier.notifyFailure()`
+fired a "sync failed" notification, an error snackbar appeared, and the write was delayed ~30s.
+
+**Design rule: never refresh a token supabase-kt is already refreshing.** Its retry loop captures the
+session *by value* and keeps replaying the same refresh token every 10s. Refreshing it ourselves spends
+that token, and the replay ~10s later sits right at Supabase's 10s reuse interval — outside it, the
+entire token family is revoked and the user is locked out. So `ensureValidSession()` now branches on
+`sessionStatus` to decide who owns recovery: `Authenticated` → `VALID`; `RefreshFailure` /
+`Initializing` → `DEFERRED` (a loop is alive, wait); `NotAuthenticated` → manual refresh (the loop was
+torn down by `clearSession()`, so there is no competitor).
+
+**Changes.** `SessionResult` gained `DEFERRED`. `SessionManager.sessionRecovered: SharedFlow<Unit>`
+emits when a renewed session lands — from `Authenticated(source = SessionSource.Refresh)` for
+supabase-kt's own recovery, and explicitly after our manual refresh (which reports `source = Unknown`).
+`QueueProcessor` and `DataSynchronizer` subscribe to it; the flow direction is forced, since both now
+depend on `SessionManager` for the gate and a collector inside `SessionManagerImpl` would be a Hilt
+cycle. `flush()` returns `FlushOutcome` (COMPLETED / FAILED / DEFERRED) instead of a Boolean that
+conflated "the server rejected this" with "we had no token"; a deferred flush does no push, no
+`retryCount++`, emits nothing, and `SyncWorker` reschedules without notifying — but must call
+`SyncNotifier.dismiss()`, since `notifyStarted()` posts an *ongoing* notification that would otherwise
+never clear. `DataSynchronizer.syncIfStale()` gets the same gate, placed **after** the staleness check
+so a screen with fresh data never waits, and on `DEFERRED` it waits up to 12s for `sessionRecovered`
+rather than painting a "no se pudo actualizar" error while the session is seconds away.
+
+`SessionManagerImpl` also collects `isOnlineFlow` and calls `ensureValidSession()` on reconnect. That
+covers the one case `sessionRecovered` cannot: after an **offline fingerprint login** there is no
+session and no retry loop, so no renewal will ever be announced. A successful manual refresh also
+re-reads the profile, since the cached row can predate a role change made while the device was offline
+(`onAuthenticated` only fetches remotely when the local row is missing entirely).
+
+**Also fixed:** `ForgetEnrolledUserUseCase` revoked the session *before* the cleaner tried to push
+pending writes, stranding them. The flush now runs first, while still authenticated.
+
+**Phase 16 bug found while wiring this up.** `currentUserId()` resolved `_currentUser ?: current_user_id`,
+and at the login screen both are null — the startup wipe emits `NotAuthenticated`, which clears the
+stored id. So `ensureValidSession()` returned `REVOKED` and `BiometricLoginUseCase` mapped it to
+`PasswordRequired`: **the fingerprint would have demanded a password every time**, defeating Phase 16
+entirely. Phase 16's own verification step 2 covered this; it was never run on a device. Fixed by
+making the caller name the account: `ensureValidSession(verifiedUserId)` is passed `enrolled.id` by the
+login flow only, which both identifies the user and asserts a fingerprint prompt just verified them.
+Resolving the enrolled user implicitly inside the session layer was rejected — it would let a startup
+queue flush authenticate before the user proved anything, defeating always-require-login-on-start.
+
+**Transient vs. real rejection.** `refreshWith` treated *every* `RestException` as revoked, including
+5xx — so a Supabase outage during a refresh would clear the stored token and bounce the user to Login
+over a server hiccup. 5xx is now `OFFLINE` (token kept, retry later), matching supabase-kt's own
+`tryImportingSession`.
+
+**Session ended.** `REVOKED` now clears the local session and emits `SessionManager.sessionEnded`,
+which `AppNavigation` turns into a return to Login. Previously the "tu sesión expiró" snackbar asked
+for a password login the app gave no way to perform. "Nobody is signed in yet" is `DEFERRED` rather
+than `REVOKED`, so startup with orphaned queue rows no longer reports an expired session to someone who
+never had one.
+
+**New files**: `data/queue/FlushOutcome.kt`.
+
+**Rejected**: reusing the last access token on an offline fingerprint login. It isn't there
+(`loadSession()` deletes it on every app start), importing an expired session starts a 10s polling
+loop for the whole offline period, and Supabase rejects an expired token exactly as it rejects an
+anonymous one.
 
 ---
 
@@ -84,12 +224,7 @@ rather than once per operation.
 `data/session/DeviceDataCleanerImpl.kt`, `domain/usecase/BiometricLoginUseCase.kt`,
 `domain/usecase/ForgetEnrolledUserUseCase.kt`, `ui/screen/auth/OlvidarUsuarioDialog.kt`.
 
-**Known gap (deferred)**: staying offline past the token's 80% refresh point drops the session to
-`RefreshFailure`, where `currentSessionOrNull()` is null and requests again go out anonymous —
-affecting password users too. `QueueProcessor.start()` also flushes the moment connectivity returns,
-beating supabase-kt's 10s `retryDelay`. Fix is to wire `ensureValidSession()` into
-`QueueProcessor.flush()` and `DataSynchronizer.syncIfStale()` (returning early without
-`retryCount++` when offline), plus a proactive refresh on reconnect.
+**Known gap** — closed by Phase 16b below.
 
 See `docs/features/auth.md` and `docs/features/infrastructure.md`.
 

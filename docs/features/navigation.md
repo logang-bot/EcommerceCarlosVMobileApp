@@ -97,3 +97,51 @@ navController.navigate(LoginRoute) {
 ```
 
 `popUpTo(0)` clears the entire back stack so pressing back from login does not navigate back into the app.
+
+---
+
+## Forced return to Login (session ended)
+
+`AppNavigation` collects `AppViewModel.sessionEnded`, which `SessionManager` emits when the stored
+refresh token is rejected and cannot be renewed — see `auth.md` § "What actually revokes a token".
+
+```kotlin
+LaunchedEffect(Unit) {
+    appViewModel.sessionEnded.collect {
+        if (navController.currentDestination?.hasRoute<LoginRoute>() != true) {
+            navController.navigate(LoginRoute) { popUpTo(LoginRoute) { inclusive = true } }
+        }
+    }
+}
+```
+
+The guard matters: the write queue keeps retrying and re-emits on each attempt, so without it the user
+would be re-navigated repeatedly while already sitting on Login.
+
+This navigation is **not** optional cosmetics. The accompanying `AppError.Session` snackbar reads "Tu
+sesión expiró. Vuelve a iniciar sesión", and without the bounce the app offers no way to do that —
+leaving the user in a shell where every write silently fails.
+
+That snackbar is emitted by `SessionManager.endSession()` itself, not by the queue or the synchronizer.
+They used to emit it, which left the detections with no caller silent — notably the reconnect collector,
+whose `ensureValidSession()` speaks for nobody. That case navigated here with **no message at all**.
+
+**Arriving at Login is not the same as being able to log in.** `LoginScreen` picks its face from Room's
+`biometricEnabledAt`, which a revocation never touches, so an enrolled user landed on the fingerprint
+card — the one credential that provably cannot work, since the stored token was just cleared.
+`LoginViewModel` now detects this on arrival and opens the password sub-state directly; see `auth.md`
+§ "When the session cannot be restored".
+
+Local Room data is deliberately **not** wiped here. The session ending is not a sign-out, and unsynced
+`sync_operations` rows must survive to be pushed after the user signs back in. Who those rows belong to
+is tracked separately (`auth.md` § "Device ownership"), so a *different* user signing in afterwards
+cannot push them under their own account.
+
+---
+
+## Global error snackbar
+
+`AppNavigation` also hosts the app-wide snackbar. There is no global `Scaffold` — each of the ~32
+screens builds its own with its own bottom nav and FABs — so the `NavHost` is wrapped in a `Box` with a
+`SnackbarHost` aligned bottom-center under `navigationBarsPadding()`. See `infrastructure.md`
+§ "Centralized Error Manager".

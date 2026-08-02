@@ -15,8 +15,9 @@ class AppViewModel @Inject constructor(
     sessionManager: SessionManager,
     errorHandler: GlobalErrorHandler,
 ) : ViewModel() {
-    val currentUser = sessionManager.currentUser
-    val isLoaded    = sessionManager.isLoaded
+    val currentUser   = sessionManager.currentUser
+    val isLoaded      = sessionManager.isLoaded
+    val sessionEnded  = sessionManager.sessionEnded
 
     /**
      * Friendly message ids for the global snackbar — never the underlying technical text.

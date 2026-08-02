@@ -19,8 +19,10 @@ class ForgetEnrolledUserUseCase @Inject constructor(
 ) {
     suspend operator fun invoke() {
         val enrolled = userRepository.getBiometricEnabledUser()
+        // Order matters: the cleaner pushes anything still queued, which needs a live session.
+        // Revoking first would strand those writes on a device that is about to forget them.
+        deviceDataCleaner.wipeCachedDataIfFullySynced()
         sessionManager.forgetDevice()
         enrolled?.let { userRepository.setBiometricEnabled(it.id, null) }
-        deviceDataCleaner.wipeCachedDataIfFullySynced()
     }
 }

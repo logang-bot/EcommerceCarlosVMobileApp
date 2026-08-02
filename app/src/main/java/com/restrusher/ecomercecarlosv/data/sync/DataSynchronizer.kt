@@ -12,6 +12,8 @@ import com.restrusher.ecomercecarlosv.data.sync.impl.ProductoSyncer
 import com.restrusher.ecomercecarlosv.data.sync.impl.UmbralesSyncer
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.error.AppError
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.session.SessionResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +42,7 @@ class DataSynchronizer @Inject constructor(
     private val pedidoSyncer: PedidoSyncer,
     private val umbralesSyncer: UmbralesSyncer,
     private val errorHandler: GlobalErrorHandler,
+    private val sessionManager: SessionManager,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
 
@@ -51,6 +54,10 @@ class DataSynchronizer @Inject constructor(
         const val THRESHOLD_BUSINESS_MS = 30 * 60 * 1000L       // 30 minutes
 
         private const val SYNC_TIMEOUT_MS = 10_000L
+
+        /** Just clears supabase-kt's 10s retryDelay, so a pull-to-refresh landing mid-renewal
+         *  waits it out instead of reporting a failure the user would have to retry by hand. */
+        private const val SESSION_WAIT_MS = 12_000L
         private const val PREFS_NAME = "sync_staleness"
         private const val TAG = "DataSynchronizer"
 
@@ -108,6 +115,14 @@ class DataSynchronizer @Inject constructor(
                     }
                 }
         }
+        // A renewed session means anything read while we had no token was served from cache or
+        // refused outright, so treat everything as stale again.
+        appScope.launch {
+            sessionManager.sessionRecovered.collect {
+                Log.d(TAG, "session recovered — resetting staleness")
+                resetStaleness()
+            }
+        }
     }
 
     /**
@@ -146,12 +161,37 @@ class DataSynchronizer @Inject constructor(
         Log.d(TAG, "staleness reset")
     }
 
+    /**
+     * Without a session supabase-kt sends the publishable key rather than failing, so a read would
+     * come back empty from RLS and look like "no data" instead of "not signed in".
+     *
+     * On [SessionResult.DEFERRED] this waits instead of giving up: the caller may be a
+     * pull-to-refresh, and returning false there paints a "no se pudo actualizar" error while the
+     * session is seconds from returning.
+     */
+    private suspend fun hasUsableSession(): Boolean = when (sessionManager.ensureValidSession()) {
+        SessionResult.VALID -> true
+        // REVOKED already reported itself from SessionManager, which also covers the detections that
+        // have no caller to speak for them. Just fail the read.
+        SessionResult.OFFLINE, SessionResult.REVOKED -> false
+        SessionResult.DEFERRED -> awaitSessionRecovery()
+    }
+
+    private suspend fun awaitSessionRecovery(): Boolean {
+        Log.d(TAG, "sync: session renewing — waiting up to ${SESSION_WAIT_MS}ms")
+        return withTimeoutOrNull(SESSION_WAIT_MS) { sessionManager.sessionRecovered.first() } != null
+    }
+
     // Returns true on success/skipped, false on failure/timeout/offline.
     private suspend fun syncIfStale(entityType: String, thresholdMs: Long): Boolean {
         if (!networkMonitor.isOnline) return false
 
         val now = System.currentTimeMillis()
         if (now - (lastSyncedAt[entityType] ?: 0L) < thresholdMs) return true
+
+        // Deliberately after the staleness check: this can block for several seconds while a
+        // session is renewing, and there is no reason to make a screen wait for data it already has.
+        if (!hasUsableSession()) return false
 
         // `previous` is the delta cursor passed to the syncer (0 = full fetch, >0 = delta).
         // The optimistic stamp prevents concurrent syncs for the same entity.

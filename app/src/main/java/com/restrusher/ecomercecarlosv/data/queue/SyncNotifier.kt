@@ -54,6 +54,13 @@ class SyncNotifier @Inject constructor(
             .build()
     )
 
+    /**
+     * Clears the notification without reporting an outcome. [notifyStarted] posts an ongoing
+     * notification the user cannot swipe away, so any path that ends without success or failure —
+     * a flush deferred for want of a session — must call this or it stays on screen forever.
+     */
+    fun dismiss() = manager.cancel(NOTIFICATION_ID)
+
     // Silently skips if the user hasn't granted POST_NOTIFICATIONS (Android 13+)
     // or has disabled notifications for the app in system settings.
     @SuppressLint("MissingPermission")

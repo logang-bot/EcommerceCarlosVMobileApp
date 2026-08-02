@@ -27,6 +27,10 @@ sealed class AppError(
     class Queue(message: String, cause: Throwable? = null) :
         AppError(message, R.string.error_queue_generic, cause)
 
+    /** The stored refresh token was rejected — the user has to sign in again. */
+    class Session(message: String, cause: Throwable? = null) :
+        AppError(message, R.string.error_session_expired, cause)
+
     class Unknown(message: String, cause: Throwable? = null) :
         AppError(message, R.string.error_generic, cause)
 }

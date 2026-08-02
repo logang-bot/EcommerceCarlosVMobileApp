@@ -12,17 +12,21 @@ import com.restrusher.ecomercecarlosv.data.sync.DataSynchronizer
 import com.restrusher.ecomercecarlosv.domain.model.AppUser
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.UserRepository
+import com.restrusher.ecomercecarlosv.domain.session.DeviceDataCleaner
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import com.restrusher.ecomercecarlosv.domain.usecase.BiometricLoginResult
 import com.restrusher.ecomercecarlosv.domain.usecase.BiometricLoginUseCase
+import com.restrusher.ecomercecarlosv.domain.usecase.DeviceHandover
 import com.restrusher.ecomercecarlosv.domain.usecase.ForgetEnrolledUserUseCase
+import com.restrusher.ecomercecarlosv.domain.usecase.ResolveDeviceHandoverUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.restrusher.ecomercecarlosv.R
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.exception.AuthErrorCode
+import io.github.jan.supabase.auth.exception.AuthRestException
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.exceptions.RestException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +42,8 @@ class LoginViewModel @Inject constructor(
     private val dataSynchronizer: DataSynchronizer,
     private val biometricLogin: BiometricLoginUseCase,
     private val forgetEnrolledUser: ForgetEnrolledUserUseCase,
+    private val resolveDeviceHandover: ResolveDeviceHandoverUseCase,
+    private val deviceDataCleaner: DeviceDataCleaner,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginFormState())
@@ -51,9 +57,13 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             val deviceReady = BiometricManager.from(context)
                 .canAuthenticate(BIOMETRIC_STRONG or BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
-            if (deviceReady && userRepository.hasBiometricEnabled()) {
-                userRepository.getBiometricEnabledUser()?.let { showEnrolledUser(it) }
-            }
+            if (!deviceReady) return@launch
+            val enrolled = userRepository.getBiometricEnabledUser() ?: return@launch
+            showEnrolledUser(enrolled)
+            // Still enrolled but the stored token is gone means Supabase rejected it. Offering the
+            // fingerprint here would spend a tap to reach a failure we can already predict, so go
+            // straight to the password — the only thing that mints a new refresh token.
+            if (!sessionManager.canRestoreSession(enrolled.id)) requirePassword()
         }
     }
 
@@ -81,6 +91,9 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             val s = _state.value
+            // Read before signing in: authenticating makes the incoming user the active session at
+            // once, which would erase the very difference the handover check looks for.
+            val previousOwner = sessionManager.deviceOwnerUserId()
             try {
                 supabase.auth.signInWith(Email) {
                     email = s.email.trim()
@@ -88,10 +101,10 @@ class LoginViewModel @Inject constructor(
                 }
                 val userId = supabase.auth.currentUserOrNull()?.id
                     ?: return@launch fail(s, R.string.login_error_get_user)
-                finishPasswordLogin(userId, onSuccess)
-            } catch (e: RestException) {
-                Log.e(TAG, "onLoginClick: RestException — status=${e.statusCode}, error='${e.error}'")
-                applyRestError(s, e)
+                finishPasswordLogin(userId, previousOwner, onSuccess)
+            } catch (e: AuthRestException) {
+                Log.e(TAG, "onLoginClick: auth rejected — code='${e.errorCode}'", e)
+                applyAuthError(s, e.errorCode)
             } catch (e: Exception) {
                 Log.e(TAG, "onLoginClick: unexpected exception", e)
                 fail(s, R.string.login_error_no_internet)
@@ -99,7 +112,11 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    private suspend fun finishPasswordLogin(userId: String, onSuccess: () -> Unit) {
+    private suspend fun finishPasswordLogin(
+        userId: String,
+        previousOwner: String?,
+        onSuccess: () -> Unit,
+    ) {
         val s = _state.value
         // Sync from remote first to get the freshest is_active value; fall back to the local cache
         // only if the network call fails.
@@ -111,11 +128,20 @@ class LoginViewModel @Inject constructor(
             _state.value = s.copy(isLoading = false, isAccountDisabled = true)
             return
         }
+        when (val handover = resolveDeviceHandover(user, previousOwner)) {
+            is DeviceHandover.Proceed -> enterApp(user, onSuccess)
+            is DeviceHandover.ConfirmationRequired ->
+                _state.value = s.copy(isLoading = false, handover = handover)
+        }
+    }
+
+    private suspend fun enterApp(user: AppUser, onSuccess: () -> Unit) {
         // Whoever signs in with a password owns this device from now on.
-        userRepository.clearBiometricEnabledExcept(userId)
+        userRepository.clearBiometricEnabledExcept(user.id)
+        sessionManager.claimDevice(user.id)
         sessionManager.setCurrentUser(user)
         dataSynchronizer.resetStaleness()
-        _state.value = s.copy(isLoading = false)
+        _state.value = _state.value.copy(isLoading = false, handover = null)
         onSuccess()
     }
 
@@ -133,7 +159,13 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    private fun completeBiometricLogin(result: BiometricLoginResult.Success, onSuccess: () -> Unit) {
+    private suspend fun completeBiometricLogin(
+        result: BiometricLoginResult.Success,
+        onSuccess: () -> Unit,
+    ) {
+        // No handover check needed: the fingerprint can only resolve to the enrolled user, who is by
+        // definition the one whose data is already cached here.
+        sessionManager.claimDevice(result.user.id)
         sessionManager.setCurrentUser(result.user)
         // Only a real session can re-download, so an offline login keeps the cached thresholds
         // instead of forcing a full refetch it cannot perform.
@@ -148,6 +180,7 @@ class LoginViewModel @Inject constructor(
         _state.value = _state.value.copy(
             isLoading = false,
             showPasswordLogin = true,
+            canUseFingerprint = false,
             errorMessage = str(R.string.login_error_session_expired),
         )
     }
@@ -160,19 +193,51 @@ class LoginViewModel @Inject constructor(
             val s = _state.value
             val enrolledUser = userRepository.getBiometricEnabledUser()
                 ?: return@launch fail(s, R.string.login_error_invalid_credentials)
+            val previousOwner = sessionManager.deviceOwnerUserId()
             try {
                 supabase.auth.signInWith(Email) {
                     email = enrolledUser.email
                     password = s.password
                 }
-                finishPasswordLogin(enrolledUser.id, onSuccess)
-            } catch (e: RestException) {
-                applyWrongPasswordError(s, e)
+                finishPasswordLogin(enrolledUser.id, previousOwner, onSuccess)
+            } catch (e: AuthRestException) {
+                applyAuthError(s, e.errorCode, wrongPasswordWording = true)
             } catch (e: Exception) {
                 Log.e(TAG, "onBiometricPasswordLogin: unexpected exception", e)
                 fail(s, R.string.login_error_no_internet)
             }
         }
+    }
+
+    fun onHandoverConfirm(onSuccess: () -> Unit) {
+        val handover = _state.value.handover ?: return
+        _state.value = _state.value.copy(isLoading = true, handover = null)
+        viewModelScope.launch {
+            Log.i(TAG, "handover: discarding ${handover.pendingCount} op(s) from a previous user")
+            deviceDataCleaner.wipeCachedDataForNewUser()
+            // The wipe took the users table with it, so re-read the profile from the server before
+            // opening the app — nothing local survives to describe who just signed in.
+            val fresh = supabase.auth.currentUserOrNull()?.id
+                ?.let { userRepository.syncFromRemote(it) }
+                ?: return@launch abandonHandover()
+            enterApp(fresh, onSuccess)
+        }
+    }
+
+    fun onHandoverDismiss() {
+        _state.value = _state.value.copy(handover = null, isLoading = true)
+        // The sign-in already succeeded, so back it out: the previous user's unsynced work stays put
+        // and this account never reaches the app.
+        viewModelScope.launch { abandonHandover() }
+    }
+
+    // Drops the live session and returns to a clean login screen. Leaving the session up while the
+    // user sits on Login is the exact UI/session disagreement this whole flow exists to prevent —
+    // and here the profile read failed, so the app has nothing to show them anyway.
+    private suspend fun abandonHandover() {
+        runCatching { supabase.auth.clearSession() }
+        _state.value = LoginFormState()
+        checkBiometricAvailability()
     }
 
     fun onForgetUserClick() {
@@ -206,22 +271,29 @@ class LoginViewModel @Inject constructor(
         )
     }
 
-    private fun applyRestError(s: LoginFormState, e: RestException) {
-        val body = e.message ?: ""
-        when {
-            body.contains("banned", ignoreCase = true) ->
-                _state.value = s.copy(isLoading = false, isAccountDisabled = true)
-            body.contains("Invalid login", ignoreCase = true) ||
-            body.contains("invalid_credentials", ignoreCase = true) ->
-                fail(s, R.string.login_error_invalid_credentials)
+    /**
+     * Maps GoTrue's machine-readable error code. Matching the English message text instead used to
+     * drop banned users into a generic failure whenever Supabase reworded it, hiding the one screen
+     * that tells them to contact a superuser.
+     *
+     * @param wrongPasswordWording the email is not in question on the enrolled-user screen — it is
+     *   filled in from the stored profile — so bad credentials there can only mean the password.
+     */
+    private fun applyAuthError(
+        s: LoginFormState,
+        code: AuthErrorCode?,
+        wrongPasswordWording: Boolean = false,
+    ) {
+        when (code) {
+            AuthErrorCode.UserBanned -> _state.value = s.copy(isLoading = false, isAccountDisabled = true)
+            AuthErrorCode.InvalidCredentials -> fail(
+                s,
+                if (wrongPasswordWording) R.string.login_error_wrong_password
+                else R.string.login_error_invalid_credentials,
+            )
+            AuthErrorCode.UserNotFound -> fail(s, R.string.login_error_not_registered)
             else -> fail(s, R.string.login_error_auth_failed)
         }
-    }
-
-    private fun applyWrongPasswordError(s: LoginFormState, e: RestException) {
-        val body = e.message ?: ""
-        val invalid = body.contains("Invalid login") || body.contains("invalid_credentials")
-        fail(s, if (invalid) R.string.login_error_wrong_password else R.string.login_error_auth_failed)
     }
 
     private fun fail(s: LoginFormState, @StringRes messageRes: Int) {

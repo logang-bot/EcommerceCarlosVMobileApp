@@ -37,10 +37,17 @@
     <string name="login_olvidar_note">Los datos de la cuenta no se eliminan — solo se olvidan en este teléfono.</string>
     <string name="login_olvidar_confirm">Olvidar</string>
 
+    <!-- Login · cambio de usuario en el dispositivo -->
+    <string name="login_cambio_usuario_title">¿Entrar como %1$s?</string>
+    <string name="login_cambio_usuario_body">Este dispositivo tiene %1$d cambios de %2$s que aún no se han enviado al servidor. Si continúas, se borrarán y no se podrán recuperar.</string>
+    <string name="login_cambio_usuario_note">Para no perderlos, pide a %1$s que inicie sesión y espere a que todo se sincronice.</string>
+    <string name="login_cambio_usuario_confirm">Continuar y borrar</string>
+
     <!-- Mensajes de error generales (snackbar) -->
     <string name="error_sync_generic">No se pudieron actualizar los datos</string>
     <string name="error_queue_generic">No se pudieron guardar los cambios</string>
     <string name="error_network_generic">Sin conexión con el servidor</string>
+    <string name="error_session_expired">Tu sesión expiró. Vuelve a iniciar sesión</string>
     <string name="error_generic">Ocurrió un problema. Inténtalo de nuevo</string>
 
     <!-- Pull-to-refresh error toast -->

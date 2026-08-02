@@ -36,6 +36,13 @@ After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inc
 | `ui/screen/auth/LoginBiometricoContent.kt` | Enrolled-user login state UI + `WelcomeBackCard` + `BrandSectionCompact` + previews |
 | `ui/screen/auth/LoginComponents.kt` | Shared internal composables: `BrandMark`, `LoginTextField`, `PrimaryLoginButton`, `DividerOr` |
 | `ui/common/LoadingOverlay.kt` | Reusable scrim overlay with centered spinner; wraps any content |
+| `ui/screen/auth/OlvidarUsuarioDialog.kt` | "Olvidar este dispositivo" confirmation + light/dark previews |
+| `domain/usecase/BiometricLoginUseCase.kt` | Turns a fingerprint prompt into a real server-backed session; owns the is-active / role rules |
+| `domain/usecase/ForgetEnrolledUserUseCase.kt` | Wipes the remembered user: flush, revoke globally, clear enrolment |
+| `domain/session/SessionManager.kt` / `SessionManagerImpl` | `ensureValidSession`, `sessionRecovered`, `sessionEnded`, two-tier sign-out |
+| `domain/session/SessionResult.kt` | `VALID` / `OFFLINE` / `DEFERRED` / `REVOKED` |
+| `domain/session/DeviceDataCleaner.kt` | Wipes cached business data, but only once the write queue has drained |
+| `data/session/DataStoreGoTrueSessionManager.kt` | supabase-kt `SessionManager`: startup wipe + the surviving refresh-token mirror |
 
 ---
 
@@ -90,10 +97,16 @@ Column (horizontal padding 26dp, centered)
   ├── Spacer 16dp
   ├── PrimaryLoginButton — "Iniciar sesión" → onBiometricPasswordLogin
   ├── Spacer 12dp
-  ├── Row (clickable) — Fingerprint icon + "Entrar con huella" → triggers BiometricPrompt
+  ├── BackToFingerprintRow — Fingerprint icon + "Entrar con huella" → triggers BiometricPrompt
+  │     └── only when canUseFingerprint; hidden after a revocation, when it could only fail again
   ├── Spacer (weight 1.1f)
   └── ForgetUserRow — same as sub-state A
 ```
+
+Sub-state B is reached three ways: the user taps "Usar contraseña"; a fingerprint tap returns
+`PasswordRequired`; or `checkBiometricAvailability()` finds the stored token already gone on arrival
+(the revoked-session case — see "When the session cannot be restored"). Only the third clears
+`canUseFingerprint`.
 
 ### Overlay — OlvidarUsuarioDialog
 
@@ -103,6 +116,14 @@ deleted, a shield note clarifying the account itself is untouched, then `Cancela
 colour). Confirming runs `ForgetEnrolledUserUseCase` and resets state to a blank `LoginFormState`, i.e.
 the regular email/password screen.
 
+### Overlay — CambioDeUsuarioDialog
+
+Rendered over **either** face of the login screen (it is keyed off `state.handover`, outside the
+`isBiometricEnabled` branch) when a different user signs in over unsynced writes. Amber cloud-off
+badge, "¿Entrar como {nuevo}?", body naming the previous user and how many changes would be lost, an
+info note suggesting they sign in and sync first, then `Cancelar` / `Continuar y borrar` (error
+colour). See "Device ownership" below for the decision that raises it.
+
 ---
 
 ## Data flow
@@ -110,40 +131,59 @@ the regular email/password screen.
 ```
 App start:
   LoginViewModel.init → checkBiometricAvailability
-    → if device ready AND hasBiometricEnabled():
-        getBiometricEnabledUser() → populate enrolledUser* fields, isBiometricEnabled = true
-    → LoginScreen shows enrolled-user state
+    → if device ready AND getBiometricEnabledUser() != null:
+        populate enrolledUser* fields, isBiometricEnabled = true
+        → if !canRestoreSession(enrolled.id):        ← token was rejected; huella cannot work
+            requirePassword() → showPasswordLogin = true, canUseFingerprint = false,
+                                login_error_session_expired
+    → LoginScreen shows enrolled-user state (fingerprint or password sub-state accordingly)
 
 Enrolled user taps "Entrar con huella":
   BiometricPrompt.authenticate()
     → onAuthenticationSucceeded → LoginViewModel.onBiometricSuccess(onLoginSuccess)
         → BiometricLoginUseCase (blocks — see "Offline-capable biometric login" below)
-            VALID    → syncFromRemote → isActive check → setCurrentUser → navigate(HomeRoute)
-            OFFLINE  → setCurrentUser from Room cache → navigate(HomeRoute)
-            REVOKED  → showPasswordLogin = true + login_error_session_expired
+            ensureValidSession(verifiedUserId = enrolled.id)
+            VALID              → syncFromRemote → isActive check → setCurrentUser → navigate(HomeRoute)
+            OFFLINE / DEFERRED → setCurrentUser from Room cache → navigate(HomeRoute)
+            REVOKED            → showPasswordLogin = true + login_error_session_expired
 
 Enrolled user taps "Entrar con contraseña":
   viewModel.switchToPasswordLogin() → showPasswordLogin = true → password sub-state shown
 
 Enrolled user types password + taps "Iniciar sesión" (password sub-state):
   viewModel.onBiometricPasswordLogin(onLoginSuccess)
-    → validates password against the enrolled user (stub: password == "admin")
-    → getBiometricEnabledUser() → sessionManager.setCurrentUser → navigate(HomeRoute)
+    → deviceOwnerUserId()                       ← read BEFORE signing in
+    → signInWith(Email) using the enrolled user's stored email + the typed password
+    → finishPasswordLogin(enrolled.id, previousOwner, onSuccess)   ← shared funnel, see below
 
 Enrolled user taps "Entrar con huella" (password sub-state):
   triggerBiometric → BiometricPrompt.authenticate() → same as default biometric path
 
 Enrolled user taps "¿No eres X? Entrar con otra cuenta":
   viewModel.onForgetUserClick() → showForgetDialog = true
-    → confirm → ForgetEnrolledUserUseCase (revoke globally, erase token, clear enrolment,
-                 wipe cached data if the write queue drained) → blank LoginFormState
+    → confirm → ForgetEnrolledUserUseCase
+                  1. flush queue + wipe cached data (only if the queue drained)  ← needs a session
+                  2. forgetDevice() — global revoke, erase token
+                  3. clear biometricEnabledAt
+                → blank LoginFormState
 
 Regular / account-disabled screen taps "Entrar con otra cuenta":
   viewModel.switchToOtherAccount() → isBiometricEnabled = false → regular login shown
 
 Regular login:
-  onLoginClick → delay(300) → check "admin"/"admin" stub
-    → load user from Room → sessionManager.setCurrentUser → navigate(HomeRoute)
+  onLoginClick
+    → deviceOwnerUserId()                       ← read BEFORE signing in
+    → signInWith(Email) with the typed email + password
+    → finishPasswordLogin(userId, previousOwner, onSuccess)
+
+finishPasswordLogin (the single funnel for BOTH password paths):
+  syncFromRemote → fall back to Room → isActive check (signOut + disabled card if false)
+    → ResolveDeviceHandoverUseCase(user, previousOwner)
+        Proceed              → enterApp: clearBiometricEnabledExcept, claimDevice,
+                               setCurrentUser, resetStaleness, navigate(HomeRoute)
+        ConfirmationRequired → state.handover set → CambioDeUsuarioDialog
+                                 confirm → wipeCachedDataForNewUser → re-read profile → enterApp
+                                 cancel  → clearSession → blank LoginFormState
 ```
 
 ---
@@ -155,8 +195,10 @@ Regular login:
 | `email`, `password` | Form inputs; `password` is also used by the biometric screen |
 | `isLoading`, `errorMessage` | Loading/error UI state |
 | `isBiometricEnabled` | Whether to show the enrolled-user screen |
-| `showPasswordLogin` | True when enrolled user has tapped "Entrar con contraseña" |
+| `showPasswordLogin` | True when enrolled user has tapped "Entrar con contraseña", or the session expired |
+| `canUseFingerprint` | False once the stored refresh token is gone — hides the "Entrar con huella" row, which could only fail |
 | `showForgetDialog` | True while the `OlvidarUsuarioDialog` confirmation is open |
+| `handover` | Non-null while `CambioDeUsuarioDialog` is open; carries the incoming/previous names and the pending-write count |
 | `enrolledUserName` | Name shown in the welcome-back card, and in the forget dialog title |
 | `enrolledUserFirstName` | First name only — used by the "¿No eres X?" row |
 | `enrolledUserEmail` | Email shown in the welcome-back card |
@@ -336,20 +378,122 @@ saw stale data, missing images and failed writes, with nothing indicating they w
 LoginScreen: fingerprint tap succeeds
   → BiometricLoginUseCase
       1. sessionManager.ensureValidSession()          // blocks — one HTTP round trip when online
-           already has a session                       → VALID
-           offline                                     → OFFLINE
-           no stored token for this user               → REVOKED
-           else → supabase.auth.refreshSession(token)
-                    → saveLastRefreshToken(rotated)     // persisted BEFORE importSession
-                    → supabase.auth.importSession(...)  → VALID
-                  RestException (revoked/banned/reused) → REVOKED
-      2. VALID    → syncFromRemote(user.id), reject if !isActive, then navigate
-         OFFLINE  → local-only login from the Room cache, staleness thresholds preserved
-         REVOKED  → stay on Login, switch to the password field
+      2. VALID              → syncFromRemote(user.id), reject if !isActive, then navigate
+         OFFLINE / DEFERRED → local-only login from the Room cache, staleness thresholds preserved
+         REVOKED            → stay on Login, switch to the password field
 ```
 
-`ensureValidSession()` is guarded by a `Mutex`: parallel refreshes presenting the same rotating token
-would themselves look like a token-reuse attack.
+### ensureValidSession() — who owns the refresh
+
+The same helper gates the queue and the synchronizer (see `infrastructure.md`), so it must never
+refresh a token supabase-kt is already refreshing. Its retry loop captures the session **by value** and
+replays the same refresh token every 10s; spending that token ourselves means the replay lands right at
+Supabase's 10s reuse interval, and outside it the **entire token family is revoked** — permanent
+lockout. So the decision is made from `supabase.auth.sessionStatus`:
+
+| status | meaning | result |
+|---|---|---|
+| `Authenticated` | usable token | `VALID` |
+| `RefreshFailure` | a retry loop is alive and holds the token | `DEFERRED` — wait, do not touch it |
+| `Initializing` | startup in flight | `DEFERRED` |
+| `NotAuthenticated` | `clearSession()` already tore the loop down (`sessionJob = null`) | refresh from the stored token — no competitor |
+
+The manual refresh path is therefore only ever reached when supabase-kt has given up, which includes
+the login screen (the startup wipe leaves `NotAuthenticated`). A `Mutex` coalesces concurrent callers
+onto a single attempt.
+
+**Who the session is restored *for* is a security boundary.** At the login screen the app has
+deliberately forgotten the signed-in user — `onNotAuthenticated()` clears `current_user_id` during the
+startup wipe — so nothing in the session layer can resolve an id there. `ensureValidSession` therefore
+takes an optional `verifiedUserId`, which both names the account and asserts the caller has just
+verified that person locally:
+
+- `BiometricLoginUseCase` passes `enrolled.id`, having had a successful fingerprint prompt.
+- Everyone else (queue flush, synchronizer, reconnect collector) omits it and is resolved from the
+  active session.
+
+Resolving the enrolled user implicitly instead would let a background queue flush authenticate at
+startup before the user proved anything, defeating always-require-login-on-start.
+
+### Two ways a session comes back
+
+`SessionManager.sessionRecovered: SharedFlow<Unit>` emits whenever a usable token returns; the queue
+flushes on it and the synchronizer marks its data stale.
+
+| user was… | `sessionStatus` on reconnect | restored by | latency |
+|---|---|---|---|
+| online, token expired mid-session | `RefreshFailure` (loop alive) | supabase-kt → `sessionRecovered` | ≤10s |
+| offline fingerprint login | `NotAuthenticated` (no loop) | `SessionManagerImpl`'s `isOnlineFlow` collector → manual refresh | immediate |
+
+The second row is why that reconnect collector exists: after an offline fingerprint login there is no
+session and no retry loop, so `sessionRecovered` would never fire — a renewal cannot be announced for a
+session that never existed. A successful manual refresh also re-reads the profile, since the cached row
+can predate a role change made while the device was offline (`onAuthenticated` only fetches remotely
+when the local row is missing entirely).
+
+### When the session cannot be restored
+
+`REVOKED` means the stored token was rejected outright — a ban, a password changed elsewhere, or reuse
+detection. `SessionManagerImpl` clears the local session and emits `SessionManager.sessionEnded`;
+`AppNavigation` collects it and returns the user to Login (guarded so the queue's repeated retries
+don't re-navigate once already there), while `AppError.Session` shows "Tu sesión expiró. Vuelve a
+iniciar sesión". The navigation is not optional: the message asks for a password login, and without it
+the app offers no way to perform one.
+
+`AppError.Session` is emitted by **`endSession()` itself**, not by its callers. The queue and the
+synchronizer used to emit it, which left the paths with no caller silent — notably the reconnect
+collector in `init`, whose `ensureValidSession()` speaks for nobody. That case teleported the user to
+Login with no explanation at all. Emitting at the source covers every detection exactly once:
+`endSession` clears `current_user_id`, so a repeat call resolves no user and returns `DEFERRED`
+instead of `REVOKED`.
+
+**Landing on Login is not the same as being able to log in.** `LoginScreen` routes on
+`biometricEnabledAt` in Room, which a revocation never touches — so an enrolled user arrived at the
+fingerprint card, and the fingerprint is exactly what cannot work: the stored token has just been
+cleared. `LoginViewModel.checkBiometricAvailability()` therefore asks
+`SessionManager.canRestoreSession(userId)` on arrival and calls `requirePassword()` when it is false,
+opening the password sub-state immediately and hiding the fingerprint row (`canUseFingerprint`).
+
+That check is exact rather than heuristic: `clearLastRefreshToken()` runs on rejection, and its only
+other call sites (`revokeAndWipe`, `forgetDevice`) also drop the enrolment. So **enrolled *and* no
+stored token** can only mean the token was rejected. It is answered from DataStore, so it is also
+correct offline.
+
+The enrolment is deliberately **kept**. Erasing it would force the full email form and silently leave
+the fingerprint off after the user recovers — they would have to re-enable it from Perfil without
+being told. A stale enrolment cannot grant access (the password login simply fails for a banned or
+deleted account) and "¿No eres X?" already clears it. After a successful password login `saveSession`
+rewrites the token mirror, so the fingerprint works again on its own.
+
+Not knowing *who* the user is — a fresh install, or before the first login — is `DEFERRED`, not
+`REVOKED`. Otherwise startup finding orphaned queue rows would tell someone their session expired when
+they never had one.
+
+A **5xx** from the refresh endpoint is `OFFLINE`, not `REVOKED`: the token is kept and the next attempt
+retries, matching what supabase-kt does in `tryImportingSession`. Signing a user out over a Supabase
+outage would strand them behind a password prompt for something that was never their problem.
+
+### What actually revokes a token
+
+Refresh tokens do not expire on their own **by default** — but *Time-box user sessions* and *Inactivity
+timeout* under Auth → Sessions change that if enabled, and both should stay off. Otherwise `REVOKED`
+means a deliberate revocation:
+
+| cause | notes |
+|---|---|
+| Superuser deactivates or deletes the account | `set-user-active` bans with `ban_duration = 876000h`; a GoTrue ban invalidates the user's refresh tokens |
+| "Olvidar este dispositivo" on **another** device | `forgetDevice()` uses `SignOutScope.GLOBAL`, which revokes every session for that user — the likeliest real-world trigger |
+| Password changed from another device | |
+| Reuse detection fired | a spent token replayed outside the ~10s window revokes the whole family — what the `DEFERRED` rule exists to prevent |
+| Staging ↔ production flavour swap | the token belongs to a different project; development only |
+
+In normal operation this is "the account genuinely lost access", which is exactly when a password login
+is the correct answer.
+
+**An offline fingerprint login deliberately holds no token at all.** Reusing the last access token was
+considered and rejected: it is deleted at every app start, importing an expired session starts a 10s
+polling loop for the whole offline period, and Supabase rejects an expired token exactly as it rejects
+an anonymous one.
 
 **Token rotation ordering matters.** Supabase rotates the refresh token on every use and invalidates the
 spent one after a short reuse window. Persisting the rotated token only after `importSession()` left a
@@ -363,8 +507,14 @@ is therefore written the instant `refreshSession()` returns.
 |---|---|---|
 | access token | discarded locally (`auth.clearSession()`) | discarded |
 | refresh token | **kept** — no `/logout` call | revoked server-side |
-| cached data | kept | wiped |
+| cached data | kept | wiped, **unless writes are still queued** |
 | next fingerprint tap | mints a fresh session, no password | n/a |
+
+The not-enrolled wipe is guarded on `pendingCount()`, mirroring `DeviceDataCleanerImpl`. It used to
+run unconditionally, so a user without the fingerprint who signed out while offline destroyed every
+queued pedido — data that exists nowhere else. Keeping it does strand the queue behind a sign-out
+with no way back in, but the next login resolves that: the same user flushes it, a different one is
+asked first (see below).
 
 A fingerprint is not a credential — it unlocks the device, it proves nothing to Supabase. The stored
 refresh token is the only thing the app can present, so revoking it on sign-out is what previously left
@@ -379,6 +529,42 @@ revokes it properly.
 A deactivated account loses its enrolment: `BiometricLoginUseCase` calls `forgetDevice()` and clears
 `biometricEnabledAt`, so the fingerprint stops offering a way in until a superuser reactivates the
 account and the user signs in with their password.
+
+### Device ownership — who the cached data belongs to
+
+Queued operations carry **no author**, `getPending()` has **no filter**, and RLS only checks the
+signed-in user's *role* (`docs/sql/rls.sql`: `get_my_role() IN ('SUPERUSUARIO','USUARIO')`) — `pedidos`
+has no owner column at all. So flushing one user's queue under another's session does not fail; it
+**succeeds**, filing their pedidos under the wrong account. The cached tables leak the same way, just
+visibly.
+
+Nothing durable recorded who the device belonged to: `current_user_id` is cleared by the startup wipe
+*and* by `endSession()`, which is exactly when the answer is needed. `DEVICE_OWNER_KEY`
+(`device_owner_user_id` in DataStore) fills that gap.
+
+It is **not** written when a session merely becomes authenticated. `onAuthenticated` fires the instant
+`signInWith` returns, which would overwrite the owner before the handover could be detected. Instead
+`claimDevice()` is called only once a login has been allowed to keep the cache, and the login flow
+reads `deviceOwnerUserId()` **before** authenticating.
+
+`ResolveDeviceHandoverUseCase` then decides, from the single funnel `finishPasswordLogin()`:
+
+| incoming vs. owner | queued writes | outcome |
+|---|---|---|
+| same, or no owner | any | `Proceed` — queue flushes as normal |
+| different | 0 | cache wiped silently, `Proceed` |
+| different | > 0 | `ConfirmationRequired` → `CambioDeUsuarioDialog` |
+
+The dialog names the previous user and the count, and suggests they sign in and sync instead.
+Cancelling calls `auth.clearSession()` to back the sign-in out, leaving their work untouched.
+Confirming calls `DeviceDataCleaner.wipeCachedDataForNewUser()` — which, unlike
+`wipeCachedDataIfFullySynced()`, deliberately does **not** flush first: those writes belong to the
+previous user.
+
+`QueueProcessor.flush()` independently refuses when `deviceOwnerUserId()` and the signed-in user
+disagree. That covers the window between `signInWith` succeeding and the dialog being answered, in
+which `SyncWorker`'s retry backoff could otherwise fire. A fingerprint login skips the check entirely —
+it can only ever resolve to the enrolled user, who by definition already owns the cache.
 
 ---
 
@@ -400,8 +586,17 @@ the Room cache.
 
 ### 🗑️ Olvidar este dispositivo
 The recurring-user login screen offers "¿No eres X? Entrar con otra cuenta", which opens a confirmation
-dialog. Confirming runs `ForgetEnrolledUserUseCase`: a global sign-out (so a token copied off the device
-is dead), the stored token erased, `biometricEnabledAt` cleared, and the cached business data wiped —
-the last step only once the write queue has drained, since unsynced pedidos exist nowhere else.
-`DeviceDataCleaner.wipeCachedDataIfFullySynced()` returns false and keeps the data when writes are still
-pending.
+dialog. Confirming runs `ForgetEnrolledUserUseCase`, **in this order**:
+
+1. `DeviceDataCleaner.wipeCachedDataIfFullySynced()` — pushes anything still queued, then wipes the
+   cached tables only if the queue drained. Returns false and keeps the data when writes are pending,
+   since unsynced pedidos exist nowhere else.
+2. `sessionManager.forgetDevice()` — global sign-out, so a token copied off the device is dead.
+3. `biometricEnabledAt` cleared.
+
+**The order is load-bearing.** Step 1 needs a live session to push, so revoking first would strand
+those writes on a device that is about to forget them.
+
+`forgetDevice()` uses `SignOutScope.GLOBAL`, which revokes **every** session for that account — so
+forgetting device A also ends the session on device B, which will bounce to Login on its next sync.
+That is the most likely real-world cause of a `REVOKED` result.

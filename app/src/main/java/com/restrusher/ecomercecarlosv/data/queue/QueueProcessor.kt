@@ -26,6 +26,8 @@ import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
 import com.restrusher.ecomercecarlosv.data.remote.StorageService
 import com.restrusher.ecomercecarlosv.di.ApplicationScope
 import com.restrusher.ecomercecarlosv.domain.error.AppError
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.session.SessionResult
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,9 +56,13 @@ class QueueProcessor @Inject constructor(
     private val supabase: SupabaseClient,
     private val storageService: StorageService,
     private val errorHandler: GlobalErrorHandler,
+    private val sessionManager: SessionManager,
     private val workManager: WorkManager,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
+
+    // Serialises flushes so the three triggers above cannot push the same operation twice.
+    private val flushMutex = Mutex()
 
     private val _lastSuccessfulFlushAt = MutableStateFlow<Long?>(null)
     val lastSuccessfulFlushAt: StateFlow<Long?> = _lastSuccessfulFlushAt.asStateFlow()
@@ -70,6 +78,14 @@ class QueueProcessor @Inject constructor(
                         flush()
                     }
                 }
+        }
+        // A session coming back is the other reason to flush: the connectivity collector above
+        // usually fires while supabase-kt is still renewing the token, so that attempt defers.
+        appScope.launch {
+            sessionManager.sessionRecovered.collect {
+                Log.d(TAG, "session recovered — flushing queue")
+                flush()
+            }
         }
         // On every new enqueue: ensure a WorkManager job exists (survives app kill) and, if
         // already online, flush immediately without waiting for the worker to fire.
@@ -87,11 +103,33 @@ class QueueProcessor @Inject constructor(
         }
     }
 
-    // Returns true if at least one operation failed to push. SyncWorker uses this to decide
-    // whether to return Result.retry() so WorkManager can apply exponential backoff.
-    suspend fun flush(): Boolean {
+    /**
+     * Pushes everything queued. SyncWorker uses the outcome to decide whether to reschedule and
+     * whether to tell the user anything.
+     *
+     * Serialised: a flush that refreshes the session makes [SessionManager.sessionRecovered] fire,
+     * whose collector above flushes again — re-entering with the same `pending` snapshot and pushing
+     * every operation twice. The second caller waits here and then finds an empty queue.
+     */
+    suspend fun flush(): FlushOutcome = flushMutex.withLock { pushPending() }
+
+    private suspend fun pushPending(): FlushOutcome {
         val pending = syncOperationDao.getPending()
-        if (pending.isEmpty()) return false
+        if (pending.isEmpty()) return FlushOutcome.COMPLETED
+
+        // Without a session supabase-kt sends the publishable key instead of failing, so every push
+        // would go out anonymous and be declined by RLS — indistinguishable from a real rejection.
+        // Defer rather than burn a retry on operations that are perfectly fine.
+        when (sessionManager.ensureValidSession()) {
+            SessionResult.VALID -> Unit
+            // REVOKED is reported by SessionManager itself, which also covers the paths that have
+            // no caller to speak for them. Nothing was attempted, so no retry is burned.
+            SessionResult.OFFLINE, SessionResult.DEFERRED, SessionResult.REVOKED -> {
+                Log.d(TAG, "flush: no session yet — deferring ${pending.size} op(s)")
+                return FlushOutcome.DEFERRED
+            }
+        }
+        if (!sessionOwnsQueue()) return FlushOutcome.DEFERRED
 
         val deduplicated = deduplicate(pending)
         Log.d(TAG, "flush: ${pending.size} raw ops → ${deduplicated.size} after dedup")
@@ -107,7 +145,20 @@ class QueueProcessor @Inject constructor(
             }
         }
         reportFlushOutcome(firstFailure)
-        return firstFailure != null
+        return if (firstFailure == null) FlushOutcome.COMPLETED else FlushOutcome.FAILED
+    }
+
+    // Queued operations belong to whoever created them, but they carry no author and RLS only checks
+    // the signed-in user's role — so a mismatch here would file one user's pedidos under another's
+    // account, successfully and silently. Happens in the window between a new user signing in and
+    // the handover being resolved; holding the ops is safe, since resolving it either wipes them or
+    // hands the device back to their owner.
+    private suspend fun sessionOwnsQueue(): Boolean {
+        val owner = sessionManager.deviceOwnerUserId() ?: return true
+        val signedIn = sessionManager.currentUser.value?.id ?: return true
+        if (owner == signedIn) return true
+        Log.w(TAG, "flush: queue belongs to $owner but $signedIn is signed in — deferring")
+        return false
     }
 
     private suspend fun forEachMatching(

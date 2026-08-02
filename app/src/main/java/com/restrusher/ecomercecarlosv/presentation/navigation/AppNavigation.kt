@@ -95,6 +95,19 @@ fun AppNavigation() {
         }
     }
 
+    // The session was revoked and cannot be renewed — a password login is the only way back. Send
+    // the user to Login so the "tu sesión expiró" message has somewhere to lead. Guarded so repeated
+    // failures (the queue keeps retrying) don't re-navigate once we are already there.
+    LaunchedEffect(Unit) {
+        appViewModel.sessionEnded.collect {
+            if (navController.currentDestination?.hasRoute<LoginRoute>() != true) {
+                navController.navigate(LoginRoute) {
+                    popUpTo(LoginRoute) { inclusive = true }
+                }
+            }
+        }
+    }
+
     // Global error snackbars — shown for errors not handled by individual screens. Only the
     // friendly message is surfaced; the technical detail stays in the log.
     val snackbarHostState = remember { SnackbarHostState() }

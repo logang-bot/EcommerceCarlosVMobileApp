@@ -33,9 +33,13 @@ class BiometricLoginUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(): BiometricLoginResult {
         val enrolled = userRepository.getBiometricEnabledUser() ?: return BiometricLoginResult.NotEnrolled
-        return when (sessionManager.ensureValidSession()) {
+        // The fingerprint prompt has already verified this person, so we may name them: at the login
+        // screen the app has forgotten who was signed in, and nothing else can resolve the id.
+        return when (sessionManager.ensureValidSession(verifiedUserId = enrolled.id)) {
             SessionResult.VALID -> loginWithFreshSession(enrolled)
-            SessionResult.OFFLINE -> loginFromCache(enrolled)
+            // DEFERRED at the login screen can only mean startup is still settling — there is no
+            // point blocking the user on it, and the reconnect collector will pick the session up.
+            SessionResult.OFFLINE, SessionResult.DEFERRED -> loginFromCache(enrolled)
             SessionResult.REVOKED -> BiometricLoginResult.PasswordRequired
         }
     }

@@ -12,6 +12,7 @@ object AppErrorLogger {
             is AppError.Database -> Log.e(tag, "[$label] ${error.message}", error.cause)
             is AppError.Sync     -> Log.w(tag, "[$label] ${error.message}", error.cause)
             is AppError.Queue    -> Log.w(tag, "[$label] ${error.message}", error.cause)
+            is AppError.Session  -> Log.e(tag, "[$label] ${error.message}", error.cause)
             is AppError.Unknown  -> Log.e(tag, "[$label] ${error.message}", error.cause)
         }
     }

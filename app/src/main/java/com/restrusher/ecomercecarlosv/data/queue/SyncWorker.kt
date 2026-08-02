@@ -24,13 +24,22 @@ class SyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         syncNotifier.notifyStarted()
-        val anyFailed = queueProcessor.flush()
-        return if (anyFailed) {
-            syncNotifier.notifyFailure()
-            Result.retry()
-        } else {
-            syncNotifier.notifySuccess()
-            Result.success()
+        return when (queueProcessor.flush()) {
+            FlushOutcome.COMPLETED -> {
+                syncNotifier.notifySuccess()
+                Result.success()
+            }
+            FlushOutcome.FAILED -> {
+                syncNotifier.notifyFailure()
+                Result.retry()
+            }
+            // Nothing was attempted — we simply had no session yet. Reschedule quietly rather than
+            // telling the user a sync failed, since nothing of theirs did. The dismiss is required:
+            // notifyStarted posts an ongoing notification that would otherwise never clear.
+            FlushOutcome.DEFERRED -> {
+                syncNotifier.dismiss()
+                Result.retry()
+            }
         }
     }
 

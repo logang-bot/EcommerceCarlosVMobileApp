@@ -39,6 +39,9 @@ Screen accessible from the Home bottom bar. Shows identity info, security settin
   without a password; cached data is kept. Without the fingerprint it revokes the refresh token
   server-side and wipes the local tables. Use "Olvidar este dispositivo" on the login screen for a hard
   sign-out that revokes everything. See `docs/features/auth.md`.
+- **Since Phase 16c** that wipe is guarded on `pendingCount()`: signing out without the fingerprint while
+  writes are still queued keeps the cached data, because those pedidos exist nowhere else. They are
+  pushed when the same user signs back in — or, if someone else does, resolved by the handover dialog.
 
 ---
 

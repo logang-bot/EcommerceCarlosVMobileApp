@@ -7,6 +7,7 @@ import com.restrusher.ecomercecarlosv.data.network.NetworkMonitor
 import com.restrusher.ecomercecarlosv.data.queue.QueueProcessor
 import com.restrusher.ecomercecarlosv.data.sync.DataSynchronizer
 import com.restrusher.ecomercecarlosv.domain.session.DeviceDataCleaner
+import com.restrusher.ecomercecarlosv.domain.session.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -19,6 +20,7 @@ class DeviceDataCleanerImpl @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val dataSynchronizer: DataSynchronizer,
     private val database: AppDatabase,
+    private val sessionManager: SessionManager,
 ) : DeviceDataCleaner {
 
     override suspend fun wipeCachedDataIfFullySynced(): Boolean {
@@ -29,9 +31,17 @@ class DeviceDataCleanerImpl @Inject constructor(
             Log.w(TAG, "keeping cached data — $pending operation(s) still unsynced")
             return false
         }
-        withContext(Dispatchers.IO) { database.clearAllTables() }
+        wipeCachedDataForNewUser()
         return true
     }
+
+    override suspend fun wipeCachedDataForNewUser() {
+        withContext(Dispatchers.IO) { database.clearAllTables() }
+        dataSynchronizer.resetStaleness()
+        sessionManager.releaseDevice()
+    }
+
+    override suspend fun pendingWriteCount(): Int = syncOperationDao.pendingCount()
 
     companion object {
         private const val TAG = "DeviceDataCleaner"

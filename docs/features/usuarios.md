@@ -106,19 +106,23 @@ network call.
 
 ### Local data wipe on sign-out
 
-`SessionManagerImpl` wipes all Room tables whenever `SessionStatus.NotAuthenticated` fires, **unless**
-a biometric-enrolled user exists (`users.biometricEnabledAt IS NOT NULL`). This covers two scenarios:
+> **Superseded in Phase 16.** `SessionStatus.NotAuthenticated` no longer wipes anything. It also fires
+> for the startup session clear and for a mid-session refresh failure, so wiping on it destroyed cached
+> business data — including unsynced `sync_operations` rows — behind the user's back. The wipe now lives
+> only in `signOut()`, which is the one place an explicit intent exists.
 
 | Scenario | Trigger | Outcome |
 |----------|---------|---------|
-| Explicit logout | `signOut()` → Supabase clears local session → `NotAuthenticated` emitted | DB wiped (unless biometric) |
-| App killed mid-logout / no session on cold start | `NotAuthenticated` emitted by Supabase on startup | DB wiped (unless biometric) |
+| Explicit logout, fingerprint enrolled | `signOut()` → `discardAccessToken()` | Data **kept**; refresh token kept for the next fingerprint tap |
+| Explicit logout, not enrolled | `signOut()` → `revokeAndWipe()` | Refresh token revoked server-side; data wiped **unless writes are still queued** (Phase 16c) |
+| Startup session clear / cold start | `NotAuthenticated` from the first-load wipe | Nothing wiped — only the session is gone |
+| `RefreshFailure` (offline) | supabase-kt retry loop alive | Nothing wiped; cached data serves the offline session |
+| Refresh token rejected | `endSession()` → `sessionEnded` | Nothing wiped; the user is returned to Login to re-authenticate |
 
-`database.clearAllTables()` (Room built-in) is used — no custom DAO methods needed. The wipe runs
-before `_isLoaded = true` so the splash screen is held until the DB is clean.
+`database.clearAllTables()` (Room built-in) is used — no custom DAO methods needed.
 
-`RefreshFailure` (offline, JWT refresh failed) does **not** trigger a wipe — the cached data is
-kept so the app can serve it while the device is offline.
+See `docs/features/auth.md` § "Sign-out is two-tier" and § "Device ownership" for the full rules,
+including what happens when a **different** user signs in over another's queued writes.
 
 ---
 
