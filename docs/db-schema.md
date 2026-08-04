@@ -261,7 +261,7 @@ productos (standalone catalogue)
 umbrales (standalone singleton config — no FK, always exactly one row)
 ```
 
-> **Data integrity — two critical rules:**
+> **Data integrity — three critical rules:**
 >
 > **1. Never use `fallbackToDestructiveMigration`.** It was removed from `DatabaseModule`. Room will now throw an `IllegalStateException` if a migration is missing, forcing an explicit migration to be written. The destructive fallback drops *all* tables (not just changed ones) when a schema version bump has no matching migration — irreversible data loss.
 >
@@ -281,6 +281,8 @@ umbrales (standalone singleton config — no FK, always exactly one row)
 > }
 > ```
 > `PedidoDao` and `DetallePedidoDao` also use `IGNORE` (purely defensive — these are insert-only, IDs are fresh UUIDs). `UserDao` and `ProductoDao` may safely keep `REPLACE` because neither table has inbound FK CASCADE references.
+>
+> **3. Never delete an exported schema from `app/schemas/`.** They are the only record of what each version looked like, and `MigrationTestHelper` needs the JSON to create a database at that version. `16.json` was never exported and its absence is permanent — no migration test can start at v16. Commit the new `<version>.json` in the same change that bumps `DATABASE_VERSION`.
 
 ---
 
@@ -397,6 +399,18 @@ ALTER TABLE pedidos   ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAU
 The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET is_deleted = true`), so `updated_at` is bumped automatically — deleted rows appear in the next delta sync on other devices with `is_deleted = true`, which causes them to be hard-deleted from Room there.
 
 ### Room migration reference
+
+All migrations live in `AppDatabase.kt` as top-level `val`s and are collected into a single
+`ALL_MIGRATIONS` array there. `DatabaseModule` builds the database with `addMigrations(*ALL_MIGRATIONS)`
+and `MigrationTest` (`app/src/androidTest/.../data/local/`) replays the same array, so the tested
+chain and the shipped chain cannot drift apart — never inline migrations into `addMigrations(...)`
+again. The declared version is `const val DATABASE_VERSION`, which a guard test uses to assert the
+array covers every consecutive pair from 4 upward.
+
+**Adding a migration:** write the `MIGRATION_X_Y` val, add it to `ALL_MIGRATIONS`, bump
+`DATABASE_VERSION`, commit the newly exported `app/schemas/<Y>.json`, then run
+`./gradlew :app:connectedStagingDebugAndroidTest` (needs a device or emulator; it is not in CI).
+See `docs/features/testing.md`.
 
 `MIGRATION_15_16` in `AppDatabase.kt` adds `updatedAt INTEGER NOT NULL DEFAULT 0` to the four Room entity tables and backfills `updatedAt = createdAt`. The Supabase column is named `updated_at` (snake_case); the DTO field is `@SerialName("updated_at") val updatedAt: Long`.
 

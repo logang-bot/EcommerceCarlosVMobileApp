@@ -42,6 +42,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // MigrationTest reads the exported schemas through MigrationTestHelper, which loads them from
+    // the test APK's assets. Without this it throws FileNotFoundException before any test runs.
+    sourceSets.getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+
     signingConfigs {
         create("release") {
             if (releaseKeystore.isNotEmpty()) {
@@ -91,6 +95,13 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // Robolectric needs the merged resources; isReturnDefaultValues stubs android.util.Log.
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -128,10 +139,20 @@ dependencies {
     ksp(libs.hilt.work.compiler)
     ksp(libs.room.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.room.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlin.test)
+    androidTestImplementation(libs.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

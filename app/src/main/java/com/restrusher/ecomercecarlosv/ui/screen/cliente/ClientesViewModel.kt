@@ -4,16 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
-import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
-import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.CalcularEstadoClienteUseCase
 import com.restrusher.ecomercecarlosv.domain.usecase.RefreshClienteDataUseCase
 import com.restrusher.ecomercecarlosv.presentation.screens.ClientesRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +30,7 @@ class ClientesViewModel @Inject constructor(
     private val umbralesRepository: UmbralesRepository,
     private val sessionManager: SessionManager,
     private val refreshClienteData: RefreshClienteDataUseCase,
+    private val calcularEstadoCliente: CalcularEstadoClienteUseCase,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -57,10 +56,7 @@ class ClientesViewModel @Inject constructor(
                     it.status == PedidoStatus.PARTIAL ||
                         (it.status == PedidoStatus.PENDING && it.isSaldoExtra)
                 }.sumOf { it.pending }
-                val statusBalance = pedidos.filter {
-                    it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra
-                }.sumOf { it.pending }
-                ClienteUiModel(cliente, computeStatus(statusBalance, pedidos, umbrales), balance)
+                ClienteUiModel(cliente, calcularEstadoCliente(pedidos, umbrales), balance)
             }
             Pair(models, isSyncing && clientes.isEmpty())
         },
@@ -121,16 +117,4 @@ class ClientesViewModel @Inject constructor(
     }
 
     fun onRefreshErrorDismissed() { _refreshFailed.value = false }
-
-    private fun computeStatus(statusBalance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
-        if (statusBalance <= 0.0) return ClientStatus.AL_DIA
-        val hasOldUnpaid = pedidos.any {
-            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra &&
-                isOlderThan(it.createdAt, umbrales.diasMaximos)
-        }
-        return if (hasOldUnpaid || statusBalance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
-    }
-
-    private fun isOlderThan(createdAt: Long, days: Int): Boolean =
-        (System.currentTimeMillis() - createdAt) > days.toLong() * 24 * 60 * 60 * 1000
 }

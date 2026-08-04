@@ -223,6 +223,37 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/**
+ * The schema version [AppDatabase] declares. A constant rather than a literal because `@Database`
+ * is not runtime-retained, so `MigrationTest` cannot read it back by reflection — it asserts that
+ * [ALL_MIGRATIONS] reaches this number, which is what makes bumping it without writing a migration
+ * a failing test instead of a crash on the next upgrade.
+ */
+const val DATABASE_VERSION = 19
+
+/**
+ * The single migration list. `DatabaseModule` builds the database with it and `MigrationTest`
+ * replays it, so the tested chain and the shipped chain cannot drift apart — never inline these
+ * into `addMigrations(...)` again. Ascending order; `MigrationTest` guards that it stays gapless.
+ */
+val ALL_MIGRATIONS = arrayOf(
+    MIGRATION_4_5,
+    MIGRATION_5_6,
+    MIGRATION_6_7,
+    MIGRATION_7_8,
+    MIGRATION_8_9,
+    MIGRATION_9_10,
+    MIGRATION_10_11,
+    MIGRATION_11_12,
+    MIGRATION_12_13,
+    MIGRATION_13_14,
+    MIGRATION_14_15,
+    MIGRATION_15_16,
+    MIGRATION_16_17,
+    MIGRATION_17_18,
+    MIGRATION_18_19,
+)
+
 @Database(
     entities = [
         MercadoEntity::class,
@@ -235,7 +266,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         PagoEntity::class,
         UmbralesEntity::class,
     ],
-    version = 19,
+    version = DATABASE_VERSION,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

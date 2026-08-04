@@ -39,6 +39,265 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 16 | Fingerprint login mints a real session before entering the app; two-tier sign-out; "Olvidar este dispositivo"; friendly snackbar errors | ✅ Done |
 | 16b | Session recovery on reconnect: nothing leaves the app unauthenticated, queued writes flush the moment the token is back | ✅ Done |
 | 16c | Revoked session lands on a login screen that can recover it; device handover protects one user's queued writes from another's session | ✅ Done |
+| 17 | Test coverage, phase 1: pure business logic — 100 JVM unit tests over the parsers, computed UI state and all 8 mappers | ✅ Done |
+| 17b | Test coverage, phase 2: all 8 `domain/usecase/` classes against hand-written fakes — 58 more tests, 158 total | ✅ Done |
+| 17c | Cliente status rule extracted to `CalcularEstadoClienteUseCase` and tested once — 174 total | ✅ Done |
+| 17d | Test coverage, phase 4: 5 ViewModels via Turbine + Robolectric — 48 more tests, 222 total | ✅ Done |
+| 17e | Test coverage, phase 5: Room DAOs + repository impls against a real in-memory database — 54 more tests, 276 total | ✅ Done |
+| 17f | Test coverage, phase 6: QueueProcessor, DataSynchronizer and SessionManagerImpl — 49 more tests, 325 total | ✅ Done |
+| 17g | Test coverage, phase 6b: every migration in the v4→v19 chain replayed against real SQLite — 18 instrumented tests in `androidTest` | ✅ Done |
+
+---
+
+## ✅ Phase 17g — Test coverage, phase 6b (Room migrations)
+
+**18 instrumented tests, 2 files.** The last structural gap: 15 migrations from v4 to v19 had never
+been executed by anything but a real upgrade on a real device. `fallbackToDestructiveMigration` was
+removed back in Phase 7, so a bad migration is a crash on launch for every existing install with no
+fallback — this is the only suite that catches that before shipping.
+
+**The one suite that cannot live in `src/test`.** Every `MigrationTestHelper` constructor takes an
+`Instrumentation` and loads the exported schemas through `assets`, so running it under Robolectric
+would mean shipping `app/schemas/` inside the app APK. It stays in `androidTest`, registered via
+`sourceSets.getByName("androidTest").assets.srcDirs("$projectDir/schemas")`, and runs with
+`./gradlew :app:connectedStagingDebugAndroidTest` against a device or emulator. **Not in CI** —
+there is no `connectedCheck` job — so it is a by-hand pre-merge step whenever `AppDatabase.kt`
+changes.
+
+**`ALL_MIGRATIONS` hoisted into `AppDatabase.kt`.** `DatabaseModule` had all 15 migrations inlined
+as varargs on one 250-character line; it now spreads the shared array, so the tested chain and the
+shipped chain are the same object and cannot drift. A guard test asserts the array covers every
+consecutive pair from 4 up to the declared version and that no entry skips or reverses one.
+
+**The version is now `const val DATABASE_VERSION`.** `@Database` is not runtime-retained, so a test
+cannot read `version` back by reflection — it returns null. Both the annotation and the tests read
+the constant instead, which makes bumping the version without writing a migration a failing test
+rather than a crash on the next upgrade.
+
+**Still open: `app/schemas/16.json` was never exported** — confirmed absent even at `3aa55c7`, the
+commit that introduced `version = 16`, so this is a never-written file rather than a deletion. No
+test may *start* at v16; the sweep runs `[4..15, 17, 18]`. `MIGRATION_15_16` is still executed end
+to end by the 15→19 run, so only the intermediate v16 shape goes unvalidated.
+
+**Instrumented tests cannot use the suite's backticked sentence names.** `minSdk = 24` means DEX
+format < 040, which rejects spaces in method names — the *build* fails, not the test run. They use
+`migrate_fromV4_reachesTheCurrentSchema` instead.
+
+Verified non-vacuous by deleting `MIGRATION_16_17` from the array: the guard reported
+`No migration covers [(16, 17)]` and the 12 sweeps crossing that boundary went red, while the v17
+and v18 starts stayed green.
+
+---
+
+## ✅ Phase 17f — Test coverage, phase 6 (queue, sync, session)
+
+**49 tests, 325 in the suite.** The heaviest untested logic in the app now has coverage:
+`QueueProcessorGateTest` (10), `QueueProcessorFlushTest` (13), `DataSynchronizerTest` (15),
+`SessionManagerImplTest` (11).
+
+**Pinned behaviours.** Both `QueueProcessor` gates return DEFERRED **without incrementing any retry
+count** — nothing was attempted, so the operations must not be punished for our missing session.
+Dedup collapses repeated upserts, and `forEachMatching` clears (or retries) *every* queued row for
+that entity, not just the deduplicated winner. A failing entity does not strand a healthy one. Two
+concurrent `flush()` calls are serialised by the mutex, so nothing is pushed twice.
+`DataSynchronizer` checks staleness **before** the session gate — the ordering its comment defends,
+so a screen with current data never blocks on a renewing token — retries once silently, and rolls
+the delta cursor back on failure so the next attempt refetches everything.
+
+**Two seams that mocking cannot cross.**
+- `supabase.from()` is an extension function. The queue tests instead push operations for entities
+  that no longer exist in Room, where `upsert()` bails before the network call, and produce failures
+  through a throwing `StorageService`. **The actual Supabase push is not covered.**
+- `supabase.auth` is an extension property, and `SessionManagerImpl.init` collects
+  `auth.sessionStatus` — so the class cannot be constructed at all without stubbing it. Done via
+  `mockkStatic("io.github.jan.supabase.auth.AuthKt")`. The `NotAuthenticated` branch of
+  `ensureValidSession`, which performs a real token refresh, is deliberately left uncovered; the
+  honest fix there is a small `AuthGateway` seam rather than deeper mocking.
+
+Both gaps are recorded in `docs/features/testing.md` as work for an integration test against a real
+staging Supabase.
+
+**A trap worth knowing.** Passing `runTest`'s own scope as an `appScope` makes the test **hang**
+rather than fail, because `DataSynchronizer.isSyncing` is a `stateIn(Eagerly)` that never completes.
+Use `backgroundScope` — wrapped in an `UnconfinedTestDispatcher(testScheduler)` when the class uses
+fire-and-forget `appScope.launch`, or the launched work never runs and the assertion quietly sees
+one call too few.
+
+---
+
+## ✅ Phase 17e — Test coverage, phase 5 (Room + repositories)
+
+**54 tests, 276 in the suite.** Real Room in memory under Robolectric, with only `DataSynchronizer`
+mocked — everything else is the production code path.
+
+`PedidoDaoTest` (12), `ClienteDaoTest` (10), `SyncOperationDaoTest` (11),
+`PedidoRepositoryImplTest` (14), `ClienteRepositoryImplTest` (7). New helper
+`support/RoomTestDatabase.kt` builds the database and seeds the mercado/cliente rows the pedido
+foreign keys need — **FKs are enforced exactly as on device**, so fixture ids must line up or the
+insert fails on a constraint instead of on the behaviour under test.
+
+The central assertion is the offline-first pairing: every mutating repository call writes locally
+**and** leaves exactly one `sync_operations` row with the right type, operation and label. Also
+pinned: `updateLines` recomputing status against the *new* total (growing an order flips PAID back
+to PARTIAL), and its pago delta being written **only** when more money was handed over — never a
+negative row when the payment is reduced.
+
+### Open finding — `markAllPaidForCliente` never syncs
+
+Found by the enqueue-contract sweep. It is the **only** mutating method in `PedidoRepositoryImpl`
+that does not enqueue — it calls the DAO and returns, where every sibling ends in `enqueue(...)`.
+
+So "Marcar todo como pagado" when un-blacklisting a client settles the pedidos on the device and the
+server never hears about it; the rows stay unpaid remotely and the next delta sync can pull the old
+status back over them. The path is live — `DetalleClienteViewModel.unblacklistMarkAllPaid()` calls
+it, and the liquidation saldo extra it creates immediately afterwards *does* sync, so the two halves
+of one user action disagree.
+
+**Not fixed here.** It is a bulk `UPDATE` over N rows, so it is not a one-line enqueue: it needs
+either per-pedido queue entries or a bulk operation the `QueueProcessor` understands. The test
+documents current behaviour rather than asserting the desired one.
+
+---
+
+## ✅ Phase 17d — Test coverage, phase 4 (ViewModels)
+
+**5 of the 29 ViewModels, 48 tests, 222 in the suite.** Chosen for derived state and `combine`
+pipelines rather than coverage percentage: `Clientes` (14), `DetalleCliente` (11),
+`AgregarListaNegra` (8), `CambiarContrasena` (8), `Sincronizacion` (7).
+
+**Dependencies added:** `turbine` and — a phase earlier than planned — `robolectric`.
+
+**Why Robolectric was unavoidable.** 13 of the 29 ViewModels read their arguments through
+`savedStateHandle.toRoute<SomeRoute>()`. On a plain JVM test that does not throw — it returns a
+route whose fields are **null**, because `isReturnDefaultValues = true` stubs the underlying
+`Bundle`. A silent null is worse than a crash, so any route-taking ViewModel now carries
+`@RunWith(RobolectricTestRunner::class)`. `SincronizacionViewModel` takes no route and stays a plain
+JVM test. Robolectric must be **4.16+**: 4.14/4.15 cap at `maxSdkVersion=35` and refuse to start
+against `targetSdk 36`.
+
+**`support/MainDispatcherRule.kt`** swaps `Dispatchers.Main` for an `UnconfinedTestDispatcher`,
+which is what makes `viewModelScope` work off-device at all.
+
+**A trap worth knowing.** The `pedido()` fixture defaults to `createdAt = 0L`. ViewModels call
+`CalcularEstadoClienteUseCase` without overriding its clock, so an epoch-0 debt is always older than
+`diasMaximos` and every client comes out CRITICO — which silently made a sort test pass for the
+wrong reason before it was caught. Status-sensitive tests must build debts at
+`System.currentTimeMillis()`.
+
+**Deliberately not covered:** the two `onSave` paths in `CambiarContrasenaViewModel`. They reach
+Supabase auth and the admin Edge Function; the error-code mapping deserves an integration test, not
+a pile of mocks. The suite covers the profile load and proves an invalid form never reaches the
+service. The password rules themselves are already covered by `CambiarContrasenaUiStateTest`.
+
+---
+
+## ✅ Phase 17c — Cliente status extracted to a use case
+
+The first phase of the testing work to change production code. `computeStatus` and `isOlderThan`
+were **byte-identical** private methods in `ClientesViewModel` and `DetalleClienteViewModel` — the
+`identifying-use-cases` skill's rule 3 (duplicated across ViewModels) and rule 5 (domain-level
+calculation) both apply.
+
+**New:** `domain/usecase/CalcularEstadoClienteUseCase.kt`. Both ViewModels inject it and delegate;
+the duplicated private methods are gone, along with the `statusBalance` filter each computed inline
+right before calling — that now lives inside the use case too, so the whole rule is in one place.
+
+`now` is a parameter defaulting to `System.currentTimeMillis()`. Production callers take the
+default; the tests pass a fixed instant, which is what lets the day threshold be asserted exactly
+(30 days → ADVERTENCIA, 31 → CRITICO) rather than approximately.
+
+**16 tests**, including the two exclusions that are easy to get wrong and that
+`docs/features/clientes.md` records as a past bug: an old **PENDING** pedido and an old **saldo
+extra** both leave a client AL_DIA, because only `PARTIAL && !isSaldoExtra` counts towards status.
+
+**No behaviour change.** The extracted logic is the same rule; `assembleStagingDebug` and the full
+174-test suite both pass.
+
+### Open finding — a third, different status rule in `MercadosViewModel`
+
+Found while extracting, **not changed**. `MercadosViewModel.buildStats()` has its own copy that
+counts *all* unpaid pedidos rather than only `PARTIAL && !isSaldoExtra`, and hardcodes `200.0` /
+`30` days instead of reading `Umbrales`. Two consequences: a mercado can show a red dot while every
+client inside it shows AL_DIA, and raising the thresholds in Ajustes has no effect on the mercado
+dashboard. Unifying it means deciding which rule is right and re-testing the dashboard — a product
+decision rather than a refactor, so it was left for a deliberate call.
+
+---
+
+## ✅ Phase 17b — Test coverage, phase 2 (use cases)
+
+**All 8 use cases covered, 58 tests across 7 files. 158 in the suite.** Strategy and conventions
+live in `docs/features/testing.md`.
+
+**Fakes, not mocks — with one exception.** Five hand-written fakes under `src/test/.../fakes/`
+implement the repository and session interfaces, recording what the use cases persist
+(`FakePedidoRepository.created`, `FakeUserRepository.biometricUpdates`) and answering from plain
+scripted `var`s. `ForgetEnrolledUserUseCaseTest` uses MockK instead, because that use case's whole
+contract is the *order* of three calls — its own comment says "Order matters: the cleaner pushes
+anything still queued, which needs a live session" — and `coVerifyOrder` states that directly.
+
+**Dependencies added:** `kotlinx-coroutines-test` and `mockk`. The coroutines version is pinned to
+`1.10.1` because that is what the app resolves transitively (via 1.7.3/1.8.1/1.9.0 requests all
+upgrading); a mismatch would make `Dispatchers.setMain` silently no-op in Phase 4.
+
+**Two more undocumented behaviours pinned**, on top of Phase 1's three:
+
+- **The two payment paths disagree about overpayment.** `CreatePedidoUseCase` stores
+  `paid = initialPayment` unclamped, so a pedido can be created with `paid > total`, while
+  `RegistrarPagoUseCase` applies `coerceAtMost(total)`. `Pedido.pending` clamps at zero either way
+  so nothing renders negative, but the stored `paid` differs by path.
+- **An empty cart produces a PAID pedido** — `initialPayment >= total` is `0.0 >= 0.0`, so it is
+  created PAID with a `paidAt` stamp. Only the UI's empty-cart guard prevents this.
+
+Neither was changed; the tests record current behaviour so a future fix is a deliberate decision
+rather than an accident.
+
+**Time and ids stayed uninjected.** The pedido use cases call `System.currentTimeMillis()` and
+`UUID.randomUUID()` directly. Rather than change production code, the tests assert relations —
+`paidAt == createdAt` when PAID, `null` otherwise, generated ids distinct — which reads fine, so a
+`Clock` injection remains optional.
+
+---
+
+## ✅ Phase 17 — Test coverage, phase 1 (pure business logic)
+
+First real tests in the repo. Strategy, conventions and the full plan live in
+`docs/features/testing.md`; this entry records what changed.
+
+**100 tests across 13 files**, all pure — no coroutines, no Android framework, no test doubles. Run
+with `./gradlew :app:testStagingDebugUnitTest` (the `staging` flavor is `isDefault`, so there is no
+`testDebugUnitTest` task).
+
+Covered: `extractMapsCoordinates` (14), `CambiarContrasenaUiState` (17), `AgregarListaNegraUiState`
+(10), the `Pedido.pending` / `DetallePedido.subtotal` computed properties (10), and entity ↔ domain ↔
+DTO round-trips for all 8 mappers (49). Shared fixtures under `src/test/.../fixtures/` are
+default-argument builders that set every optional field to a distinct non-null value, so a mapper
+that silently drops a field fails instead of matching a default.
+
+**Build changes are minimal by design** — only `kotlin-test` was added to `libs.versions.toml` and
+`app/build.gradle.kts`. MockK, coroutines-test, Turbine and Robolectric land at the phase that first
+needs them.
+
+**Three undocumented behaviours are now pinned.** The tests assert what the code *does*, naming the
+surprise, rather than asserting what it arguably should do:
+
+- `extractMapsCoordinates` rejects whole-number coordinates — all four patterns require `\.\d+`, so
+  `?q=19,-99` returns `null` while `?q=19.0,-99.0` parses.
+- `PedidoMapper.fromDto` resets `itemCount` to 0; the Supabase payload has no such column, so a
+  pedido arriving from delta sync reports no line count until its `detalle_pedido` rows are read.
+- `ClienteMapper.fromDto` preserves `primaryPhoneIndex`, `blacklistBalance` and
+  `blacklistIsManualAmount` **only** when handed an `existing` row — the merge contract every syncer
+  must honour.
+
+**`ExampleInstrumentedTest` was broken and nobody knew.** It asserted `packageName ==
+"com.restrusher.ecomercecarlosv"`, which `applicationIdSuffix = ".staging"` makes unpassable. It had
+never run — there is no `connectedCheck` in CI. Now asserts by prefix; `ExampleUnitTest` deleted.
+
+**Noted for later, not fixed here:** `app/schemas/16.json` was never committed (checked git history —
+not a deletion), so a Phase 6b migration test cannot *start* at v16; the 15→19 chain still validates
+end to end. `CreatePedidoUseCase` imports `ui.screen.pedido.CartItem`, i.e. domain depends on UI.
+`computeStatus` is duplicated byte-for-byte between `ClientesViewModel` and `DetalleClienteViewModel`
+— Phase 3 extracts it.
 
 ---
 
@@ -176,8 +435,10 @@ fingerprint login skips the check — it can only resolve to the enrolled user, 
 **No Room migration** — DB stays at v19. Since a user switch always wipes, the queue is homogeneous by
 construction and a per-operation owner column would be redundant.
 
-**Not covered by tests.** The repo has only the template `ExampleUnitTest`/`ExampleInstrumentedTest`; all
-of the above was verified by build + manual reasoning, and the handover scenarios need two real accounts.
+**Not covered by tests at the time.** All of the above was verified by build + manual reasoning, and the
+handover scenarios need two real accounts. `ResolveDeviceHandoverUseCase` and `BiometricLoginUseCase`
+are covered as of Phase 17b — see `docs/features/testing.md`. The two-account handover
+scenarios still need real devices; what the tests cover is the decision logic, not the wiring.
 
 ---
 
@@ -1221,6 +1482,15 @@ Three UI fixes applied to `DetallePedidoScreen`:
 
 ## Other open action items
 
+- **Testing**: phases 1–6 are done (325 tests). The remaining work is tracked as a checklist in
+  `docs/features/testing.md` → **TODO**: Room migration tests (phase 6b, `androidTest`), integration
+  tests against staging Supabase for the two paths mocking cannot reach, optional Compose UI tests,
+  the untested `CleanupRepositoryImpl` / syncers / report HTML builders, and wiring
+  `testStagingDebugUnitTest` into CI so the suite gates a release.
+- **Two open findings from the test work**, both product decisions rather than test gaps:
+  `markAllPaidForCliente` never enqueues a sync operation (Phase 17e), and
+  `MercadosViewModel.buildStats()` uses a third client-status rule with hardcoded thresholds that
+  ignore `Umbrales` (Phase 17c). Details in `docs/features/testing.md`.
 - **Fonts**: ✅ Geist variable fonts added (`geist_variable.ttf`, `geist_mono_variable.ttf`)
 - **Icons**: `ic_shield_check.xml` replaced by `ic_admin_panel.xml` (imported). `ic_users.xml` imported. Both used via `painterResource(R.drawable.*)` at all call sites. `PedidosIcons.kt` removed.
 

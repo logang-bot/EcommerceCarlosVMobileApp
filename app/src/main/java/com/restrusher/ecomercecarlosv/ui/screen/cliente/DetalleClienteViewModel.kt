@@ -4,12 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
-import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
-import com.restrusher.ecomercecarlosv.domain.usecase.CreateSaldoExtraUseCase
-import com.restrusher.ecomercecarlosv.domain.model.Pedido
 import com.restrusher.ecomercecarlosv.domain.model.PedidoStatus
-import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
+import com.restrusher.ecomercecarlosv.domain.usecase.CalcularEstadoClienteUseCase
+import com.restrusher.ecomercecarlosv.domain.usecase.CreateSaldoExtraUseCase
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
@@ -29,6 +27,7 @@ class DetalleClienteViewModel @Inject constructor(
     private val clienteRepository: ClienteRepository,
     private val pedidoRepository: PedidoRepository,
     private val createSaldoExtraUseCase: CreateSaldoExtraUseCase,
+    private val calcularEstadoCliente: CalcularEstadoClienteUseCase,
     umbralesRepository: UmbralesRepository,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
@@ -58,9 +57,6 @@ class DetalleClienteViewModel @Inject constructor(
         val unpaidExtra = pedidos.filter { it.isSaldoExtra && it.status != PedidoStatus.PAID }
         val pedidosBalance = unpaidRegular.sumOf { it.pending }
         val extraBalance = unpaidExtra.sumOf { it.pending }
-        val statusBalance = pedidos.filter {
-            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra
-        }.sumOf { it.pending }
         val filteredPedidos = if (filters.isEmpty()) pedidos else pedidos.filter { it.status in filters }
 
         DetalleClienteUiState(
@@ -72,7 +68,7 @@ class DetalleClienteViewModel @Inject constructor(
             unpaidPedidosCount = unpaidRegular.size,
             extraBalance = extraBalance,
             unpaidExtraCount = unpaidExtra.size,
-            status = computeStatus(statusBalance, pedidos, umbrales),
+            status = calcularEstadoCliente(pedidos, umbrales),
             isLoading = isLoading,
             showUnblacklistSheet = showSheet,
             pedidoFilters = filters,
@@ -138,16 +134,4 @@ class DetalleClienteViewModel @Inject constructor(
     companion object {
         private const val SALDO_EXTRA_DESC = "Saldo de liquidación al reactivar"
     }
-
-    private fun computeStatus(statusBalance: Double, pedidos: List<Pedido>, umbrales: Umbrales): ClientStatus {
-        if (statusBalance <= 0.0) return ClientStatus.AL_DIA
-        val hasOldUnpaid = pedidos.any {
-            it.status == PedidoStatus.PARTIAL && !it.isSaldoExtra &&
-                isOlderThan(it.createdAt, umbrales.diasMaximos)
-        }
-        return if (hasOldUnpaid || statusBalance > umbrales.montoMaximo) ClientStatus.CRITICO else ClientStatus.ADVERTENCIA
-    }
-
-    private fun isOlderThan(createdAt: Long, days: Int): Boolean =
-        (System.currentTimeMillis() - createdAt) > days.toLong() * 24 * 60 * 60 * 1000
 }
