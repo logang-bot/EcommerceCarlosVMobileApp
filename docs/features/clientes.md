@@ -100,7 +100,7 @@ INVITADO users see the full client list, balances, status badges, and pedido his
 - When `blacklistIsManualAmount == false` (AUTO): `BalanceBlock` shows normal status gradient; an extra full-width "Lista Negra" `BalanceCard` is shown in the breakdown with the total balance and `badge="Auto"`
 - Tapping "Quitar de Lista Negra" when `blacklistIsManualAmount == true` opens `QuitarListaNegraSheet` with two options:
   - **Restaurar datos** — clears the blacklist; pedidos unchanged
-  - **Marcar todo como pagado** — bulk-marks all non-PAID pedidos as PAID via `PedidoDao.markAllPaidForCliente`. If `blacklistBalance > (pedidosBalance + extraBalance)`, a new saldo extra is created for the difference via `CreateSaldoExtraUseCase`. Then clears the blacklist.
+  - **Marcar todo como pagado** — bulk-marks all non-PAID pedidos as PAID via `PedidoDao.markAllPaidForCliente`, enqueueing one sync `UPSERT` per settled pedido (see `docs/features/lista-negra.md`). If `blacklistBalance > (pedidosBalance + extraBalance)`, a new saldo extra is created for the difference via `CreateSaldoExtraUseCase`. Then clears the blacklist.
 - When `blacklistIsManualAmount == false` (AUTO), "Quitar de Lista Negra" unblacklists immediately with no sheet.
 
 **"Cuenta" section** (formerly "Pedidos"):
@@ -159,7 +159,7 @@ INVITADO users see the full client list, balances, status badges, and pedido his
   - If `cliente.blacklistIsManualAmount == false`: unblacklists immediately (AUTO amount — no ambiguity).
   - If `cliente.blacklistIsManualAmount == true`: opens `QuitarListaNegraSheet` with two options:
     - **Restaurar datos** → clears the blacklist; pedidos are unchanged.
-    - **Marcar todo como pagado** → marks all existing non-PAID pedidos as PAID; if `blacklistBalance > (pedidosBalance + extraBalance)`, calls `CreateSaldoExtraUseCase` for the difference; then clears the blacklist.
+    - **Marcar todo como pagado** → marks all existing non-PAID pedidos as PAID and queues each one for sync; if `blacklistBalance > (pedidosBalance + extraBalance)`, calls `CreateSaldoExtraUseCase` for the difference; then clears the blacklist.
 - `BalanceBlock` is a unified composable; `isManualBlacklisted=true` switches it to the red gradient / "Saldo en Lista Negra" / Manual-badge variant.
 - `BalanceBreakdown` always rendered; shows `inactive=true` cards when MANUAL, extra full-width LN card when AUTO blacklisted.
 - `BlacklistBalanceBlock` has been removed — its purpose is now served by the unified `BalanceBlock` design.
@@ -203,7 +203,7 @@ Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combin
 
 > Saldo-extra entries are excluded from the status calculation. A client with only saldo-extra debt is shown as `AL_DIA` in the row badge and gradient — the saldo amount is still visible in the display balance but does not drive the warning/critical color.
 >
-> **Verified** (already correct, no change needed): `statusBalance` is pedidos-only in both `DetalleClienteViewModel.computeStatus` and `ClientesViewModel.computeStatus` — saldo-extra pedidos never affect the status badge/gradient/color in either place.
+> **Verified** (already correct, no change needed): `statusBalance` is pedidos-only in both `DetalleClienteViewModel.computeStatus` and `ClientesViewModel.computeStatus` — saldo-extra pedidos never affect the status badge/gradient/color in either place. *(Both methods were extracted into `CalcularEstadoClienteUseCase` in Phase 17c; the property still holds, in one place now.)*
 
 **Status rules** (evaluated against `statusBalance`):
 
@@ -219,11 +219,12 @@ Computed live from `clienteFlow + pedidosFlow + umbralesFlow` (three-way `combin
 
 **Threshold defaults**: `montoMaximo = 200.0 Bs`, `diasMaximos = 30 days`.
 
-**"Older than N days"**: `(System.currentTimeMillis() - pedido.createdAt) > days.toLong() * 24 * 60 * 60 * 1000`
+**"Older than N days"**: `(now - pedido.createdAt) > days.toLong() * 24 * 60 * 60 * 1000`
 
-**Implementation**:
-- `DetalleClienteViewModel.kt` — `computeStatus(balance, pedidos, umbrales)` + `isOlderThan(createdAt, days)`
-- `ClientesViewModel.kt` — same logic applied over `getAllUnpaid()` grouped by `clienteId`
+**Implementation** — one rule, in one place:
+- `domain/usecase/CalcularEstadoClienteUseCase.kt` — `invoke(pedidos, umbrales, now = System.currentTimeMillis())`. Since Phase 17c this is the **only** copy: `computeStatus` + `isOlderThan` were byte-identical private methods in `ClientesViewModel` and `DetalleClienteViewModel`, and the use case also absorbed the `statusBalance` filter both computed inline before calling. `now` is a parameter so the day threshold can be tested exactly; production callers take the default
+- `ClientesViewModel.kt` / `DetalleClienteViewModel.kt` — call the use case with `umbralesRepository.getUmbrales()`
+- `MercadosViewModel.kt` — since Phase 17h the mercado dashboard dot calls the same use case. It previously had a third, divergent copy that counted every unpaid pedido against hardcoded thresholds; see `docs/features/mercados.md`
 - `UmbralesRepository.getUmbrales()` — `Flow<Umbrales>` backed by Room, synced to/from Supabase (`umbrales` table, singleton row); all injecting ViewModels recompute automatically on threshold change, whether the change came from this device's `save()` or a background sync of another user's edit
 
 ---

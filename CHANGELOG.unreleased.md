@@ -16,6 +16,16 @@ written at release time. Skip purely internal changes with no user or security i
 
 ## Pending
 
+- **Fix (marcar todo como pagado):** settling a client's debts when taking them off the blacklist
+  only happened on the device — the server never found out, so the pedidos stayed unpaid for
+  everyone else and a later sync could bring the old debt back. Odd, because the saldo extra created
+  by the same action *did* sync, so the two halves disagreed. Every settled pedido is now sent.
+- **Change (mercados):** the coloured dot on a mercado now means the same thing as the client's own
+  badge. Before, it counted every unpaid pedido, so a normal order placed that morning turned the
+  mercado amber, and a mercado could show red while every client inside it showed "al día". It now
+  counts only partially-paid regular pedidos, and it finally respects the montos and días configured
+  in Ajustes, which it used to ignore in favour of fixed values. **Expect fewer coloured dots.**
+
 - **Fix (usuarios):** changing a role, deactivating, activating or deleting a user looked like it
   had worked even when the server rejected it — the app kept the change locally and went back to
   the list, so the app and the server disagreed from then on, with nothing to retry it. It now

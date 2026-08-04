@@ -146,11 +146,20 @@ suspend fun blacklist(id: String, reason: String, balance: Double, at: Long, isM
 suspend fun unblacklist(id: String)
 ```
 
-DAO operation added to `PedidoDao`:
+DAO operations added to `PedidoDao`:
 ```kotlin
-@Query("UPDATE pedidos SET status = 'PAID', paid = total, paidAt = :paidAt WHERE clienteId = :clienteId AND status != 'PAID'")
+@Query("UPDATE pedidos SET status = 'PAID', paid = total, paidAt = :paidAt WHERE clienteId = :clienteId AND status != 'PAID' AND isDeleted = 0")
 suspend fun markAllPaidForCliente(clienteId: String, paidAt: Long)
+
+// Same predicate, read before the update so each settled pedido can be queued for sync.
+@Query("SELECT * FROM pedidos WHERE clienteId = :clienteId AND status != 'PAID' AND isDeleted = 0")
+suspend fun unpaidForCliente(clienteId: String): List<PedidoEntity>
 ```
+
+⚠️ The bulk `UPDATE` has no single entity id, so `PedidoRepositoryImpl.markAllPaidForCliente` reads
+the affected rows **first** — afterwards the predicate matches nothing — and enqueues one `UPSERT`
+per settled pedido. Until Phase 17h it enqueued nothing at all, so the settlement stayed on the
+device while the saldo extra created alongside it synced normally.
 
 All methods are exposed through their respective repository interfaces and impls.
 

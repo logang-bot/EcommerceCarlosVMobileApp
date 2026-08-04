@@ -138,8 +138,14 @@ class PedidoRepositoryImpl @Inject constructor(
         enqueue(SyncOp.DELETE, id, label)
     }
 
-    override suspend fun markAllPaidForCliente(clienteId: String) =
+    override suspend fun markAllPaidForCliente(clienteId: String) {
+        // Read first: after the update the same predicate matches nothing. The bulk UPDATE has no
+        // single entity id, and QueueProcessor keys on (entityType, entityId), so it takes one
+        // queue row per settled pedido rather than one for the whole operation.
+        val settled = pedidoDao.unpaidForCliente(clienteId)
         pedidoDao.markAllPaidForCliente(clienteId, System.currentTimeMillis())
+        settled.forEach { enqueue(SyncOp.UPSERT, it.id, "Bs. ${formatPedidoAmount(it.total)}") }
+    }
 
     private fun formatPedidoAmount(amount: Double): String =
         String.format("%.2f", amount).replace('.', ',')

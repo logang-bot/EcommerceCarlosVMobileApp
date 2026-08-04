@@ -46,6 +46,49 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 17e | Test coverage, phase 5: Room DAOs + repository impls against a real in-memory database — 54 more tests, 276 total | ✅ Done |
 | 17f | Test coverage, phase 6: QueueProcessor, DataSynchronizer and SessionManagerImpl — 49 more tests, 325 total | ✅ Done |
 | 17g | Test coverage, phase 6b: every migration in the v4→v19 chain replayed against real SQLite — 18 instrumented tests in `androidTest` | ✅ Done |
+| 17h | The two open findings resolved: "Marcar todo como pagado" now syncs, and the mercado dashboard uses the one client-status rule — 336 JVM tests | ✅ Done |
+
+---
+
+## ✅ Phase 17h — The two open findings resolved
+
+Phases 17–17g surfaced two real defects and deliberately recorded rather than fixed them, because
+each needed a product decision. Both are now closed and pinned by tests. **336 JVM tests, 36 files.**
+
+### "Marcar todo como pagado" never left the device
+
+`PedidoRepositoryImpl.markAllPaidForCliente()` was the only mutating repository method that did not
+enqueue a sync operation. Un-blacklisting a client settled their pedidos locally and the server never
+heard about it — while the saldo extra created in the same action *did* sync, so the two halves of
+one operation disagreed and the server kept an unblacklisted client whose pedidos were still unpaid.
+
+It is a bulk `UPDATE` over N rows, so there was no single entity id to queue. The fix reads the rows
+**before** the update — afterwards the `status != 'PAID'` predicate matches nothing — through the new
+`PedidoDao.unpaidForCliente`, then enqueues one `UPSERT` per settled pedido. `QueueProcessor` keys on
+`(entityType, entityId)`, so each pedido pushes exactly once. `updatedAt` is deliberately left alone:
+locally it is a pull watermark written only by `PedidoMapper.fromDto`, and the server sets its own
+via the `set_updated_at_ms()` trigger.
+
+### The mercado dashboard had a third status rule
+
+`MercadosViewModel.buildStats()` counted **every** unpaid pedido against a hardcoded `200.0` / `30`
+days, where the cliente screens count only `PARTIAL && !isSaldoExtra` against the configured
+`Umbrales`. A mercado could show red while every client inside it showed AL_DIA, and raising the
+thresholds in Ajustes had no effect on the dashboard.
+
+`buildStats` now delegates to `CalcularEstadoClienteUseCase`, so the app has one rule. **This changes
+what the dashboard shows** — deliberately: an untouched PENDING order or a saldo extra no longer
+colours a mercado, so dots are rarer. Previously *any* client with an open order lit their mercado
+amber, including an order placed that morning. `now` is captured once per emission rather than per
+cliente, so every client in one refresh is judged against the same instant.
+
+New `MercadosViewModelTest` (9 tests, plain JVM) pins each divergence the change closes, including
+the two the old rule got wrong — an old PENDING pedido and an old saldo extra now leave a mercado
+clean — and that changing `Umbrales` actually moves the dot.
+
+**CI stays out of scope by choice.** The suite is for local development for now; `release.yml`
+still builds and ships without running a test. Recorded under TODO in `docs/features/testing.md`
+so it reads as a decision rather than an oversight.
 
 ---
 

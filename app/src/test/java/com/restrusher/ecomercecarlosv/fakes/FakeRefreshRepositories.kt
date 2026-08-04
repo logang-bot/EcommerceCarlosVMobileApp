@@ -86,6 +86,10 @@ class FakeMercadoRepository : MercadoRepository {
 
     private val mercados = MutableStateFlow<List<Mercado>>(emptyList())
 
+    fun givenMercados(vararg items: Mercado) {
+        mercados.value = items.toList()
+    }
+
     override val isSyncing: Flow<Boolean> = flowOf(false)
 
     override fun getAll(): Flow<List<Mercado>> = mercados

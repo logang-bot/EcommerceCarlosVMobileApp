@@ -48,6 +48,10 @@ interface PedidoDao {
     @Query("UPDATE pedidos SET status = 'PAID', paid = total, paidAt = :paidAt WHERE clienteId = :clienteId AND status != 'PAID' AND isDeleted = 0")
     suspend fun markAllPaidForCliente(clienteId: String, paidAt: Long)
 
+    /** The rows [markAllPaidForCliente] is about to settle — same predicate, so the two cannot disagree. */
+    @Query("SELECT * FROM pedidos WHERE clienteId = :clienteId AND status != 'PAID' AND isDeleted = 0")
+    suspend fun unpaidForCliente(clienteId: String): List<PedidoEntity>
+
     @Query("UPDATE pedidos SET total = :total, itemCount = :itemCount, status = :status, paid = :paid, paidAt = :paidAt WHERE id = :id")
     suspend fun updateAfterEdit(id: String, total: Double, itemCount: Int, status: String, paid: Double, paidAt: Long?)
 

@@ -8,6 +8,8 @@
 
 Entry point after login (tab 0). Shows all Mercados alphabetically. Each row shows a grid-icon tile, the mercado name, live active client count, and an optional colored dot when any client inside is in Warning (amber) or Critical (red) state. A "Lista Negra" card button at the bottom navigates to the global blacklist. FAB creates a new Mercado.
 
+The dot means **exactly** what the client's own badge means — both go through `CalcularEstadoClienteUseCase` with the configured `Umbrales`, so only partially-paid regular pedidos colour a mercado. An untouched PENDING order and a saldo extra do not, and raising the thresholds in Ajustes affects the dashboard. Until Phase 17h this screen had its own rule that counted every unpaid pedido against a hardcoded 200,0 / 30 días, so a mercado could show red while every client inside it showed AL_DIA. See `docs/features/clientes.md` for the rule itself.
+
 Long-pressing a mercado row enters **selection mode**: the normal top bar is replaced by a contextual action bar showing a close button, "1 seleccionado", and an "Editar" pill that navigates to the edit form. Tapping any mercado while in selection mode navigates to its detail screen as normal; long-pressing again deselects.
 
 ---
@@ -170,7 +172,7 @@ data class MercadoDto(
 | `data/repository/impl/MercadoRepositoryImpl.kt` | Repository implementation |
 | `domain/usecase/RefreshMercadoDataUseCase.kt` | Refreshes mercados + clientes + pedidos in parallel; returns `Boolean` success. The dashboard needs all three current to render per-market warnings correctly. |
 | `ui/screen/mercado/MercadosUiState.kt` | `mercados`, `stats: Map<String, MercadoStat>`, `isLoading`, `currentUserInitials`, `currentUserPhotoUrl`, `selectedMercadoId`; `MercadoStat(activeClientCount, hasWarning, hasCritical)` |
-| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + session + selection; `buildStats()` computes per-mercado status from live data; threads `currentUserPhotoUrl` from session; pull-to-refresh delegates to `RefreshMercadoDataUseCase` |
+| `ui/screen/mercado/MercadosViewModel.kt` | Nested `combine` over mercados + all clients + all unpaid pedidos + umbrales + session + selection; `buildStats()` computes per-mercado status by delegating to `CalcularEstadoClienteUseCase`; threads `currentUserPhotoUrl` from session; pull-to-refresh delegates to `RefreshMercadoDataUseCase` |
 | `ui/screen/mercado/MercadosScreen.kt` | List, contextual action bar, selection visual state; `MercadoTile` shows photo via `PhotoThumbnail`, falls back to `GridView` icon; `MercadoStatRow` shows count + colored status dot; top-bar `ProfileAvatar` passes `currentUserPhotoUrl` |
 | `ui/screen/mercado/DetalleMercadoUiState.kt` | `mercado`, `isLoading` |
 | `ui/screen/mercado/DetalleMercadoViewModel.kt` | Reactive `stateIn` over `MercadoRepository.getByIdFlow(mercadoId)` — screen auto-updates after edits; `onDelete()` removes from Room and pops back |

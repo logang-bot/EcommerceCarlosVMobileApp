@@ -166,7 +166,7 @@ Status rules:
 
 - `DetalleClienteViewModel` now `combine`s `clienteRepository.getByIdFlow` + `pedidoRepository.getByCliente` to compute real balance and status
 - **Balance** = sum of `pending` for pedidos where `status == PARTIAL` OR (`status == PENDING && isSaldoExtra`). Regular PENDING pedidos are NOT counted — they represent unconfirmed orders, not actual debt. Saldo-extra entries always count since they are deliberate debt records.
-- **Status**: `AL_DIA` if balance == 0; `CRITICO` if balance > 200 or any balance-contributing pedido is older than 30 days; `ADVERTENCIA` otherwise
+- **Status**: computed by `CalcularEstadoClienteUseCase` since Phase 17c — `AL_DIA` when nothing counts towards mora; `CRITICO` when the mora balance exceeds `Umbrales.montoMaximo` or any contributing pedido is older than `Umbrales.diasMaximos`; `ADVERTENCIA` otherwise. Note the **status** balance is narrower than the **displayed** balance above: only `PARTIAL && !isSaldoExtra` counts towards the colour. The thresholds come from Ajustes, not the `200` / `30` hardcoded here before Phase 12
 - Empty state shown when no pedidos exist
 - FAB navigates to `CreacionPedidoRoute(clienteId, clienteName, mercadoName)`
 

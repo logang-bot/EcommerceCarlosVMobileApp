@@ -137,7 +137,7 @@ A delivery order. Belongs to a `clientes` row.
 | `updated_at` | `bigint` | — | Epoch ms; set by `moddatetime` trigger. **Used as delta-sync cursor.** *(added v16)* |
 | `is_deleted` | `boolean` | — | Default `false`; set to `true` on soft-delete *(added v17)* |
 
-**DAO operations:** `getByCliente(clienteId)` flow (non-deleted) · `getByClienteWithLines(clienteId)` flow (non-deleted, `@Transaction`) · `getByIdFlow(id)` flow (non-deleted) · `getById(id)` (non-deleted) · `getAllUnpaid()` flow (non-deleted) · `getAll()` flow (non-deleted) · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `softDeleteById(id)` · `deleteById(id)` · `markAllPaidForCliente(clienteId, paidAt)` (non-deleted only)
+**DAO operations:** `getByCliente(clienteId)` flow (non-deleted) · `getByClienteWithLines(clienteId)` flow (non-deleted, `@Transaction`) · `getByIdFlow(id)` flow (non-deleted) · `getById(id)` (non-deleted) · `getAllUnpaid()` flow (non-deleted) · `getAll()` flow (non-deleted) · `insert(IGNORE)` · `updateStatus(id, status, paid, paidAt)` · `updateDate(id, createdAt)` · `softDeleteById(id)` · `deleteById(id)` · `markAllPaidForCliente(clienteId, paidAt)` (non-deleted only) · `unpaidForCliente(clienteId)` (the rows `markAllPaidForCliente` is about to settle — same predicate, read first so each can be enqueued for sync)
 
 **Suggested indexes:** `pedidos(cliente_id)`, `pedidos(status)`, `pedidos(created_at DESC)`, `pedidos(updated_at)`.
 

@@ -174,11 +174,11 @@ ViewModel test misleads instead of failing. Re-check after any dependency bump:
 
 ## Coverage today
 
-**325 JVM tests across 35 files**, plus **18 instrumented migration tests** in 2 files. The two
-numbers stay separate because they run in different Gradle tasks and only the JVM figure is
-CI-runnable. Phases 1–6b complete: pure logic, all use cases, the extracted cliente status rule,
-5 ViewModels, Room/repository integration, the sync/queue/session internals, and every schema
-migration.
+**336 JVM tests across 36 files**, plus **18 instrumented migration tests** in 2 files. The two
+numbers stay separate because they run in different Gradle tasks and only the JVM figure could run
+without a device. Phases 1–6b complete: pure logic, all use cases, the extracted cliente status rule,
+6 ViewModels, Room/repository integration, the sync/queue/session internals, and every schema
+migration. Phase 17h then closed the two findings the earlier phases had recorded but not fixed.
 
 ### Phase 1 — pure business logic (100 tests)
 
@@ -224,9 +224,10 @@ verdict, and the two exclusions that are easy to get wrong — an old **PENDING*
 **saldo extra** both leave a client AL_DIA, because only `PARTIAL && !isSaldoExtra` counts.
 `docs/features/clientes.md` records a bug that already happened in exactly this filter.
 
-### Phase 4 — ViewModels (48 tests)
+### Phase 4 — ViewModels (57 tests)
 
-5 of the 29, chosen for derived state and `combine` pipelines rather than coverage percentage.
+6 of the 29, chosen for derived state and `combine` pipelines rather than coverage percentage.
+`MercadosViewModelTest` arrived later, in Phase 17h, alongside the status-rule unification.
 
 | Suite | Tests | Covers |
 |---|---|---|
@@ -235,6 +236,7 @@ verdict, and the two exclusions that are easy to get wrong — an old **PENDING*
 | `AgregarListaNegraViewModelTest` | 8 | AUTO-on-first-load default, mode surviving later emissions, confirm in both modes |
 | `CambiarContrasenaViewModelTest` | 8 | Profile load (self vs other), and that an invalid form never reaches the admin service |
 | `SincronizacionViewModelTest` | 7 | `SyncIconState` derivation, queue item mapping, retry |
+| `MercadosViewModelTest` | 9 | The unified dot rule: both thresholds honouring `Umbrales`, the old-PENDING and old-saldo-extra exclusions the previous rule got wrong, blacklisted clients excluded from the count and the dot |
 
 **Robolectric arrived a phase early.** 13 of the 29 ViewModels read their arguments through
 `savedStateHandle.toRoute<SomeRoute>()`, and that does not work on a plain JVM test: it returns a
@@ -257,7 +259,7 @@ The status use case is called by the ViewModel *without* a `now` override, so an
 always "older than diasMaximos" and every client comes out CRITICO. Tests that care about status
 must build debts with `createdAt = System.currentTimeMillis()`.
 
-### Phase 5 — Room and repository integration (54 tests)
+### Phase 5 — Room and repository integration (56 tests)
 
 Real Room, in memory, under Robolectric. `DataSynchronizer` is mocked; everything else is the
 production code path.
@@ -267,7 +269,7 @@ production code path.
 | `PedidoDaoTest` | 12 | Soft-delete filters, `IGNORE` insert, `@Relation` lines, `markAllPaidForCliente`, FK cascade |
 | `ClienteDaoTest` | 10 | Blacklist round-trip, the `-1L` insert return that drives upsert, mercado cascade |
 | `SyncOperationDaoTest` | 11 | FIFO replay, retry counters, dedup (DELETE survives), `observeLatestEnqueuedId` |
-| `PedidoRepositoryImplTest` | 14 | `updateLines` status recompute + pago delta, initial pago, the enqueue contract |
+| `PedidoRepositoryImplTest` | 16 | `updateLines` status recompute + pago delta, initial pago, the enqueue contract — including `markAllPaidForCliente`, one upsert per settled pedido |
 | `ClienteRepositoryImplTest` | 7 | insert-or-update upsert, blacklist/unblacklist, soft delete + queue labels |
 
 `support/RoomTestDatabase.kt` builds the in-memory database and seeds the mercado/cliente rows the
@@ -369,49 +371,46 @@ staging flavor's `applicationIdSuffix = ".staging"` made unpassable. It had neve
 
 ---
 
-## Open findings
+## Resolved findings
 
-Neither is a test gap. Both are behaviours the tests surfaced and deliberately recorded
-rather than changed, because fixing either is a product decision.
+Two behaviours the tests surfaced and deliberately recorded rather than changed, because each
+needed a product decision. **Both were fixed in Phase 17h** — kept here because the reasoning is
+worth keeping, and because each is now pinned by a test.
+
+---
+
+### Resolved — `markAllPaidForCliente` never synced
+
+`PedidoRepositoryImpl.markAllPaidForCliente()` was the **only** mutating repository method that did
+not enqueue a sync operation. "Marcar todo como pagado" when un-blacklisting a client settled their
+pedidos on the device and the server never heard about it — the pedidos stayed unpaid remotely, and
+the two halves of one operation disagreed, since the saldo extra created alongside it *did* sync.
+
+It is a bulk `UPDATE` over N rows, so there was no single entity id to queue. The fix reads the
+affected rows **before** the update — after it, the `status != 'PAID'` predicate matches nothing —
+via the new `PedidoDao.unpaidForCliente`, then enqueues one `UPSERT` per settled pedido.
+`QueueProcessor.deduplicate` keys on `(entityType, entityId)`, so the rows stay distinct and each
+pedido pushes exactly once. `PedidoRepositoryImplTest` now asserts the pairing instead of
+documenting its absence, including that an already-PAID pedido is not queued — the queue read has to
+use the update's own predicate or it reports rows it never touched.
+
+### Resolved — a third status rule in `MercadosViewModel`
+
+Phase 3 unified the two cliente screens; a **third**, materially different copy lived on in
+`MercadosViewModel.buildStats()`. It counted **all** unpaid pedidos (`balance = pedidos.sumOf { it.pending }`)
+where the cliente screens count only `PARTIAL && !isSaldoExtra`, and it hardcoded `200.0` and `30`
+days instead of reading `Umbrales`. A mercado could show a red dot while every client inside it
+showed AL_DIA, and a superuser raising the thresholds had no effect on the dashboard.
+
+`buildStats` now delegates to `CalcularEstadoClienteUseCase` with real `Umbrales`, so there is one
+rule in the app. **This changed what the dashboard shows**: an untouched PENDING order or a saldo
+extra no longer colours a mercado, so dots are rarer — previously any client with an open order lit
+their mercado amber, including an order placed that morning. `now` is captured once per emission
+rather than per cliente, so every client in one refresh is judged against the same instant and the
+suite can assert the day threshold exactly.
 
 ---
 
-### Open finding — `markAllPaidForCliente` never syncs
-
-`PedidoRepositoryImpl.markAllPaidForCliente()` is the **only** mutating repository method that does
-not enqueue a sync operation — it calls the DAO and returns:
-
-```kotlin
-override suspend fun markAllPaidForCliente(clienteId: String) =
-    pedidoDao.markAllPaidForCliente(clienteId, System.currentTimeMillis())
-```
-
-Every sibling method ends in `enqueue(...)`. The consequence: "Marcar todo como pagado" when
-un-blacklisting a client settles their pedidos on the device, and the server never hears about it.
-The pedidos stay unpaid remotely, and the next delta sync can pull the old status back over the
-local rows.
-
-The path is real — `DetalleClienteViewModel.unblacklistMarkAllPaid()` calls it, and the saldo extra
-it creates afterwards *does* sync, so the two halves of one operation disagree. It is a bulk
-`UPDATE` over N rows, so the fix is not a one-liner enqueue: it needs either per-pedido queue
-entries or a bulk sync operation the `QueueProcessor` understands. Left as a deliberate decision.
-`PedidoRepositoryImplTest` documents the current behaviour rather than asserting the desired one.
-
-### Open finding — a third status rule in `MercadosViewModel`
-
-Phase 3 unified the two cliente screens. A **third**, materially different copy lives in
-`MercadosViewModel.buildStats()` and was left alone, because changing it alters what the mercado
-dashboard shows and that is a product decision, not a refactor:
-
-- it counts **all** unpaid pedidos (`balance = pedidos.sumOf { it.pending }`), where the cliente
-  screens count only `PARTIAL && !isSaldoExtra`;
-- it hardcodes `200.0` and `30` days instead of reading `Umbrales`, so a superuser raising the
-  thresholds has no effect on the mercado dashboard.
-
-The visible consequence: a mercado can show a red warning dot while every client inside it shows
-AL_DIA. Unifying it would mean deciding which rule is correct, then re-testing the dashboard.
-
----
 
 ## TODO
 
@@ -450,18 +449,15 @@ QA.
       and `ClienteSyncer`'s preservation of local-only fields
 - [ ] `ui/screen/reporte/html/*` — `buildReporteHtml` / `buildDiarioHtml` / `buildPorClienteHtml`
       are pure String builders over UI state and would be cheap to cover
-- [ ] Wire `./gradlew :app:testStagingDebugUnitTest` into `.github/workflows/` so the suite actually
-      gates a release — it currently runs only when someone runs it by hand
+### Deliberately not doing — CI
 
-### Open findings to decide on
-
-Both are written up under **Open findings** above. Neither is a test gap — they are product
-decisions the tests surfaced and deliberately did not resolve.
-
-- [ ] `markAllPaidForCliente` never enqueues a sync operation, so "Marcar todo como pagado" stays on
-      the device
-- [ ] `MercadosViewModel.buildStats()` uses a third, different client-status rule with hardcoded
-      thresholds that ignore `Umbrales`
+- [ ] Wire `./gradlew :app:testStagingDebugUnitTest` into `.github/workflows/` so the suite gates a
+      release. **Deferred by choice, not an oversight** — the tests are for local development for
+      now. Worth knowing what is being traded away: `release.yml` is the only workflow and it goes
+      straight from checkout to assemble to signing to Telegram delivery without running a test, so
+      a release can ship with the suite red. Revisit if that ever actually happens. The migration
+      suite is a separate question — it needs an emulator and could not join CI without a
+      `connectedCheck` job on a macOS or KVM runner.
 
 ### Known obstacles
 

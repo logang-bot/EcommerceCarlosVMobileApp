@@ -3,14 +3,18 @@ package com.restrusher.ecomercecarlosv.ui.screen.mercado
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restrusher.ecomercecarlosv.domain.model.Cliente
+import com.restrusher.ecomercecarlosv.domain.model.ClientStatus
 import com.restrusher.ecomercecarlosv.domain.model.Mercado
 import com.restrusher.ecomercecarlosv.domain.model.Pedido
+import com.restrusher.ecomercecarlosv.domain.model.Umbrales
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
 import com.restrusher.ecomercecarlosv.domain.model.UserRole
 import com.restrusher.ecomercecarlosv.domain.repository.ClienteRepository
 import com.restrusher.ecomercecarlosv.domain.repository.MercadoRepository
 import com.restrusher.ecomercecarlosv.domain.repository.PedidoRepository
+import com.restrusher.ecomercecarlosv.domain.repository.UmbralesRepository
 import com.restrusher.ecomercecarlosv.domain.session.SessionManager
+import com.restrusher.ecomercecarlosv.domain.usecase.CalcularEstadoClienteUseCase
 import com.restrusher.ecomercecarlosv.domain.usecase.RefreshMercadoDataUseCase
 import com.restrusher.ecomercecarlosv.ui.common.SyncIconState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +30,8 @@ class MercadosViewModel @Inject constructor(
     private val mercadoRepository: MercadoRepository,
     private val clienteRepository: ClienteRepository,
     private val pedidoRepository: PedidoRepository,
+    private val umbralesRepository: UmbralesRepository,
+    private val calcularEstadoCliente: CalcularEstadoClienteUseCase,
     sessionManager: SessionManager,
     syncOperationDao: SyncOperationDao,
     private val refreshMercadoData: RefreshMercadoDataUseCase,
@@ -40,13 +46,14 @@ class MercadosViewModel @Inject constructor(
             mercadoRepository.getAll(),
             clienteRepository.getAll(),
             pedidoRepository.getAllUnpaid(),
-        ) { mercados, clientes, unpaid -> Triple(mercados, clientes, unpaid) },
+            umbralesRepository.getUmbrales(),
+        ) { mercados, clientes, unpaid, umbrales -> MercadoInputs(mercados, clientes, unpaid, umbrales) },
         sessionManager.currentUser,
         _selectedMercadoId,
         mercadoRepository.isSyncing,
         syncOperationDao.observeAll(),
-    ) { triple, user, selectedId, isSyncing, allOps ->
-        val (mercados, clientes, unpaidPedidos) = triple
+    ) { inputs, user, selectedId, isSyncing, allOps ->
+        val (mercados, clientes, unpaidPedidos, umbrales) = inputs
         val initials = user?.name
             ?.split(' ')
             ?.filter(String::isNotBlank)
@@ -60,7 +67,7 @@ class MercadosViewModel @Inject constructor(
         }
         MercadosUiState(
             mercados = mercados,
-            stats = buildStats(mercados, clientes, unpaidPedidos),
+            stats = buildStats(mercados, clientes, unpaidPedidos, umbrales),
             isLoading = isSyncing && mercados.isEmpty(),
             currentUserInitials = initials,
             currentUserPhotoUrl = user?.photoUrl,
@@ -97,10 +104,17 @@ class MercadosViewModel @Inject constructor(
 
     fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 
+    /**
+     * The dot means exactly what the cliente's own badge means — [CalcularEstadoClienteUseCase] is
+     * the single rule. `now` is read once per emission rather than per cliente so every client in
+     * one refresh is judged against the same instant.
+     */
     private fun buildStats(
         mercados: List<Mercado>,
         clientes: List<Cliente>,
         unpaidPedidos: List<Pedido>,
+        umbrales: Umbrales,
+        now: Long = System.currentTimeMillis(),
     ): Map<String, MercadoStat> {
         val clientesByMercado = clientes.groupBy { it.mercadoId }
         val pedidosByCliente = unpaidPedidos.groupBy { it.clienteId }
@@ -110,13 +124,10 @@ class MercadosViewModel @Inject constructor(
             var hasCritical = false
             for (cliente in mercadoClientes) {
                 val pedidos = pedidosByCliente[cliente.id].orEmpty()
-                val balance = pedidos.sumOf { it.pending }
-                if (balance > 0) {
-                    if (pedidos.any { isOlderThan30Days(it.createdAt) } || balance > 200.0) {
-                        hasCritical = true
-                    } else {
-                        hasWarning = true
-                    }
+                when (calcularEstadoCliente(pedidos, umbrales, now)) {
+                    ClientStatus.CRITICO -> hasCritical = true
+                    ClientStatus.ADVERTENCIA -> hasWarning = true
+                    ClientStatus.AL_DIA -> Unit
                 }
             }
             mercado.id to MercadoStat(
@@ -127,6 +138,10 @@ class MercadosViewModel @Inject constructor(
         }
     }
 
-    private fun isOlderThan30Days(createdAt: Long): Boolean =
-        (System.currentTimeMillis() - createdAt) > 30L * 24 * 60 * 60 * 1000
+    private data class MercadoInputs(
+        val mercados: List<Mercado>,
+        val clientes: List<Cliente>,
+        val unpaidPedidos: List<Pedido>,
+        val umbrales: Umbrales,
+    )
 }

@@ -206,15 +206,41 @@ class PedidoRepositoryImplTest {
     }
 
     @Test
-    fun `markAllPaidForCliente — settles the pedidos but queues nothing to sync`() = runTest {
+    fun `markAllPaidForCliente — settles the pedidos and queues one upsert each`() = runTest {
         repository.create(pedido(id = "p1", total = 100.0, paid = 0.0), emptyList())
-        db.syncOperationDao().delete(queue().single().id)
+        repository.create(pedido(id = "p2", total = 50.0, paid = 20.0), emptyList())
+        queue().forEach { db.syncOperationDao().delete(it.id) }
 
         repository.markAllPaidForCliente("cliente-1")
 
         assertEquals("PAID", db.pedidoDao().getById("p1")?.status)
-        // Documents current behaviour: this is the one mutating method that does not enqueue, so
-        // the settlement stays on the device. See docs/features/testing.md.
+        assertEquals("PAID", db.pedidoDao().getById("p2")?.status)
+        // The settlement must leave the device, or the server keeps the old status and the next
+        // delta sync can pull it back over the local rows.
+        val queued = queue()
+        assertEquals(listOf("p1", "p2"), queued.map { it.entityId }.sorted())
+        assertTrue(queued.all { it.entityType == EntityType.PEDIDO && it.operation == SyncOp.UPSERT })
+        assertEquals(listOf("Bs. 100,00", "Bs. 50,00"), queued.map { it.entityLabel })
+    }
+
+    @Test
+    fun `markAllPaidForCliente — already-paid pedido — is not queued`() = runTest {
+        repository.create(
+            pedido(id = "p1", status = PedidoStatus.PAID, total = 100.0, paid = 100.0),
+            emptyList(),
+        )
+        queue().forEach { db.syncOperationDao().delete(it.id) }
+
+        repository.markAllPaidForCliente("cliente-1")
+
+        // The queue read must use the update's own predicate, or it reports rows it never touched.
+        assertEquals(emptyList<String>(), queue().map { it.entityId })
+    }
+
+    @Test
+    fun `markAllPaidForCliente — nothing owed — queues nothing`() = runTest {
+        repository.markAllPaidForCliente("cliente-1")
+
         assertEquals(emptyList<Any>(), queue())
     }
 }
