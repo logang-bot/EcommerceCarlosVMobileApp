@@ -36,11 +36,18 @@ Stores app user accounts. Managed exclusively by the Superusuario. Populated loc
 | `isActive` | `Boolean` | `boolean` | — | Default `true` |
 | `createdAt` | `Long` | `bigint` | — | Epoch ms |
 | `lastSeenAt` | `Long?` | `bigint` | ✓ | Updated on each login |
-| `biometricEnabledAt` | `Long?` | `bigint` | ✓ | Non-null means enrolled; stored locally only (not synced) |
+| `biometricEnabledAt` | `Long?` | `bigint` | ✓ | Non-null means enrolled; stored locally only (not synced) — and local means *this installation only*, see below |
 
 **DAO operations:** `getAll()` flow · `getById()` · `insert(REPLACE)` · `update()` · `deleteById()` · `setActive()` · `setBiometricEnabled()` · `updateProfile(name, email, phone)` · `getBiometricEnabledUser()`
 
 **Supabase notes:** `biometricEnabledAt` is device-local — do not create a column for it in Supabase. Row-level security: only `SUPERUSUARIO` can insert/update/delete; all authenticated users can read.
+
+**Installation-local, not just device-local.** This column used to come back after an uninstall,
+because Android Auto Backup was copying `pedidos_db` off the device and restoring it — which also
+restored the stored refresh token and made the fingerprint login usable on another phone. Backup and
+device-to-device transfer are now disabled, and anything that still arrives from a restore is wiped
+at startup. Every table in this database is now erased by an uninstall, unsynced `sync_operations`
+included. See `docs/features/auth.md` → "Backup and restore — nothing survives an uninstall".
 
 ---
 

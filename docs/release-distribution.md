@@ -142,3 +142,8 @@ release.
 keystore than the installed build (uninstall first, or use the original keystore),
 or they have the other flavor installed. `staging` uses the applicationId suffix
 `.staging`, so both flavors can coexist.
+
+> ⚠️ **Uninstalling erases all local data**, and nothing is backed up — that is deliberate
+> (see `docs/features/auth.md` → "Backup and restore"). Have the user open the app and let it
+> sync before uninstalling, or any pending changes are lost. Installing *over* the existing
+> build with the right keystore is an update, not a reinstall, and keeps their data.

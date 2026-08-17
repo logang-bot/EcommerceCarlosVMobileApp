@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   Auto Backup rules for API 24-30 (android:fullBackupContent).
+   API 31+ is governed by data_extraction_rules.xml instead.
+
+   Nothing about this app may be backed up. The data dir holds a long-lived Supabase refresh
+   token, and the rest is a cache of Supabase that re-syncs after login. See the comment above
+   <application> in AndroidManifest.xml.
+
+   NOTE: an EMPTY <full-backup-content> means "back up everything" — which is exactly the bug
+   this file used to have. The exclude below is required; do not delete it.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="root" path="." />
 </full-backup-content>

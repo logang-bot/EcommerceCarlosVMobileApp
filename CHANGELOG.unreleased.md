@@ -16,6 +16,16 @@ written at release time. Skip purely internal changes with no user or security i
 
 ## Pending
 
+- **Fix (seguridad):** reinstalling the app no longer brings the previous user back. Android Auto
+  Backup and device-to-device transfer were copying the whole app data directory off the device —
+  both rule files were left as the empty Android Studio templates, which means "back up
+  everything". That included the long-lived refresh token behind fingerprint login, so restoring
+  the backup onto another phone let *that* phone's fingerprint open the previous user's account
+  without their password. Backup and transfer are now disabled outright, and a keystore-backed
+  install marker wipes any data that still arrives from a restore before the app reads it.
+  Uninstalling now really does erase everything local, cached mercados/clientes/pedidos included.
+  Note this means **unsynced changes are lost if the app is uninstalled** — sync before removing it.
+
 - **New (eliminar mercado):** the "Eliminar mercado" button now asks for confirmation first, and says
   how many clientes will be deleted along with it. Before, a single tap deleted the mercado
   immediately with no warning and no way back — the likeliest reason a batch of mercados disappeared

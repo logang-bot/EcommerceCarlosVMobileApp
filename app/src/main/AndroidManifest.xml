@@ -9,9 +9,16 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Backup and device-to-device transfer are disabled on purpose. The app stores a long-lived
+         Supabase refresh token (biometric_refresh_token, see DataStoreGoTrueSessionManager) that
+         survives restarts so fingerprint login can work, and BiometricPrompt runs without a
+         CryptoObject — so a data dir restored onto another phone lets THAT phone's fingerprint
+         unlock the previous user's account. Everything else here is a cache of Supabase and
+         re-syncs after login, so a backup preserves nothing worth the risk. Do not re-enable.
+         The two rules files below must stay in sync with this flag. -->
     <application
         android:name=".PedidosApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"

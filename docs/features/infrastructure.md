@@ -586,6 +586,15 @@ The ERROR state shows a "Reintentar envío" button in `SyncBanner`. It calls `Si
 ## Wiring Summary
 
 ```
+PedidosApp.attachBaseContext()      ← BEFORE Hilt injection and ContentProvider install
+  └── FreshInstallWiper.wipeIfRestored()
+        └── if the Keystore install marker is missing, delete pedidos_db, the DataStore,
+            shared_prefs, the caches and androidx.work.workdb — data restored from a backup
+            or a device transfer must never be read. Must stay here: once Hilt has injected
+            the fields below, DataStore and both SharedPreferences files are already open,
+            and deleting them then leaves the in-memory copy to be flushed back.
+            See docs/features/auth.md → "Backup and restore".
+
 PedidosApp.onCreate()
   ├── syncNotifier.createChannel()  ← registers the notification channel (idempotent)
   ├── dataSynchronizer.start()      ← registers connectivity-restore listener (clears staleness map)

@@ -43,6 +43,8 @@ After successful login, navigation goes to `HomeRoute` (popping `LoginRoute` inc
 | `domain/session/SessionResult.kt` | `VALID` / `OFFLINE` / `DEFERRED` / `REVOKED` |
 | `domain/session/DeviceDataCleaner.kt` | Wipes cached business data, but only once the write queue has drained |
 | `data/session/DataStoreGoTrueSessionManager.kt` | supabase-kt `SessionManager`: startup wipe + the surviving refresh-token mirror |
+| `data/install/InstallMarker.kt` / `KeystoreInstallMarker.kt` | Keystore alias proving the data on disk belongs to this installation |
+| `data/install/FreshInstallWiper.kt` | Wipes data restored from a backup or transfer, before anything opens it |
 
 ---
 
@@ -342,6 +344,81 @@ refresh failures. Only an explicit sign-out on a device with no fingerprint enro
 ### Token refresh during the session
 
 supabase-kt calls `loadSession()` internally when the JWT approaches expiry to get the stored refresh token. Because `firstLoad` is `false` after startup, these calls read the DataStore normally and refresh proceeds transparently.
+
+### Backup and restore — nothing survives an uninstall
+
+"Survives restarts" used to also mean **survives reinstalls**, which was a security bug.
+`android:allowBackup` was `true` and both rule files were the unmodified Android Studio templates
+with every rule commented out — and an *empty* rule set means "back up everything". So Android Auto
+Backup and device-to-device transfer captured the whole app data directory, `pedidos_db` and
+`app_preferences` included, and restored it on reinstall. The visible symptom was the enrolled-user
+login screen reappearing after an uninstall, because `biometricEnabledAt` came back with the Room DB.
+
+The real problem was `biometric_refresh_token` coming back with it. A refresh token is the only
+credential the app holds, `BiometricPrompt` runs with no `CryptoObject` (so it validates against
+whatever finger is enrolled on the *restoring* device), and `ensureValidSession` will trade that
+token for a real session — full account access on another phone, no password involved.
+
+Two independent layers now prevent it:
+
+| | what it does | where |
+|---|---|---|
+| Manifest | `allowBackup="false"`, plus `<exclude domain="root" path="."/>` in `backup_rules.xml` (API 24–30) and in **both** `<cloud-backup>` and `<device-transfer>` in `data_extraction_rules.xml` (API 31+) | `AndroidManifest.xml`, `res/xml/` |
+| Runtime | Keystore alias proves the data belongs to this installation; if it is missing, the data is wiped before anything reads it | `data/install/` |
+
+`<device-transfer>` is **not** redundant: `allowBackup="false"` disables cloud backup but D2D
+transfer keeps going on API 31+ unless that block excludes it.
+
+#### The install marker
+
+A Keystore alias is destroyed on uninstall and cannot be backed up or transferred — the key material
+never leaves the TEE. So *alias missing + data present* means the data did not come from this
+installation. `KeystoreInstallMarker` holds the alias (the key is never used to encrypt anything;
+its existence is the whole signal) and `FreshInstallWiper` acts on it.
+
+**It runs from `PedidosApp.attachBaseContext`, and that is load-bearing.** By the time Hilt has
+injected `PedidosApp`, `SupabaseClient` has already read the session from DataStore
+(`autoLoadFromStorage = true`) and `DataSynchronizer`/`ThemeManager` have read their preferences in
+property initialisers. Deleting a file underneath an open DataStore does not clear its in-memory
+snapshot, which is then flushed back to disk — resurrecting the token. `attachBaseContext` is the
+last point at which nothing has opened anything. For the same reason it cannot reuse
+`DeviceDataCleaner` or `SessionManagerImpl.wipeCachedData()`: those are Hilt singletons that work
+through the very objects that must not exist yet.
+
+Other deliberate choices:
+
+- The marker is written **after** the wipe. Marking first would permanently bless restored data if
+  the wipe then crashed.
+- `isPresent()` fails **open** — an unreadable keystore reports "already recorded" so no wipe runs.
+  Keystore access is flaky on some OEM builds, and wiping on every cold start would destroy unsynced
+  queue operations. The manifest is the primary control; this layer must not be the thing that
+  loses data.
+- Installs that predate the marker are detected via `firstInstallTime != lastUpdateTime` and are
+  recorded **without** wiping. Otherwise the update shipping this feature would wipe every existing
+  user, queue included. A restore followed by an update before the app is ever launched slips
+  through, which is contrived and one-release-only.
+- `shared_prefs` is wiped wholesale rather than by name, `theme_prefs` included. An allowlist rots
+  the moment someone adds a preferences file — exactly the failure that caused this bug.
+- `androidx.work.workdb` is deleted too: a restored one carries `WorkSpec` rows and JobScheduler ids
+  from another install. Safe because WorkManager's auto-init is disabled and `SyncWorker.schedule()`
+  re-enqueues with `ExistingWorkPolicy.KEEP` on every start.
+- Reports exported to MediaStore Downloads (`ReporteSaver`) are **not** touched. They are user-owned
+  files and survive uninstall by design.
+
+#### Consequence: unsynced writes die with the app
+
+Uninstalling now really does erase everything local, so pending `sync_operations` are lost. That is
+accepted and unavoidable — the alternative is the backup that caused this bug.
+
+#### Known limitation (not addressed)
+
+`biometric_refresh_token` is still stored **in plaintext** in DataStore, and `BiometricPrompt` is
+still invoked **without a `CryptoObject`**, so the fingerprint is a UI gate rather than a key unlock —
+nothing cryptographically binds the stored token to a successful fingerprint. The controls above
+close the *backup and transfer* vector only; they do not protect against a rooted device or an
+`adb`-readable debuggable build. Encrypting the token at rest would touch the token-rotation path,
+where a mishandled rotation locks the user out permanently (see "Token rotation ordering matters"),
+so it is deliberately left for its own change.
 
 ---
 
