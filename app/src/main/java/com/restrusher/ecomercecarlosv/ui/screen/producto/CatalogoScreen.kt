@@ -52,7 +52,6 @@ import com.restrusher.ecomercecarlosv.domain.model.Producto
 import com.restrusher.ecomercecarlosv.presentation.screens.CreateProductoRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
-import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.screen.home.AppBottomNavBar
@@ -75,7 +74,6 @@ fun CatalogoScreen(
         onCreateClick = { navController.navigate(CreateProductoRoute()) },
         onSearchQueryChange = viewModel::onSearchQueryChange,
         onRefresh = viewModel::onRefresh,
-        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
@@ -89,22 +87,12 @@ private fun CatalogoContent(
     onCreateClick: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onRefresh: () -> Unit = {},
-    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     val count = state.productos.size
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            if (state.refreshFailed) {
-                RefreshErrorToast(
-                    onRetry = onRefresh,
-                    onDismiss = onRefreshErrorDismissed,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        },
         topBar = {
             PedidosTopBar(
                 title = stringResource(R.string.productos_title),

@@ -1,15 +1,20 @@
 package com.restrusher.ecomercecarlosv.data.local.dao
 
+import android.database.sqlite.SQLiteConstraintException
 import app.cash.turbine.test
 import com.restrusher.ecomercecarlosv.data.local.AppDatabase
+import com.restrusher.ecomercecarlosv.fixtures.clienteEntity
+import com.restrusher.ecomercecarlosv.fixtures.mercadoEntity
 import com.restrusher.ecomercecarlosv.fixtures.detallePedidoEntity
 import com.restrusher.ecomercecarlosv.fixtures.pedidoEntity
 import com.restrusher.ecomercecarlosv.support.createTestDatabase
 import com.restrusher.ecomercecarlosv.support.seedMercadoAndCliente
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -157,6 +162,69 @@ class PedidoDaoTest {
         assertEquals("PARTIAL", updated.status)
         assertEquals(60.0, updated.paid, 0.001)
         assertEquals(42L, updated.paidAt)
+    }
+
+    @Test
+    fun `insert then update — a redelivered pedido overwrites the local row`() = runTest {
+        dao.insert(pedidoEntity(id = "p1", status = "PENDING"))
+
+        val redelivered = pedidoEntity(id = "p1", status = "PAID")
+        assertEquals(-1L, dao.insert(redelivered))
+        dao.update(redelivered)
+
+        assertEquals("PAID", dao.getById("p1")?.status)
+    }
+
+    @Test
+    fun `existingIds — reports a soft-deleted pedido as present`() = runTest {
+        dao.insert(pedidoEntity(id = "p1"))
+        dao.softDeleteById("p1")
+
+        assertEquals(listOf("p1"), dao.existingIds(listOf("p1", "missing")))
+    }
+
+    // The two cases SyncParentResolver exists to tell apart: a tombstone parent is enough to satisfy
+    // the foreign key, an absent one is not. Sync must recover the parent rather than insert blindly.
+
+    @Test
+    fun `insert — succeeds when the cliente exists only as a tombstone`() = runTest {
+        db.clienteDao().softDeleteById("cliente-1")
+
+        dao.insert(pedidoEntity(id = "p1"))
+
+        assertEquals("p1", dao.getById("p1")?.id)
+    }
+
+    @Test
+    fun `insert — a pedido with no local cliente fails the foreign key`() = runTest {
+        assertThrows(SQLiteConstraintException::class.java) {
+            runBlocking { dao.insert(pedidoEntity(id = "p1").copy(clienteId = "ausente")) }
+        }
+    }
+
+    @Test
+    fun `softDeleteByCliente — hides that cliente's pedidos only`() = runTest {
+        db.clienteDao().insert(clienteEntity(id = "cliente-2").copy(mercadoId = "mercado-1"))
+        dao.insert(pedidoEntity(id = "p1"))
+        dao.insert(pedidoEntity(id = "p2").copy(clienteId = "cliente-2"))
+
+        dao.softDeleteByCliente("cliente-1")
+
+        assertNull(dao.getById("p1"))
+        assertEquals("p2", dao.getById("p2")?.id)
+    }
+
+    @Test
+    fun `softDeleteByMercado — reaches pedidos through their cliente`() = runTest {
+        db.mercadoDao().insert(mercadoEntity(id = "mercado-2"))
+        db.clienteDao().insert(clienteEntity(id = "cliente-2").copy(mercadoId = "mercado-2"))
+        dao.insert(pedidoEntity(id = "p1"))
+        dao.insert(pedidoEntity(id = "p2").copy(clienteId = "cliente-2"))
+
+        dao.softDeleteByMercado("mercado-1")
+
+        assertNull(dao.getById("p1"))
+        assertEquals("p2", dao.getById("p2")?.id)
     }
 
     @Test

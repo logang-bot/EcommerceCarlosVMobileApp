@@ -6,7 +6,20 @@ All primary keys are client-generated UUIDs (`String`). All timestamp columns st
 
 ---
 
-## Current tables (Room v18)
+## Current tables (Room v19)
+
+### Foreign keys
+
+Room enforces one chain, every link `ON DELETE CASCADE`:
+
+```
+mercados → clientes → pedidos → { detalle_pedido, pagos }
+```
+
+`productos`, `umbrales` and `users` have none, and `detalle_pedido.productoId` is a plain column
+rather than a foreign key. Sync must therefore write parents before children — see
+`SyncParentResolver` in `docs/features/infrastructure.md`.
+
 
 ### `users`
 
@@ -396,7 +409,7 @@ ALTER TABLE productos ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAU
 ALTER TABLE pedidos   ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;
 ```
 
-The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET is_deleted = true`), so `updated_at` is bumped automatically — deleted rows appear in the next delta sync on other devices with `is_deleted = true`, which causes them to be hard-deleted from Room there.
+The existing `set_updated_at_ms()` trigger fires on any UPDATE (including `SET is_deleted = true`), so `updated_at` is bumped automatically — deleted rows appear in the next delta sync on other devices with `is_deleted = true`. `mercados` and `clientes` tombstones are **soft**-deleted in Room (not hard-deleted), so the row survives to satisfy the foreign keys of any children that are still live; `productos` and `pedidos` have no live children to protect and are removed outright.
 
 ### Room migration reference
 
@@ -460,3 +473,139 @@ CREATE POLICY "umbrales_update_superusuario"
 ```
 
 This assumes `set_updated_at_ms()` and `get_my_role()` already exist (they do on staging — both were created by the original `schema.sql`/`rls.sql` run). If a value was already saved on-device before this migration ships, opening **Mi Perfil → Umbrales de estado → Guardar umbrales** once (as a `SUPERUSUARIO`, while online) pushes it up and populates the row for every other device.
+
+### 7. Fire the `updated_at` trigger on INSERT too (fixes the sync FK failures)
+
+The Phase 10 triggers were `BEFORE UPDATE` only, while `updated_at` defaults to `0`. A freshly
+**inserted** row therefore kept `updated_at = 0` and was invisible to every
+`updated_at > since` delta. A newly created cliente stayed invisible while its pedido became visible
+the moment anything touched it — the child arrived with no parent and Room raised
+`FOREIGN KEY constraint failed`, which aborted the whole pull and surfaced as "no se pudo actualizar".
+
+Run in **staging first**, then production:
+
+```sql
+DROP TRIGGER IF EXISTS trg_mercados_updated_at  ON mercados;
+DROP TRIGGER IF EXISTS trg_clientes_updated_at  ON clientes;
+DROP TRIGGER IF EXISTS trg_productos_updated_at ON productos;
+DROP TRIGGER IF EXISTS trg_pedidos_updated_at   ON pedidos;
+DROP TRIGGER IF EXISTS trg_umbrales_updated_at  ON umbrales;
+
+CREATE TRIGGER trg_mercados_updated_at
+  BEFORE INSERT OR UPDATE ON mercados
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_clientes_updated_at
+  BEFORE INSERT OR UPDATE ON clientes
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_productos_updated_at
+  BEFORE INSERT OR UPDATE ON productos
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_pedidos_updated_at
+  BEFORE INSERT OR UPDATE ON pedidos
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+CREATE TRIGGER trg_umbrales_updated_at
+  BEFORE INSERT OR UPDATE ON umbrales
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+-- Backfill rows inserted while the trigger was UPDATE-only. A no-op UPDATE now
+-- fires the trigger and fills updated_at.
+UPDATE mercados  SET updated_at = updated_at WHERE updated_at = 0;
+UPDATE clientes  SET updated_at = updated_at WHERE updated_at = 0;
+UPDATE productos SET updated_at = updated_at WHERE updated_at = 0;
+UPDATE pedidos   SET updated_at = updated_at WHERE updated_at = 0;
+```
+
+The backfill makes every device pull those rows once on its next delta — a correct, one-off cost.
+
+Verify all five now fire on insert (expect `INSERT OR UPDATE` for each):
+
+```sql
+SELECT event_object_table, string_agg(event_manipulation, ' OR ' ORDER BY event_manipulation)
+FROM information_schema.triggers
+WHERE trigger_name LIKE 'trg_%_updated_at'
+GROUP BY event_object_table;
+```
+
+**Diagnostic — find the rows that were crashing the app.** These are live children whose parent is
+soft-deleted; the app now recovers them automatically, so this is only for visibility:
+
+```sql
+SELECT p.id AS pedido_id, p.cliente_id
+FROM pedidos p JOIN clientes c ON c.id = p.cliente_id
+WHERE p.is_deleted = false AND c.is_deleted = true;
+
+SELECT c.id AS cliente_id, c.mercado_id
+FROM clientes c JOIN mercados m ON m.id = c.mercado_id
+WHERE c.is_deleted = false AND m.is_deleted = true;
+```
+
+### 8. Cascade the soft-delete to children
+
+Deleting is a flag flip, not a row delete, so the `ON DELETE CASCADE` declared on the foreign keys
+never fires. `QueueProcessor.delete` updates only the target row, so a deleted mercado left its
+clientes and their pedidos live — still surfacing in **Búsqueda** and **Reporte**, which read
+clientes without joining to mercados.
+
+Doing this in Postgres rather than the client means it holds no matter what flips the flag: any
+device, an Edge Function, or a manual dashboard edit. Run in **staging first**, then production:
+
+```sql
+CREATE OR REPLACE FUNCTION cascade_soft_delete_clientes()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.is_deleted AND NOT OLD.is_deleted THEN
+        UPDATE clientes SET is_deleted = true
+        WHERE mercado_id = NEW.id AND is_deleted = false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_mercados_cascade_soft_delete ON mercados;
+CREATE TRIGGER trg_mercados_cascade_soft_delete
+    AFTER UPDATE ON mercados
+    FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_clientes();
+
+CREATE OR REPLACE FUNCTION cascade_soft_delete_pedidos()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.is_deleted AND NOT OLD.is_deleted THEN
+        UPDATE pedidos SET is_deleted = true
+        WHERE cliente_id = NEW.id AND is_deleted = false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_clientes_cascade_soft_delete ON clientes;
+CREATE TRIGGER trg_clientes_cascade_soft_delete
+    AFTER UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_pedidos();
+```
+
+The two **chain**: flipping a mercado flips its clientes, which fires the clientes trigger and flips
+their pedidos. `set_updated_at_ms()` fires on each of those UPDATEs, so every affected row becomes
+visible to the next delta sync on every device. That propagation is the actual mechanism — the local
+cascade in `MercadoRepositoryImpl.delete` / `ClienteRepositoryImpl.delete` only spares the
+originating device the wait, and the app still enqueues exactly **one** sync op (the parent's) rather
+than one per child.
+
+> **This is one-way.** Restoring a parent does not restore its children — the guard only matches a
+> `false → true` transition. To bring a whole subtree back by hand:
+>
+> ```sql
+> UPDATE mercados SET is_deleted = false WHERE id = '<mercado-id>';
+> UPDATE clientes SET is_deleted = false WHERE mercado_id = '<mercado-id>';
+> UPDATE pedidos  SET is_deleted = false
+> WHERE cliente_id IN (SELECT id FROM clientes WHERE mercado_id = '<mercado-id>');
+> ```
+>
+> Run them in that order and every device picks the rows back up on its next delta.
+
+This does **not** retro-fix subtrees deleted before the trigger existed; those children are still
+live. Find them with the two diagnostic queries in §7 above, and soft-delete them with the same
+`UPDATE ... SET is_deleted = true` shape if you want them cleaned up.

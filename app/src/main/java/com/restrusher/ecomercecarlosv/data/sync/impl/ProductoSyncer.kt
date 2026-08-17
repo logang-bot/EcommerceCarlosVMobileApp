@@ -8,6 +8,7 @@ import com.restrusher.ecomercecarlosv.data.sync.EntitySyncer
 import com.restrusher.ecomercecarlosv.data.sync.SyncResult
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import javax.inject.Inject
 
 class ProductoSyncer @Inject constructor(
@@ -44,6 +45,8 @@ class ProductoSyncer @Inject constructor(
         while (true) {
             val page = supabase.from("productos").select {
                 filter { eq("is_deleted", false) }
+                // Offset paging without a stable sort can skip rows between pages.
+                order("id", Order.ASCENDING)
                 range(offset, offset + BATCH_SIZE - 1)
             }.decodeList<ProductoDto>()
             addAll(page)

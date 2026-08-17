@@ -15,7 +15,6 @@ data class ListaNegraUiState(
     val query: String = "",
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val refreshFailed: Boolean = false,
 ) {
     val filtered: List<BlacklistUiModel>
         get() = if (query.isBlank()) items

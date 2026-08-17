@@ -8,6 +8,9 @@ interface ClienteRepository {
     fun getAll(): Flow<List<Cliente>>
     fun getAllIncludingBlacklisted(): Flow<List<Cliente>>
     fun getByMercado(mercadoId: String): Flow<List<Cliente>>
+
+    /** Live clientes in a mercado, blacklisted ones included — used to warn before deleting it. */
+    fun countByMercado(mercadoId: String): Flow<Int>
     fun getBlacklisted(): Flow<List<Cliente>>
     fun getByIdFlow(id: String): Flow<Cliente?>
     suspend fun getById(id: String): Cliente?

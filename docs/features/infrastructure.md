@@ -146,11 +146,63 @@ Multiple simultaneous calls to `triggerSyncIfStale` for the same entity are safe
 | `MercadoSyncer` | `mercados` | IGNORE + UPDATE |
 | `ClienteSyncer` | `clientes` | IGNORE + UPDATE; preserves local-only fields (`primaryPhoneIndex`, `blacklistBalance`, `blacklistIsManualAmount`) from existing Room row |
 | `ProductoSyncer` | `productos` | INSERT OR REPLACE |
-| `PedidoSyncer` | `pedidos` + `detalle_pedido` | INSERT IGNORE; two fetch methods (`fetchAllPedidoPages`, `fetchAllDetallPages`) |
+| `PedidoSyncer` | `pedidos` + `detalle_pedido` + `pagos` | IGNORE + UPDATE; three fetch methods (`fetchAllPedidoPages`, `fetchAllDetallPages`, `fetchAllPagoPages`) |
 
-**Full-fetch batching** (Phase 10c): when `since == 0L` all syncers use a `while(true)` loop with `supabase.from(...).select { filter { eq("is_deleted", false) }; range(offset, offset + 999) }` and `BATCH_SIZE = 1000`. The loop breaks when `page.size < BATCH_SIZE`, accumulating results via `buildList { addAll(page) }`. This bypasses PostgREST's single-call 1 000-row cap. Delta fetches (`since > 0L`) are unaffected — they fetch all rows with `updated_at > since` including soft-deleted ones.
+**Full-fetch batching** (Phase 10c): when `since == 0L` all syncers use a `while(true)` loop with `supabase.from(...).select { filter { eq("is_deleted", false) }; order("id", ASCENDING); range(offset, offset + 999) }` and `BATCH_SIZE = 1000`. The loop breaks when `page.size < BATCH_SIZE`, accumulating results via `buildList { addAll(page) }`. This bypasses PostgREST's single-call 1 000-row cap. The `order("id")` is load-bearing: offset paging without a stable sort can skip rows between pages. Delta fetches (`since > 0L`) are unaffected — they fetch all rows with `updated_at > since` including soft-deleted ones.
 
-**Soft-delete propagation** (Phase 11): delta syncs include soft-deleted rows (because `UPDATE SET is_deleted = true` bumps `updated_at` via trigger). Each syncer checks `dto.isDeleted`: if `true`, the entity is hard-deleted from Room (`dao.deleteById(dto.id)`); otherwise the normal upsert path runs. `PedidoSyncer` collects non-deleted IDs into `upsertedIds` and only fetches `detalle_pedido` for those — soft-deleted pedidos have their Room rows (and cascaded detalles) removed immediately.
+**Soft-delete propagation** (Phase 11): delta syncs include soft-deleted rows (because `UPDATE SET is_deleted = true` bumps `updated_at` via trigger). Each syncer checks `dto.isDeleted`. `MercadoSyncer` and `ClienteSyncer` call `dao.softDeleteById(...)`, keeping the row so that any children still live locally keep a valid foreign-key parent; a hard delete would CASCADE them away only for the next full sync to re-download and fail on them. `ProductoSyncer` and `PedidoSyncer` hard-delete — neither has live children to protect, and a deleted pedido *should* take its detalles and pagos with it. `PedidoSyncer` collects surviving IDs into `upsertedIds` and only fetches `detalle_pedido` / `pagos` for those.
+
+### Foreign-key parent resolution (`SyncParentResolver`)
+
+Room enforces `mercados → clientes → pedidos → { detalle_pedido, pagos }`, all `ON DELETE CASCADE`,
+but each entity syncs on its own schedule and every full fetch filters out `is_deleted` rows. A child
+could therefore arrive with no local parent and raise
+`SQLiteConstraintException: FOREIGN KEY constraint failed`, which aborted the *entire* pull and
+surfaced to the user as "no se pudo actualizar". Three ways in:
+
+- a soft-deleted parent (excluded from the full fetch) whose children are still live;
+- a parent whose staleness threshold has not expired while the child was force-refreshed;
+- a parent whose `updated_at` was never set on INSERT, so it was invisible to every delta (fixed
+  server-side — see *Staging environment changes §6* in `docs/db-schema.md`).
+
+`SyncParentResolver.ensureMercadosExist` / `ensureClientesExist` take the ids a syncer is about to
+write and return the subset that is now safe to insert:
+
+1. `dao.existingIds(...)` — a presence check that deliberately **ignores** `isDeleted`, since a
+   tombstone satisfies the constraint just fine. This is why `getById` cannot be reused here.
+2. Missing ids are fetched by id with **no** `is_deleted` filter, so tombstoned parents are recovered.
+   A recovered tombstone stays invisible to the UI because every read query filters `isDeleted = 0`.
+3. `ensureClientesExist` resolves each recovered cliente's own mercado first, so it cannot trip the
+   very foreign key it exists to prevent.
+
+Anything still unresolvable is genuinely absent server-side: it is logged and its children are
+skipped. Every row write is additionally wrapped in `runCatching`, so one bad row can never again
+take down a whole refresh.
+
+### Soft-delete cascade
+
+Deleting is a flag flip, so the `ON DELETE CASCADE` on the foreign keys never fires and children
+would be left live under a deleted parent — visible in Búsqueda and Reporte, which read clientes
+without joining to mercados. The cascade therefore lives in **Postgres**
+(`trg_mercados_cascade_soft_delete` → `trg_clientes_cascade_soft_delete`, `docs/db-schema.md` §8), not
+in the client, so it holds no matter what flips the flag: any device, an Edge Function, or a manual
+dashboard edit. `set_updated_at_ms()` fires on each cascaded UPDATE, so the affected rows reach every
+device through their own entity's normal delta.
+
+The client side is only a latency optimisation:
+
+- `MercadoRepositoryImpl.delete` / `ClienteRepositoryImpl.delete` soft-delete the subtree locally so
+  the originating device updates instantly, and enqueue **exactly one** op — the parent's. One op per
+  child would be redundant with the trigger and would flood `sync_operations` for a large mercado.
+- The **syncers deliberately do not cascade** when a tombstone arrives. Receiving devices learn about
+  the children from the children's own deltas. Cascading on receipt would risk hiding rows the server
+  still considers live if a server-side cascade ever failed, and a wrongly-hidden row would stay
+  hidden until something else touched its `updated_at`. The accepted failure mode instead — children
+  briefly visible until the next cliente delta (30 min, or a pull-to-refresh) — self-heals.
+  Over-visibility is the safer direction; don't "tidy this up" by adding a cascade there.
+
+The cascade is one-way: restoring a parent does not restore its children, since the trigger only
+matches a `false → true` transition. `docs/db-schema.md` §8 has the SQL to restore a subtree by hand.
 
 Each sync call has a 10-second timeout. On timeout or failure the timestamp is removed so the next navigation retries. Errors are routed to `GlobalErrorHandler`.
 

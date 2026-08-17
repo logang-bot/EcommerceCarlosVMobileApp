@@ -68,7 +68,6 @@ import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
-import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.EcomerceCarlosVTheme
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
@@ -88,7 +87,6 @@ fun ClientesScreen(
         onSortChange = viewModel::onSortChange,
         onSearchChange = viewModel::onSearchChange,
         onRefresh = viewModel::onRefresh,
-        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
@@ -103,22 +101,12 @@ private fun ClientesContent(
     onSortChange: (ClienteSortMode) -> Unit,
     onSearchChange: (String) -> Unit,
     onRefresh: () -> Unit = {},
-    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val count = state.clientes.size
     var searchActive by remember { mutableStateOf(false) }
     val ext = MaterialTheme.extendedColors
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            if (state.refreshFailed) {
-                RefreshErrorToast(
-                    onRetry = onRefresh,
-                    onDismiss = onRefreshErrorDismissed,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        },
         topBar = {
             Column {
                 PedidosTopBar(

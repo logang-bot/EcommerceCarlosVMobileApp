@@ -34,14 +34,28 @@ interface ClienteDao {
     @Query("SELECT * FROM clientes WHERE id = :id AND isDeleted = 0 LIMIT 1")
     suspend fun getById(id: String): ClienteEntity?
 
+    /** Row presence only — deliberately ignores `isDeleted`, since a tombstone still satisfies the
+     *  `pedidos.clienteId` foreign key. Do not swap this for [getById], which hides tombstones. */
+    @Query("SELECT id FROM clientes WHERE id IN (:ids)")
+    suspend fun existingIds(ids: List<String>): List<String>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(cliente: ClienteEntity): Long
 
     @Update
     suspend fun update(cliente: ClienteEntity)
 
+    /** Counts blacklisted clientes too — a blacklisted cliente still disappears when its mercado is
+     *  deleted, so the delete warning must include it. That is why [getByMercado], which excludes
+     *  them, cannot be reused here. */
+    @Query("SELECT COUNT(*) FROM clientes WHERE mercadoId = :mercadoId AND isDeleted = 0")
+    fun countByMercado(mercadoId: String): Flow<Int>
+
     @Query("UPDATE clientes SET isDeleted = 1 WHERE id = :id")
     suspend fun softDeleteById(id: String)
+
+    @Query("UPDATE clientes SET isDeleted = 1 WHERE mercadoId = :mercadoId")
+    suspend fun softDeleteByMercado(mercadoId: String)
 
     @Query("DELETE FROM clientes WHERE id = :id")
     suspend fun deleteById(id: String)

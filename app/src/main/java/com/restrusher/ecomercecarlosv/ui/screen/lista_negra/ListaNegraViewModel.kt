@@ -22,7 +22,6 @@ class ListaNegraViewModel @Inject constructor(
 
     private val _query = MutableStateFlow("")
     private val _isRefreshing = MutableStateFlow(false)
-    private val _refreshFailed = MutableStateFlow(false)
 
     private val _uiState = MutableStateFlow(ListaNegraUiState())
     val uiState: StateFlow<ListaNegraUiState> = _uiState.asStateFlow()
@@ -52,8 +51,6 @@ class ListaNegraViewModel @Inject constructor(
             )
         }.combine(_isRefreshing) { state, refreshing ->
             state.copy(isRefreshing = refreshing)
-        }.combine(_refreshFailed) { state, failed ->
-            state.copy(refreshFailed = failed)
         }.onEach { _uiState.value = it }.launchIn(viewModelScope)
     }
 
@@ -62,14 +59,11 @@ class ListaNegraViewModel @Inject constructor(
     }
 
     fun onRefresh() {
-        _refreshFailed.value = false
         viewModelScope.launch {
             _isRefreshing.value = true
-            val success = clienteRepository.refresh()
+            clienteRepository.refresh()
             _isRefreshing.value = false
-            _refreshFailed.value = !success
         }
     }
 
-    fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 }

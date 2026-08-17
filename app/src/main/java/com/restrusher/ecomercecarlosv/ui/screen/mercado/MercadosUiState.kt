@@ -19,5 +19,4 @@ data class MercadosUiState(
     val canWrite: Boolean = true,
     val syncIconState: SyncIconState = SyncIconState.SYNCED,
     val isRefreshing: Boolean = false,
-    val refreshFailed: Boolean = false,
 )

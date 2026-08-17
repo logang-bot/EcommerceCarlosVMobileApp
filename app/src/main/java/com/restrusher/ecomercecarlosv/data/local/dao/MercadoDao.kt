@@ -19,6 +19,11 @@ interface MercadoDao {
     @Query("SELECT * FROM mercados WHERE id = :id AND isDeleted = 0 LIMIT 1")
     fun getByIdFlow(id: String): Flow<MercadoEntity?>
 
+    /** Row presence only — deliberately ignores `isDeleted`, since a tombstone still satisfies the
+     *  `clientes.mercadoId` foreign key. Do not swap this for [getById], which hides tombstones. */
+    @Query("SELECT id FROM mercados WHERE id IN (:ids)")
+    suspend fun existingIds(ids: List<String>): List<String>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(mercado: MercadoEntity): Long
 

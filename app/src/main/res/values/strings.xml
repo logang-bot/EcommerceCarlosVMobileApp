@@ -50,11 +50,6 @@
     <string name="error_session_expired">Tu sesión expiró. Vuelve a iniciar sesión</string>
     <string name="error_generic">Ocurrió un problema. Inténtalo de nuevo</string>
 
-    <!-- Pull-to-refresh error toast -->
-    <string name="refresh_error_title">No se pudo actualizar</string>
-    <string name="refresh_error_subtitle">Sin conexión con el servidor</string>
-    <string name="refresh_error_retry">Reintentar</string>
-
     <!-- Mercados -->
     <string name="mercados_title">Mercados</string>
     <string name="mercados_subtitle">%1$d mercados</string>
@@ -99,6 +94,12 @@
     <string name="detalle_mercado_maps_hint">Toca Abrir para verlo en la app de mapas.</string>
     <string name="detalle_mercado_clientes_activos">Clientes activos</string>
     <string name="detalle_mercado_creado">Creado</string>
+    <string name="detalle_mercado_delete_confirm_empty">¿Eliminar este mercado? Esta acción no se puede deshacer.</string>
+
+    <plurals name="detalle_mercado_delete_confirm">
+        <item quantity="one">¿Eliminar este mercado? También se eliminará %1$d cliente y todos sus pedidos. Esta acción no se puede deshacer.</item>
+        <item quantity="other">¿Eliminar este mercado? También se eliminarán %1$d clientes y todos sus pedidos. Esta acción no se puede deshacer.</item>
+    </plurals>
     <string name="detalle_mercado_delete_confirm">Se eliminarán el mercado y sus clientes asociados. Esta acción no se puede deshacer.</string>
     <string name="detalle_mercado_accion_editar">Editar mercado</string>
 

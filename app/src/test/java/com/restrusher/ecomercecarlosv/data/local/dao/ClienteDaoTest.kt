@@ -134,6 +134,45 @@ class ClienteDaoTest {
         }
     }
 
+    /** A tombstone still satisfies the `pedidos.clienteId` foreign key, so sync must be able to see
+     *  it — this is what stops [getById] from being reused for that check. */
+    @Test
+    fun `existingIds — reports a soft-deleted cliente as present`() = runTest {
+        dao.insert(activo("c1", "Ana"))
+        dao.softDeleteById("c1")
+
+        assertNull(dao.getById("c1"))
+        assertEquals(listOf("c1"), dao.existingIds(listOf("c1", "missing")))
+    }
+
+    @Test
+    fun `softDeleteByMercado — hides every cliente of that mercado and leaves others alone`() = runTest {
+        db.mercadoDao().insert(mercadoEntity(id = "mercado-2"))
+        dao.insert(activo("c1", "Ana"))
+        dao.insert(activo("c2", "Beto"))
+        dao.insert(activo("c3", "Caro", mercadoId = "mercado-2"))
+
+        dao.softDeleteByMercado("mercado-1")
+
+        assertNull(dao.getById("c1"))
+        assertNull(dao.getById("c2"))
+        assertEquals("Caro", dao.getById("c3")?.name)
+    }
+
+    /** Blacklisted clientes disappear with the mercado too, so the delete warning has to count them. */
+    @Test
+    fun `countByMercado — counts blacklisted clientes and skips deleted ones`() = runTest {
+        dao.insert(activo("c1", "Ana"))
+        dao.insert(activo("c2", "Beto"))
+        dao.insert(activo("c3", "Caro"))
+        dao.blacklist("c2", reason = "No paga", balance = 50.0, at = 1L, isManualAmount = false)
+        dao.softDeleteById("c3")
+
+        dao.countByMercado("mercado-1").test {
+            assertEquals(2, awaitItem())
+        }
+    }
+
     @Test
     fun `deleting a mercado cascades to its clientes`() = runTest {
         dao.insert(activo("c1", "Ana"))

@@ -228,7 +228,7 @@ class ClientesViewModelTest {
     // the intermediate emissions.
 
     @Test
-    fun `onRefresh — a failed refresh raises refreshFailed and then clears on dismiss`() = runTest {
+    fun `onRefresh — a failed refresh still settles isRefreshing`() = runTest {
         pedidos.refreshResult = false
 
         val vm = viewModel()
@@ -237,25 +237,19 @@ class ClientesViewModelTest {
 
             vm.onRefresh()
 
-            assertTrue(expectMostRecentItem().refreshFailed)
-
-            vm.onRefreshErrorDismissed()
-
-            assertFalse(expectMostRecentItem().refreshFailed)
+            assertFalse(expectMostRecentItem().isRefreshing)
         }
     }
 
     @Test
-    fun `onRefresh — a successful refresh leaves no error and refreshes both entities`() = runTest {
+    fun `onRefresh — a successful refresh settles and refreshes both entities`() = runTest {
         val vm = viewModel()
         vm.uiState.test {
             awaitItem()
 
             vm.onRefresh()
 
-            val settled = expectMostRecentItem()
-            assertFalse(settled.refreshFailed)
-            assertFalse(settled.isRefreshing)
+            assertFalse(expectMostRecentItem().isRefreshing)
         }
 
         assertEquals(1, clientes.refreshCount)

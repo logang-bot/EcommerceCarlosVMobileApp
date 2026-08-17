@@ -796,6 +796,8 @@ Tapping the camera shutter in `TakePicture` caused the Create screen to disappea
 
 ### 🍞 Pull-to-refresh error toast behind FAB + missing dismiss button
 
+> **Removed.** `RefreshErrorToast` no longer exists — see *Remove RefreshErrorToast* below. Kept for history.
+
 `RefreshErrorToast` was rendered inside the Scaffold content `Box`, placing it behind the FAB in Z-order. It also had no way to dismiss it.
 
 **Fix — `RefreshErrorToast.kt`**: added `onDismiss: () -> Unit` parameter and an `IconButton` with a `Close` icon at the end of the Row.
@@ -990,6 +992,8 @@ Replaces full-table re-downloads with incremental fetches keyed on `updated_at`.
 **Supabase changes required:** See *Staging environment changes* section in `docs/db-schema.md` for the exact SQL (add column, trigger function, indexes).
 
 ### 🍞 Pull-to-Refresh Error Toast
+
+> **Removed.** `RefreshErrorToast` and its `refreshFailed` plumbing no longer exist — see *Remove RefreshErrorToast* below. The delta-sync work described here (`updatedAt`, `EntitySyncer.sync(since)`, `refresh(): Boolean`, the two refresh use cases) is all still live; only the toast half was undone. Kept for history.
 
 **Signal chain:** `syncIfStale()` / `forceSync()` → `Boolean` → `repository.refresh(): Boolean` → `_refreshFailed: MutableStateFlow<Boolean>` in ViewModel → `refreshFailed: Boolean` in UiState → `RefreshErrorToast` composable.
 
@@ -1636,6 +1640,140 @@ Full "Reporte de pedidos" screen accessible from the "Generar reporte" menu item
 **DepuracionScreen split** (was a single 880-line file) — now `DepuracionScreen.kt` (`DepuracionScreen` ViewModel wiring + `DepuracionContent` state-driven phase dispatch, previewable) plus one file per phase: `DepuracionConfigContent.kt`, `DepuracionProgressContent.kt`, `DepuracionErrorContent.kt`, `DepuracionDoneContent.kt`, `DepuracionConfirmDialog.kt`, `DepuracionDatePickerDialog.kt`, `PhaseSteps.kt`. Mirrors the `ui/screen/reporte/` split pattern; every phase file has its own light/dark previews.
 
 **PerfilScreen split** — `AjustesSection.kt` (Apariencia card + Umbrales row) and `MantenimientoSection.kt` (Depuración row) extracted with their own previews, since they sat below the fold in `PerfilContent`'s single long scrolling preview. `PerfilDarkPreview` (superuser variant) also given `heightDp = 1500` so the full scroll content renders without clipping.
+
+---
+
+## ✅ Sync foreign-key failures + Remove RefreshErrorToast
+
+### 🐛 `FOREIGN KEY constraint failed` on every refresh (staging)
+
+A tester could not refresh data at all. Logcat showed `SQLiteConstraintException: FOREIGN KEY
+constraint failed` from `PedidoDao.insert` (tag `PedidoSyncer`) **and** from `ClienteDao` — the same
+bug one level apart on the `mercados → clientes → pedidos → { detalle_pedido, pagos }` chain.
+
+A child arrived from Supabase with no local parent. `@Insert(onConflict = IGNORE)` does not suppress
+FK violations (SQLite's conflict resolution never applies to foreign keys), so `runCatching` in the
+syncer aborted the *whole* pull, `DataSynchronizer` retried once and failed identically, rolled back
+the delta cursor, and surfaced "no se pudo actualizar" — repeating on every screen entry. RLS was
+ruled out: `clientes_select_authenticated` and `pedidos_select_authenticated` are both `USING (true)`.
+
+Four ways a parent went missing:
+
+1. **No sync ordering** — syncers fire independently per repository read flow; `RefreshMercadoDataUseCase` / `RefreshClienteDataUseCase` even `async {}` them in parallel.
+2. **Independent staleness clocks** — a force-refreshed pedido while its cliente is still "fresh" for up to 30 min.
+3. **Soft-delete asymmetry** — `QueueProcessor.delete` sets `is_deleted` on the target row only, never descendants; every full fetch filters those rows out, so the parent vanished while its live children kept downloading. Worse, `MercadoSyncer`/`ClienteSyncer` **hard**-deleted tombstones locally, CASCADEing children away for the next full sync to re-download and re-crash on.
+4. **`updated_at` never set on INSERT** — the triggers were `BEFORE UPDATE` only with `DEFAULT 0`, so a newly created parent was invisible to every `updated_at > since` delta while its child became visible the moment anything touched it.
+
+**Fix — `data/sync/SyncParentResolver.kt` (new)**: `ensureMercadosExist` / `ensureClientesExist` take
+the ids a syncer is about to write and return the subset safe to insert. Presence is checked with new
+`existingIds` DAO queries that deliberately ignore `isDeleted` (a tombstone satisfies the constraint),
+missing parents are fetched by id with **no** `is_deleted` filter so tombstones are recovered, and
+`ensureClientesExist` resolves each recovered cliente's own mercado first. Unresolvable ids are logged
+and their children skipped.
+
+**Fix — `ClienteSyncer`, `PedidoSyncer`**: resolve parents before writing; skip orphans (a skipped
+pedido stays out of `upsertedIds`, so its detalles and pagos are skipped too); guard every row write
+in `runCatching` so one bad row can never take down a refresh again.
+
+**Fix — `MercadoSyncer`, `ClienteSyncer`**: tombstones now `softDeleteById` instead of `deleteById`,
+keeping the parent row alive for live children. `ProductoSyncer`/`PedidoSyncer` still hard-delete —
+neither has children to protect.
+
+**Fix — `PedidoDao` + `PedidoSyncer`**: `insert` now returns `Long` with an `@Update` fallthrough, so
+a redelivered pedido actually updates. Previously an `IGNORE` insert with no fallback silently
+discarded every remote status/total edit — part of the same "cannot refresh the data" report.
+
+**Fix — all five syncers**: `order("id", ASCENDING)` added to the paged full fetches; offset paging
+without a stable sort can skip rows between pages.
+
+**Fix — Supabase (`docs/sql/schema.sql`)**: triggers changed to `BEFORE INSERT OR UPDATE`, plus a
+backfill for rows stuck at `updated_at = 0`. Migration SQL in `docs/db-schema.md → Staging environment
+changes §6`. **Must be applied to staging and production** — the client fix alone does not restore
+delta visibility for rows already inserted at 0.
+
+**Modified files**: `data/sync/SyncParentResolver.kt` (new), `data/sync/impl/{Mercado,Cliente,Pedido,Producto}Syncer.kt`, `data/local/dao/{Mercado,Cliente,Pedido}Dao.kt`, `docs/sql/schema.sql`, `docs/db-schema.md`, `docs/features/{infrastructure,pedidos,mercados,testing}.md`.
+
+**Tests**: `PedidoDaoTest` 12 → 16 (insert-or-update, `existingIds` sees tombstones, tombstone parent
+satisfies the FK while an absent one throws), `ClienteDaoTest` 10 → 11 (`existingIds` sees tombstones).
+Syncer-level tests were not added: `PedidoSyncer`/`ClienteSyncer` take `SupabaseClient` directly with
+no seam to fake, so the invariants are pinned at the DAO layer instead.
+
+### 🧹 Remove RefreshErrorToast
+
+Refresh failures were reported twice — by the custom `RefreshErrorToast` and by the global Material
+snackbar (`AppViewModel.userErrors` ← `GlobalErrorHandler` ← `DataSynchronizer.errorHandler.emit`).
+The custom one is gone; the pull-to-refresh spinner and global snackbar remain.
+
+Deleted `ui/common/RefreshErrorToast.kt`, the three `refresh_error_*` strings, the `refreshFailed`
+field in all four UiStates, and `_refreshFailed` / `onRefreshErrorDismissed` in all four ViewModels
+(`Mercados`, `Clientes`, `Catalogo`, `ListaNegra`) along with the `snackbarHost` blocks in their
+screens. `onRefresh` / `_isRefreshing` stay (shared with `PullToRefreshBox`), and
+`repository.refresh(): Boolean` plus both refresh use cases are untouched — the Boolean is simply no
+longer consumed by these ViewModels. `ClientesViewModelTest`'s two refresh tests were rewritten to
+assert `isRefreshing` settles.
+
+---
+
+## ✅ Confirm before deleting a mercado + cascade the soft-delete
+
+### 🔍 Not a bug: 12 mercados in Supabase, 1 in the app
+
+Investigated after the FK fix shipped. 11 of the 12 rows had `is_deleted = true` — `MercadoDao.getAll()`
+filters `isDeleted = 0` and the Supabase dashboard's table view doesn't, so the app was right. The
+`is_deleted` rollout could not have caused it either: both `schema.sql` and the Phase 11 `ALTER TABLE`
+declare `DEFAULT false`, so every pre-existing row got `false`. The only writer of `true` is
+`QueueProcessor.delete`, one row per queued op, sourced from the app's delete button. Left as-is per
+the owner's call (most likely customer test deletions). Two real gaps came out of it:
+
+### 🛡️ Mercado delete had no confirmation
+
+`DetalleMercadoScreen.kt` wired `onClick = onDelete` straight through — one tap deleted the mercado
+and popped the back stack. Mercados sit at the top of the FK chain, so this was the widest-blast-radius
+delete in the app and the only one with no confirm step (`CreateProductoScreen` already used an
+`AlertDialog`).
+
+**Fix**: mirrored the productos pattern — `showDeleteDialog` in `DetalleMercadoUiState`,
+`onShowDeleteDialog`/`onDismissDeleteDialog` on the ViewModel, and an `AlertDialog` naming how many
+clientes would go with it. The count comes from a new `ClienteDao.countByMercado` exposed as
+`ClienteRepository.countByMercado`; it deliberately **includes blacklisted** clientes (they disappear
+too), which is why `getByMercado` couldn't be reused. Copy is a `<plurals>` plus a separate
+empty-mercado message.
+
+### 🌊 Deleting a mercado orphaned its clientes and pedidos
+
+Deleting is a flag flip, so the `ON DELETE CASCADE` on the foreign keys never fires.
+`MercadoRepositoryImpl.delete` and `QueueProcessor.delete` both touched only the target row, leaving
+clientes and pedidos live under a deleted parent — and `BusquedaViewModel` /`ReporteViewModel` read
+clientes without joining to mercados, so they kept showing up. Predates the FK fix, which only made it
+visible: other devices used to hard-delete the tombstoned mercado and CASCADE the children away
+locally, masking it at the cost of the crash loop.
+
+**Fix — Supabase (`docs/sql/schema.sql`, migration in `docs/db-schema.md` §8)**: two chained triggers,
+`trg_mercados_cascade_soft_delete` → `trg_clientes_cascade_soft_delete`. Doing it in Postgres means it
+holds regardless of what flips the flag — any device, an Edge Function, or a dashboard edit — and
+`set_updated_at_ms()` fires on each cascaded UPDATE so the rows reach every device via their own delta.
+**Must be applied to staging and production.**
+
+**Fix — client**: new `ClienteDao.softDeleteByMercado`, `PedidoDao.softDeleteByCliente` /
+`softDeleteByMercado`. `MercadoRepositoryImpl.delete` soft-deletes pedidos → clientes → mercado
+locally; `ClienteRepositoryImpl.delete` soft-deletes its pedidos (no UI caller today, fixed anyway so
+the paths can't drift). Both still enqueue **exactly one** op — the parent's; per-child ops would be
+redundant with the trigger and would flood `sync_operations`.
+
+**Deliberately not done**: the syncers do not cascade on tombstone receipt. Receiving devices learn
+from the children's own deltas; cascading on receipt could hide rows the server still considers live
+if a server-side cascade ever failed, and a wrongly-hidden row stays hidden until something touches its
+`updated_at`. Brief over-visibility self-heals, so it's the safer direction.
+
+Everything is soft — nothing is ever hard-deleted. A vanished row leaves other devices nothing to sync
+against, and Postgres would CASCADE it, destroying pedido and pago history. The cascade is also
+one-way: restoring a parent does not restore its children (§8 has the manual restore SQL).
+
+**Modified files**: `data/local/dao/{Cliente,Pedido}Dao.kt`, `data/repository/impl/{Mercado,Cliente}RepositoryImpl.kt`, `domain/repository/ClienteRepository.kt`, `ui/screen/mercado/DetalleMercado{Screen,ViewModel,UiState}.kt`, `res/values/strings.xml`, `docs/sql/schema.sql`, `docs/db-schema.md`, `docs/features/{mercados,clientes,infrastructure,testing}.md`.
+
+**Tests**: new `MercadoRepositoryImplTest` (4) and `DetalleMercadoViewModelTest` (4);
+`ClienteDaoTest` 11 → 13, `PedidoDaoTest` 16 → 18. The "queues exactly one op" assertion exists
+specifically to guard the no-child-ops decision.
 
 ---
 

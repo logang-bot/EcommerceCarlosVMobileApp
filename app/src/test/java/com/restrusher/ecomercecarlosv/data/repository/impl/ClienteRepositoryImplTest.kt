@@ -30,6 +30,7 @@ class ClienteRepositoryImplTest {
         db.mercadoDao().insert(mercadoEntity(id = "mercado-1"))
         repository = ClienteRepositoryImpl(
             dao = db.clienteDao(),
+            pedidoDao = db.pedidoDao(),
             syncOperationDao = db.syncOperationDao(),
             dataSynchronizer = mockk<DataSynchronizer>(relaxed = true),
         )

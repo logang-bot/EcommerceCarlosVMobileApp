@@ -16,6 +16,30 @@ written at release time. Skip purely internal changes with no user or security i
 
 ## Pending
 
+- **New (eliminar mercado):** the "Eliminar mercado" button now asks for confirmation first, and says
+  how many clientes will be deleted along with it. Before, a single tap deleted the mercado
+  immediately with no warning and no way back — the likeliest reason a batch of mercados disappeared
+  during testing.
+- **Fix (eliminar mercado):** deleting a mercado left its clientes and their pedidos behind. They kept
+  appearing in Búsqueda and in the Reporte, attached to a mercado that no longer existed. A mercado's
+  clientes and pedidos are now removed with it, on every device. Deleting a cliente likewise removes
+  its pedidos. **Requires the Supabase update below.** Note this does not undo deletions made before
+  this change, and restoring a mercado does not bring its clientes back.
+
+- **Fix (no se pudo actualizar):** refreshing could fail permanently on a device — every pull showed
+  "no se pudo actualizar" and the data never came down again. It happened after a mercado or a
+  cliente was deleted: the deleted record stopped arriving while the pedidos and clientes inside it
+  kept arriving, and the app refused the whole batch rather than the few records it could not place.
+  Deleted records are now recovered in the background (still hidden from every list), records that
+  genuinely no longer exist are skipped instead of blocking the refresh, and a single bad record can
+  no longer stop the rest from arriving.
+- **Fix (pedidos desactualizados):** a pedido edited on another device — marked paid, total changed —
+  never updated on this one. Only brand-new pedidos were coming through; changes to existing ones
+  were silently discarded. **Requires the Supabase update below.**
+- **Change (mensajes de error):** the custom "No se pudo actualizar" banner above the + button is
+  gone. Refresh failures were being reported twice; they now show once, in the standard message bar
+  at the bottom of the screen.
+
 - **Fix (marcar todo como pagado):** settling a client's debts when taking them off the blacklist
   only happened on the device — the server never found out, so the pedidos stayed unpaid for
   everyone else and a later sync could bring the old debt back. Odd, because the saldo extra created

@@ -363,6 +363,21 @@ Moved to `ui/common/PagoSheet.kt` (used by both CreacionPedidoScreen and EditarP
 
 ---
 
+## Sync behaviour
+
+`PedidoSyncer` **updates** existing pedidos, it no longer only inserts them. `PedidoDao.insert` is
+`OnConflictStrategy.IGNORE` and returns `-1L` when the row already exists; the syncer then calls
+`update(entity)`, matching `MercadoSyncer` and `ClienteSyncer`. Before this, a remote status/total
+edit arriving in a delta was silently discarded because the insert was ignored and nothing followed
+it.
+
+A pedido is only written once its cliente is present in Room — `SyncParentResolver` recovers a
+missing cliente (and that cliente's mercado) on demand, and a pedido whose cliente cannot be
+recovered is skipped along with its `detalle_pedido` and `pagos` rows rather than failing the whole
+pull on a foreign key. See `docs/features/infrastructure.md → Foreign-key parent resolution`.
+
+---
+
 ## Open TODOs
 
 - [x] ~~Wire "Calcular automáticamente" in `AgregarListaNegraScreen` using real pedido balance~~ — already done: `AgregarListaNegraViewModel` injects `PedidoRepository`, filters `getByCliente(clienteId)` to pending pedidos, and `AgregarListaNegraUiState.autoAmount = pendingPedidos.sumOf { it.pending }` backs the AUTO mode toggle.

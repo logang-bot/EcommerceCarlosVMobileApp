@@ -8,6 +8,7 @@ import com.restrusher.ecomercecarlosv.data.sync.EntitySyncer
 import com.restrusher.ecomercecarlosv.data.sync.SyncResult
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import javax.inject.Inject
 
 class MercadoSyncer @Inject constructor(
@@ -24,14 +25,11 @@ class MercadoSyncer @Inject constructor(
                     filter { gt("updated_at", since) }
                 }.decodeList<MercadoDto>()
             }
-            dtos.forEach { dto ->
-                if (dto.isDeleted) {
-                    dao.deleteById(dto.id)
-                } else {
-                    val entity = MercadoMapper.fromDto(dto)
-                    if (dao.insert(entity) == -1L) dao.update(entity)
-                }
-            }
+            val (tombstones, live) = dtos.partition { it.isDeleted }
+            // Soft delete, not a row delete: hard-deleting the parent would CASCADE its clientes
+            // away, and the next full cliente sync would re-download them and fail the foreign key.
+            tombstones.forEach { dao.softDeleteById(it.id) }
+            live.forEach { upsert(it) }
             Log.d(TAG, "${if (since > 0L) "delta" else "full"} sync: ${dtos.size} mercados")
             SyncResult.Success
         }.getOrElse { e ->
@@ -40,11 +38,21 @@ class MercadoSyncer @Inject constructor(
         }
     }
 
+    /** Writes are guarded individually so one unwritable row can never abort the whole pull. */
+    private suspend fun upsert(dto: MercadoDto) {
+        runCatching {
+            val entity = MercadoMapper.fromDto(dto)
+            if (dao.insert(entity) == -1L) dao.update(entity)
+        }.onFailure { Log.e(TAG, "skipping mercado ${dto.id}: write failed", it) }
+    }
+
     private suspend fun fetchAllPages(): List<MercadoDto> = buildList {
         var offset = 0L
         while (true) {
             val page = supabase.from("mercados").select {
                 filter { eq("is_deleted", false) }
+                // Offset paging without a stable sort can skip rows between pages.
+                order("id", Order.ASCENDING)
                 range(offset, offset + BATCH_SIZE - 1)
             }.decodeList<MercadoDto>()
             addAll(page)

@@ -266,11 +266,13 @@ production code path.
 
 | Suite | Tests | Covers |
 |---|---|---|
-| `PedidoDaoTest` | 12 | Soft-delete filters, `IGNORE` insert, `@Relation` lines, `markAllPaidForCliente`, FK cascade |
-| `ClienteDaoTest` | 10 | Blacklist round-trip, the `-1L` insert return that drives upsert, mercado cascade |
+| `PedidoDaoTest` | 18 | Soft-delete filters, `IGNORE` insert + `update` fallthrough, `existingIds` seeing tombstones, the cliente FK (tombstone parent passes, absent parent throws), `softDeleteByCliente`/`softDeleteByMercado`, `@Relation` lines, `markAllPaidForCliente`, FK cascade |
+| `ClienteDaoTest` | 13 | Blacklist round-trip, the `-1L` insert return that drives upsert, `existingIds` seeing tombstones, `softDeleteByMercado`, `countByMercado` including blacklisted, mercado cascade |
 | `SyncOperationDaoTest` | 11 | FIFO replay, retry counters, dedup (DELETE survives), `observeLatestEnqueuedId` |
 | `PedidoRepositoryImplTest` | 16 | `updateLines` status recompute + pago delta, initial pago, the enqueue contract — including `markAllPaidForCliente`, one upsert per settled pedido |
 | `ClienteRepositoryImplTest` | 7 | insert-or-update upsert, blacklist/unblacklist, soft delete + queue labels |
+| `MercadoRepositoryImplTest` | 4 | `delete()` soft-deletes the whole subtree locally, queues exactly **one** op (guards the no-child-ops decision), leaves other mercados alone |
+| `DetalleMercadoViewModelTest` | 4 | The delete dialog opens/dismisses without writing, confirm deletes, `clienteCount` scoped to this mercado |
 
 `support/RoomTestDatabase.kt` builds the in-memory database and seeds the mercado/cliente rows the
 pedido foreign keys require. **Foreign keys are enforced exactly as on device** — a pedido cannot be

@@ -72,7 +72,6 @@ import com.restrusher.ecomercecarlosv.presentation.screens.DetalleMercadoRoute
 import com.restrusher.ecomercecarlosv.presentation.screens.PerfilRoute
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
-import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.common.PhotoThumbnail
 import com.restrusher.ecomercecarlosv.ui.common.ProfileAvatar
@@ -106,7 +105,6 @@ fun MercadosScreen(
         onClearSelection = viewModel::clearSelection,
         onSyncClick = onSyncClick,
         onRefresh = viewModel::onRefresh,
-        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
@@ -146,22 +144,12 @@ private fun MercadosContent(
     onClearSelection: () -> Unit = {},
     onSyncClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
-    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val count = state.mercados.size
     val isSelecting = state.selectedMercadoId != null
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            if (state.refreshFailed) {
-                RefreshErrorToast(
-                    onRetry = onRefresh,
-                    onDismiss = onRefreshErrorDismissed,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        },
         bottomBar = { AppBottomNavBar(selectedTab = selectedTab, onTabSelected = onTabSelected) },
         topBar = {
             if (isSelecting) {

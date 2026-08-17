@@ -12,7 +12,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ────────────────────────────────────────────────────────────
 -- updated_at trigger function
--- Sets updated_at to the current time (epoch ms) on every UPDATE.
+-- Sets updated_at to the current time (epoch ms) on every INSERT and UPDATE.
+-- INSERT matters: delta sync selects on `updated_at > since`, so a row left at
+-- the DEFAULT 0 would never appear in any delta. A cliente invisible that way
+-- while its pedido was visible is what produced the FOREIGN KEY sync failures.
 -- Attached to mercados, clientes, productos, pedidos below.
 -- detalle_pedido is intentionally excluded — lines are always
 -- deleted and re-inserted as a block when their parent pedido changes.
@@ -61,7 +64,7 @@ CREATE TABLE mercados (
     latitude    float8,
     longitude   float8,
     created_at  bigint      NOT NULL,
-    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on INSERT and UPDATE
     is_deleted  boolean     NOT NULL DEFAULT false
 );
 
@@ -70,7 +73,7 @@ CREATE INDEX idx_mercados_name       ON mercados (name);
 CREATE INDEX idx_mercados_updated_at ON mercados (updated_at);
 
 CREATE TRIGGER trg_mercados_updated_at
-    BEFORE UPDATE ON mercados
+    BEFORE INSERT OR UPDATE ON mercados
     FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
@@ -93,7 +96,7 @@ CREATE TABLE clientes (
     blacklist_balance          float8      NOT NULL DEFAULT 0.0,
     blacklist_is_manual_amount boolean     NOT NULL DEFAULT false,
     created_at                 bigint      NOT NULL,
-    updated_at                 bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    updated_at                 bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on INSERT and UPDATE
     is_deleted                 boolean     NOT NULL DEFAULT false
 );
 
@@ -104,7 +107,7 @@ CREATE INDEX idx_clientes_blacklisted  ON clientes (is_blacklisted);
 CREATE INDEX idx_clientes_updated_at   ON clientes (updated_at);
 
 CREATE TRIGGER trg_clientes_updated_at
-    BEFORE UPDATE ON clientes
+    BEFORE INSERT OR UPDATE ON clientes
     FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
@@ -120,7 +123,7 @@ CREATE TABLE productos (
     photo_url   text,
     is_active   boolean     NOT NULL DEFAULT true,
     created_at  bigint      NOT NULL,
-    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on UPDATE
+    updated_at  bigint      NOT NULL DEFAULT 0,  -- epoch ms; auto-set by trigger on INSERT and UPDATE
     is_deleted  boolean     NOT NULL DEFAULT false
 );
 
@@ -129,7 +132,7 @@ CREATE INDEX idx_productos_name       ON productos (name);
 CREATE INDEX idx_productos_updated_at ON productos (updated_at);
 
 CREATE TRIGGER trg_productos_updated_at
-    BEFORE UPDATE ON productos
+    BEFORE INSERT OR UPDATE ON productos
     FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 
@@ -148,7 +151,7 @@ CREATE TABLE pedidos (
     is_saldo_extra boolean     NOT NULL DEFAULT false,
     created_at     bigint      NOT NULL,
     paid_at        bigint,                                   -- epoch ms; updated on each payment
-    updated_at     bigint      NOT NULL DEFAULT 0,           -- epoch ms; auto-set by trigger on UPDATE
+    updated_at     bigint      NOT NULL DEFAULT 0,           -- epoch ms; auto-set by trigger on INSERT and UPDATE
     is_deleted     boolean     NOT NULL DEFAULT false
 );
 
@@ -159,8 +162,51 @@ CREATE INDEX idx_pedidos_created_at ON pedidos (created_at DESC);
 CREATE INDEX idx_pedidos_updated_at ON pedidos (updated_at);
 
 CREATE TRIGGER trg_pedidos_updated_at
-    BEFORE UPDATE ON pedidos
+    BEFORE INSERT OR UPDATE ON pedidos
     FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
+
+
+-- ────────────────────────────────────────────────────────────
+-- Soft-delete cascade
+-- Deleting is a flag flip, not a row delete, so the ON DELETE CASCADE
+-- above never fires and children would be left orphaned: visible in the
+-- app (Búsqueda, Reporte) under a parent that no longer exists.
+-- These two triggers chain — flipping a mercado flips its clientes,
+-- which fires the clientes trigger and flips their pedidos.
+-- set_updated_at_ms() fires on each of those UPDATEs, so every affected
+-- row becomes visible to the next delta sync on every device.
+-- NOTE: this is one-way. Restoring a parent does NOT restore its
+-- children — the guard only matches a false -> true transition.
+-- ────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION cascade_soft_delete_clientes()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.is_deleted AND NOT OLD.is_deleted THEN
+        UPDATE clientes SET is_deleted = true
+        WHERE mercado_id = NEW.id AND is_deleted = false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_mercados_cascade_soft_delete
+    AFTER UPDATE ON mercados
+    FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_clientes();
+
+CREATE OR REPLACE FUNCTION cascade_soft_delete_pedidos()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.is_deleted AND NOT OLD.is_deleted THEN
+        UPDATE pedidos SET is_deleted = true
+        WHERE cliente_id = NEW.id AND is_deleted = false;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_clientes_cascade_soft_delete
+    AFTER UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_pedidos();
 
 
 -- ────────────────────────────────────────────────────────────
@@ -221,11 +267,12 @@ CREATE TABLE umbrales (
 ALTER TABLE umbrales ENABLE ROW LEVEL SECURITY;
 
 CREATE TRIGGER trg_umbrales_updated_at
-    BEFORE UPDATE ON umbrales
+    BEFORE INSERT OR UPDATE ON umbrales
     FOR EACH ROW EXECUTE FUNCTION set_updated_at_ms();
 
 -- Seed the singleton row so a fresh environment has something to read
--- before the first superuser save.
-INSERT INTO umbrales (id, monto_maximo, dias_maximos, updated_at)
-VALUES ('global', 200, 30, 0)
+-- before the first superuser save. updated_at is omitted deliberately —
+-- the trigger above now fires on INSERT and stamps it with the real time.
+INSERT INTO umbrales (id, monto_maximo, dias_maximos)
+VALUES ('global', 200, 30)
 ON CONFLICT (id) DO NOTHING;

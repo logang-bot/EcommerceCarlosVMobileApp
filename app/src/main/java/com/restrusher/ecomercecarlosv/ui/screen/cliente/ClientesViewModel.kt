@@ -40,7 +40,6 @@ class ClientesViewModel @Inject constructor(
     private val _mercadoName = MutableStateFlow("")
     private val _searchQuery = MutableStateFlow("")
     private val _isRefreshing = MutableStateFlow(false)
-    private val _refreshFailed = MutableStateFlow(false)
 
     val uiState = combine(
         combine(
@@ -85,8 +84,6 @@ class ClientesViewModel @Inject constructor(
         )
     }.combine(_isRefreshing) { state, refreshing ->
         state.copy(isRefreshing = refreshing)
-    }.combine(_refreshFailed) { state, failed ->
-        state.copy(refreshFailed = failed)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -108,13 +105,11 @@ class ClientesViewModel @Inject constructor(
     }
 
     fun onRefresh() {
-        _refreshFailed.value = false
         viewModelScope.launch {
             _isRefreshing.value = true
-            _refreshFailed.value = !refreshClienteData()
+            refreshClienteData()
             _isRefreshing.value = false
         }
     }
 
-    fun onRefreshErrorDismissed() { _refreshFailed.value = false }
 }

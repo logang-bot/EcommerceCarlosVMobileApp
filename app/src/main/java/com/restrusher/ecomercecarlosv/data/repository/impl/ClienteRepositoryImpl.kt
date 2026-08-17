@@ -1,6 +1,7 @@
 package com.restrusher.ecomercecarlosv.data.repository.impl
 
 import com.restrusher.ecomercecarlosv.data.local.dao.ClienteDao
+import com.restrusher.ecomercecarlosv.data.local.dao.PedidoDao
 import com.restrusher.ecomercecarlosv.data.local.dao.SyncOperationDao
 import com.restrusher.ecomercecarlosv.data.local.entity.EntityType
 import com.restrusher.ecomercecarlosv.data.local.entity.SyncOp
@@ -15,6 +16,7 @@ import javax.inject.Inject
 
 class ClienteRepositoryImpl @Inject constructor(
     private val dao: ClienteDao,
+    private val pedidoDao: PedidoDao,
     private val syncOperationDao: SyncOperationDao,
     private val dataSynchronizer: DataSynchronizer,
 ) : ClienteRepository {
@@ -44,6 +46,8 @@ class ClienteRepositoryImpl @Inject constructor(
         return dao.getBlacklisted().map { it.map(ClienteMapper::toDomain) }
     }
 
+    override fun countByMercado(mercadoId: String): Flow<Int> = dao.countByMercado(mercadoId)
+
     override suspend fun refresh(): Boolean = dataSynchronizer.forceSync(EntityType.CLIENTE)
 
     override fun getByIdFlow(id: String): Flow<Cliente?> =
@@ -58,8 +62,15 @@ class ClienteRepositoryImpl @Inject constructor(
         enqueue(SyncOp.UPSERT, cliente.id, cliente.name)
     }
 
+    /**
+     * Soft-deletes the cliente and its pedidos. Only the cliente is enqueued: the Supabase
+     * `trg_clientes_cascade_soft_delete` trigger flips the pedidos server-side, so per-pedido ops
+     * would be redundant and would flood the queue. The local writes just spare this device the wait
+     * for the next delta.
+     */
     override suspend fun delete(id: String) {
         val label = dao.getById(id)?.name ?: ""
+        pedidoDao.softDeleteByCliente(id)
         dao.softDeleteById(id)
         enqueue(SyncOp.DELETE, id, label)
     }

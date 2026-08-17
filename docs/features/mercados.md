@@ -125,9 +125,31 @@ Room schema version: **5** (migrated from 4 via `MIGRATION_4_5` — `ALTER TABLE
 | `getAll()` | `Flow<List<MercadoEntity>>` ordered by `name ASC` | |
 | `getById(id)` | `MercadoEntity?` (suspend) | One-shot |
 | `getByIdFlow(id)` | `Flow<MercadoEntity?>` | Reactive — used by `DetalleMercadoViewModel` |
+| `existingIds(ids)` | `List<String>` (suspend) | Row presence for FK checks — **ignores** `isDeleted`, unlike `getById`. Used by `SyncParentResolver` |
 | `insert(entity)` | `Long` — `OnConflictStrategy.IGNORE` | Returns `-1` on PK conflict |
 | `update(entity)` | `Unit` | |
-| `deleteById(id)` | `Unit` | |
+| `softDeleteById(id)` | `Unit` | What sync uses for a tombstone — keeps the row so live clientes retain a valid FK parent |
+| `deleteById(id)` | `Unit` | Hard delete; CASCADEs to clientes → pedidos. No production caller |
+
+`ClienteDao.countByMercado(mercadoId): Flow<Int>` backs the delete confirmation. It counts
+**blacklisted** clientes too — they disappear with the mercado just the same — which is why
+`getByMercado` (which excludes them) is not reused for it.
+
+### Deleting a mercado
+
+`DetalleMercadoScreen`'s danger-zone button opens an `AlertDialog` naming how many clientes would go
+with it (a `<plurals>`, with a separate message when the mercado is empty). Nothing is written until
+the user confirms — before, the button deleted on the first tap with no confirmation, which is the
+likeliest explanation for a batch of mercados tombstoned during testing.
+
+`MercadoRepositoryImpl.delete` then soft-deletes the whole subtree locally — pedidos, then clientes,
+then the mercado — and enqueues **exactly one** sync op, for the mercado. Propagation to other
+devices is Postgres' job: `trg_mercados_cascade_soft_delete` flips the clientes, which chains into
+`trg_clientes_cascade_soft_delete` for the pedidos (see `docs/db-schema.md` §8). Queuing an op per
+child would be redundant and would flood `sync_operations` for a large mercado.
+
+Nothing is ever hard-deleted: a physically removed row leaves other devices nothing to sync against,
+and Postgres would CASCADE it, destroying pedido and pago history.
 
 > `insert` uses `IGNORE` (not `REPLACE`) — see `docs/db-schema.md → Data integrity`. The repository falls through to `update()` when `-1L` is returned.
 

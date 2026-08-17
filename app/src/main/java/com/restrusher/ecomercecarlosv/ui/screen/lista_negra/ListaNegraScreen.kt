@@ -55,7 +55,6 @@ import com.restrusher.ecomercecarlosv.presentation.screens.DetalleClienteRoute
 import com.restrusher.ecomercecarlosv.ui.common.ClienteAvatar
 import com.restrusher.ecomercecarlosv.ui.common.EmptyState
 import com.restrusher.ecomercecarlosv.ui.common.LoadingOverlay
-import com.restrusher.ecomercecarlosv.ui.common.RefreshErrorToast
 import com.restrusher.ecomercecarlosv.ui.common.PedidosTopBar
 import com.restrusher.ecomercecarlosv.ui.theme.extendedColors
 import java.text.SimpleDateFormat
@@ -74,7 +73,6 @@ fun ListaNegraScreen(
         onQueryChange = viewModel::onQueryChange,
         onClienteClick = { clienteId -> navController.navigate(DetalleClienteRoute(clienteId)) },
         onRefresh = viewModel::onRefresh,
-        onRefreshErrorDismissed = viewModel::onRefreshErrorDismissed,
     )
 }
 
@@ -86,21 +84,11 @@ private fun ListaNegraContent(
     onQueryChange: (String) -> Unit,
     onClienteClick: (String) -> Unit,
     onRefresh: () -> Unit = {},
-    onRefreshErrorDismissed: () -> Unit = {},
 ) {
     val ext = MaterialTheme.extendedColors
     var searchActive by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            if (state.refreshFailed) {
-                RefreshErrorToast(
-                    onRetry = onRefresh,
-                    onDismiss = onRefreshErrorDismissed,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        },
         topBar = {
             Column {
                 PedidosTopBar(

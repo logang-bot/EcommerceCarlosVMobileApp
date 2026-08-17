@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,12 +34,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -70,7 +73,9 @@ fun DetalleMercadoScreen(
         state = state,
         onBack = { navController.popBackStack() },
         onEditClick = { mercadoId -> navController.navigate(CreateMercadoRoute(mercadoId)) },
-        onDelete = { viewModel.onDelete { navController.popBackStack() } },
+        onDeleteClick = viewModel::onShowDeleteDialog,
+        onDismissDeleteDialog = viewModel::onDismissDeleteDialog,
+        onConfirmDelete = { viewModel.onDelete { navController.popBackStack() } },
         onClientesClick = { navController.navigate(ClientesRoute(state.mercadoId)) },
     )
 }
@@ -80,7 +85,9 @@ private fun DetalleMercadoContent(
     state: DetalleMercadoUiState,
     onBack: () -> Unit,
     onEditClick: (String) -> Unit,
-    onDelete: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onConfirmDelete: () -> Unit,
     onClientesClick: () -> Unit,
 ) {
     val ext = MaterialTheme.extendedColors
@@ -110,10 +117,40 @@ private fun DetalleMercadoContent(
                 mercado = state.mercado,
                 innerPadding = innerPadding,
                 canWrite = state.canWrite,
-                onDelete = onDelete,
+                onDelete = onDeleteClick,
                 onClientesClick = onClientesClick,
             )
         }
+    }
+
+    if (state.showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissDeleteDialog,
+            title = { Text(stringResource(R.string.create_mercado_delete)) },
+            text = {
+                Text(
+                    if (state.clienteCount == 0) {
+                        stringResource(R.string.detalle_mercado_delete_confirm_empty)
+                    } else {
+                        pluralStringResource(
+                            R.plurals.detalle_mercado_delete_confirm,
+                            state.clienteCount,
+                            state.clienteCount,
+                        )
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmDelete) {
+                    Text(stringResource(R.string.common_eliminar), color = ext.redText)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissDeleteDialog) {
+                    Text(stringResource(R.string.common_cancelar))
+                }
+            },
+        )
     }
 }
 
@@ -279,7 +316,7 @@ private fun DetalleMercadoScreenDarkPreview() {
                 mercado = Mercado("1", "Mercado de Coche", "Av. Intercomunal, Coche", mapsUrl = "https://maps.google.com/?q=Mercado+de+Coche", createdAt = System.currentTimeMillis()),
                 isLoading = false,
             ),
-            {}, {}, {}, {}
+            {}, {}, {}, {}, {}, {}
         )
     }
 }
@@ -293,7 +330,7 @@ private fun DetalleMercadoScreenPreview() {
                 mercado = Mercado("1", "Mercado de Coche", "Av. Intercomunal, Coche", mapsUrl = "https://maps.google.com/?q=Mercado+de+Coche", createdAt = System.currentTimeMillis()),
                 isLoading = false,
             ),
-            {}, {}, {}, {}
+            {}, {}, {}, {}, {}, {}
         )
     }
 }

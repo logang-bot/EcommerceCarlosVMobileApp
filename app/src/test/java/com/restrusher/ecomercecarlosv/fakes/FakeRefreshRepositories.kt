@@ -44,6 +44,9 @@ class FakeClienteRepository : ClienteRepository {
     override fun getByMercado(mercadoId: String): Flow<List<Cliente>> =
         clientes.map { all -> all.filter { it.mercadoId == mercadoId } }
 
+    override fun countByMercado(mercadoId: String): Flow<Int> =
+        clientes.map { all -> all.count { it.mercadoId == mercadoId } }
+
     override fun getBlacklisted(): Flow<List<Cliente>> = clientes.map { all -> all.filter { it.isBlacklisted } }
 
     override fun getByIdFlow(id: String): Flow<Cliente?> = clientes.map { all -> all.find { it.id == id } }
