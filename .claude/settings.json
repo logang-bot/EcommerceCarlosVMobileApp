@@ -1,0 +1,15 @@
+{
+  "enabledPlugins": {
+    "android-compose@logang-bot": true,
+    "dev-workflow@logang-bot": true,
+    "general-code-style@logang-bot": true
+  },
+  "extraKnownMarketplaces": {
+    "logang-bot": {
+      "source": {
+        "source": "github",
+        "repo": "logang-bot/claude-marketplace"
+      }
+    }
+  }
+}
