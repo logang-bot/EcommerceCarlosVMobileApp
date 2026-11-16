@@ -230,3 +230,8 @@ Run this flow on a real device or emulator. Use realistic fake data (Spanish nam
 | ReporteScreen — Diario with "Cobrado hoy" card | Daily ROI summary |
 | ListaNegraScreen | Risk management angle |
 | LoginScreen biometric state | Trust / security angle |
+
+All of these except the biometric login are produced, in light and dark, by
+`PortfolioScreenshotTest`; see [`features/portfolio-screenshots.md`](features/portfolio-screenshots.md).
+It shoots the password form instead, because the biometric variant only appears on a device with an
+enrolled fingerprint.

@@ -47,6 +47,7 @@ High-level phase tracker. Details for each feature live in `docs/features/`.
 | 17f | Test coverage, phase 6: QueueProcessor, DataSynchronizer and SessionManagerImpl — 49 more tests, 325 total | ✅ Done |
 | 17g | Test coverage, phase 6b: every migration in the v4→v19 chain replayed against real SQLite — 18 instrumented tests in `androidTest` | ✅ Done |
 | 17h | The two open findings resolved: "Marcar todo como pagado" now syncs, and the mercado dashboard uses the one client-status rule — 336 JVM tests | ✅ Done |
+| 17i | Portfolio screenshot suite: `PortfolioScreenshotTest` walks 13 key screens on the real UI with seeded demo data and no backend, saving light + dark PNGs (`docs/features/portfolio-screenshots.md`) | ✅ Done — all 13 shots × 2 themes captured on device |
 
 ---
 

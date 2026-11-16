@@ -39,7 +39,12 @@ android {
         versionCode = System.getenv("BUILD_NUMBER")?.toInt() ?: 1
         versionName = appVersionName
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // HiltTestRunner swaps in HiltTestApplication so the screenshot suite can replace bindings;
+        // the Room migration tests don't use Hilt and run unchanged under it.
+        testInstrumentationRunner = "com.restrusher.ecomercecarlosv.screenshots.HiltTestRunner"
+        // Lets PortfolioScreenshotTest write PNGs through the test storage service; AGP then pulls
+        // them into build/outputs/connected_android_test_additional_output/.
+        testInstrumentationRunnerArguments["useTestStorageService"] = "true"
     }
 
     // MigrationTest reads the exported schemas through MigrationTestHelper, which loads them from
@@ -153,10 +158,32 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.kotlin.test)
     androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.storage)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.work.testing)
+    kspAndroidTest(libs.hilt.compiler)
+    androidTestUtil(libs.androidx.test.services)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// Portfolio screenshots (docs/features/portfolio-screenshots.md): after any connected test run,
+// copy the PNGs out of build/ into <project>/screenshots/, flat, so they survive `clean` and are
+// easy to grab. Runs even when a test fails, so `*_FAILED_*.png` shots are copied too.
+val copyPortfolioScreenshots by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.dir("outputs/connected_android_test_additional_output")) {
+        include("**/*.png")
+    }
+    into(rootProject.layout.projectDirectory.dir("screenshots"))
+    eachFile { path = name }
+    includeEmptyDirs = false
+}
+
+tasks.matching { it.name.startsWith("connected") && it.name.endsWith("AndroidTest") }.configureEach {
+    finalizedBy(copyPortfolioScreenshots)
 }

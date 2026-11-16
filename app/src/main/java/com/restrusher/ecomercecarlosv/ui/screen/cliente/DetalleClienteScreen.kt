@@ -122,7 +122,7 @@ private fun DetalleClienteContent(
             if (state.cliente != null && !state.cliente.isBlacklisted && state.canWrite) {
                 ExtendedFloatingActionButton(
                     text = { Text(stringResource(R.string.pedidos_nuevo)) },
-                    icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
+                    icon = { Icon(Icons.Default.ShoppingCart, contentDescription = stringResource(R.string.pedidos_nuevo)) },
                     onClick = onNuevoPedidoClick,
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,

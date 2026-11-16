@@ -3,13 +3,16 @@
 Until Phase 17 the repo had no test coverage — only the two Android Studio templates. This document
 describes the strategy, the conventions, and what is covered today.
 
-Two kinds of tests, and nothing else:
+Two kinds of tests, plus one screenshot suite:
 
 - **Unit tests** (`app/src/test/`) — pure logic and use cases, run on the JVM. No emulator.
 - **Integration tests** — Room DAOs and repository implementations against an in-memory database,
   also under `app/src/test/` via Robolectric so they stay in the same Gradle task. Only Room
   **migration** tests go to `app/src/androidTest/`, because `MigrationTestHelper` loads the exported
   schemas from the test APK's assets and needs real SQLite file upgrades.
+- **Portfolio screenshots** (`app/src/androidTest/.../screenshots/`) — not a test of behaviour but
+  a scripted walk through the real UI that saves PNGs, with no backend. See
+  [`portfolio-screenshots.md`](portfolio-screenshots.md).
 
 ---
 
@@ -45,8 +48,11 @@ The migration suite is instrumented and needs a **device or emulator**:
   -Pandroid.testInstrumentationRunnerArguments.class=com.restrusher.ecomercecarlosv.data.local.MigrationTest
 ```
 
-Report: `app/build/reports/androidTests/connected/debug/flavors/staging/index.html`. It does **not**
-run in CI — there is no `connectedCheck` job — so it is a pre-merge step you run by hand whenever
+Report: `app/build/reports/androidTests/connected/debug/flavors/staging/index.html`. The plain
+`connectedStagingDebugAndroidTest` also runs the portfolio screenshot suite;
+pass the `class=` filter above to skip it. Every instrumented test runs under
+`screenshots/HiltTestRunner` (`HiltTestApplication` + a test WorkManager); the migration tests don't
+use Hilt and are unaffected by it. It does **not** run in CI — there is no `connectedCheck` job — so it is a pre-merge step you run by hand whenever
 `AppDatabase.kt` changes.
 
 ---
@@ -81,6 +87,13 @@ app/src/androidTest/java/com/restrusher/ecomercecarlosv/
   data/local/
     MigrationTest.kt         the 4→19 sweep + the ALL_MIGRATIONS gapless guard
     MigrationDataTest.kt     the two migrations that move data, not just schema
+  screenshots/              portfolio screenshot suite — see portfolio-screenshots.md
+    HiltTestRunner.kt        the instrumentation runner for every androidTest
+    PortfolioScreenshotTest.kt
+    di/                      @TestInstallIn replacements: repository (session), network, database, supabase
+    fakes/                   ScreenshotSessionManager, ScreenshotNetworkMonitor
+    data/                    DemoCatalog, DemoClientes, DemoPedidos, DemoDataSeeder, DemoIds/DemoClock
+    util/                    ScreenRobot (tap/wait/capture), DeviceChrome (demo mode, night mode)
   ExampleInstrumentedTest.kt
 ```
 
@@ -154,7 +167,7 @@ exempts technical identifiers and test data — fixture names, URLs and field na
 | Room | Robolectric, in `src/test` | Keeps DAO and repository tests in `testStagingDebugUnitTest`, so CI runs the whole suite on `ubuntu-latest` with no emulator. |
 | Room migrations | `room-testing` in `src/androidTest` | The one exception. Every `MigrationTestHelper` constructor takes an `Instrumentation` and reads schemas via `assets`, so it cannot run under Robolectric without shipping the schemas in the app APK. `androidTestImplementation`, plus `androidx.test:runner` and `kotlin-test` which were unit-test-only before. |
 | Flows | Turbine | 29 ViewModels expose `StateFlow`; `testIn(backgroundScope)` gives real emission-sequence assertions. |
-| Hilt | Not used in tests | Every layer is constructor-injected, so plain constructor calls give the same coverage far faster. KSP already fails the build on a missing binding. |
+| Hilt | Not used in unit tests; used by the screenshot suite | Every layer is constructor-injected, so plain constructor calls give the same coverage far faster. KSP already fails the build on a missing binding. The portfolio screenshot suite is the exception: it runs the real `MainActivity`, so it uses `hilt-android-testing` with `@TestInstallIn` modules (plus `work-testing`, `androidx.test:core`, and the test-storage service for the PNGs). |
 
 Dependencies are added at the phase that first needs them, so a broken dependency can never be
 blamed on the wrong phase. Phase 1 needed only `junit` + `kotlin-test`; Phase 2 added
@@ -436,8 +449,9 @@ QA.
 ### Phase 7 — Compose UI
 
 - [ ] Only if a concrete regression needs guarding. Lowest value per hour here: the screens are thin
-      and the logic they render is already covered. Would need `createAndroidComposeRule` and
-      probably `hilt-android-testing`
+      and the logic they render is already covered. The Hilt + Compose test plumbing now exists
+      (`screenshots/` — `HiltTestRunner`, the `@TestInstallIn` modules, `DemoDataSeeder`,
+      `ScreenRobot`), so a UI regression test could reuse it rather than start from zero
 
 ### Coverage gaps worth closing at some point
 

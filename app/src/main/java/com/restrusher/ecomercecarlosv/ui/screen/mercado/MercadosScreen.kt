@@ -165,7 +165,7 @@ private fun MercadosContent(
                     leading = { LogoMark() },
                     actions = {
                         IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Default.Search, contentDescription = null)
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.common_buscar))
                         }
                         SyncBarIcon(state = state.syncIconState, onClick = onSyncClick)
                         IconButton(onClick = onPerfilClick) {
